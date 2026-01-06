@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "playwright": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-playwright"]
+        },
+        "context7": null,
+        "superpowers-chrome": null
+    },
+    "disableMcp": false
+}

@@ -1,0 +1,97 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: voiceapp
+      POSTGRES_PASSWORD: voiceapp
+      POSTGRES_DB: voiceapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://voiceapp:voiceapp@postgres:5432/voiceapp
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - TEMP_UPLOAD_DIR=/app/temp/uploads
+      - TEMP_PROCESSED_DIR=/app/temp/processed
+      - MODELS_DIR=/app/models
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      - ./temp:/app/temp
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # Background Worker
+  worker:
+    build: ./backend
+    command: python -m app.workers.consumer
+    environment:
+      - DATABASE_URL=postgresql://voiceapp:voiceapp@postgres:5432/voiceapp
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - TEMP_UPLOAD_DIR=/app/temp/uploads
+      - TEMP_PROCESSED_DIR=/app/temp/processed
+      - MODELS_DIR=/app/models
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - WORKER_CONCURRENCY=4
+    volumes:
+      - ./temp:/app/temp
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # Next.js Frontend
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_KEY=${API_KEY:-}
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  rabbitmq_data:

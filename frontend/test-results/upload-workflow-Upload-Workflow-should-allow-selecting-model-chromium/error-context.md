@@ -1,0 +1,63 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - navigation [ref=e5]:
+        - link "Voice App" [ref=e6] [cursor=pointer]:
+          - /url: /
+        - generic [ref=e7]:
+          - link "Upload" [ref=e8] [cursor=pointer]:
+            - /url: /
+          - link "Jobs" [ref=e9] [cursor=pointer]:
+            - /url: /jobs
+    - main [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - heading "Upload Audio/Video" [level=1] [ref=e13]
+          - paragraph [ref=e14]: Upload your files to transcribe them to text
+        - generic [ref=e15]:
+          - heading "Settings" [level=2] [ref=e16]
+          - generic [ref=e17]:
+            - generic [ref=e18]:
+              - generic [ref=e19]: API Key
+              - textbox "Enter your API key" [ref=e20]
+            - generic [ref=e21]:
+              - generic [ref=e22]: Provider
+              - combobox [ref=e23]:
+                - option "Whisper (Local)" [selected]
+                - option "Groq (Cloud)"
+                - option "Deepgram (Cloud)"
+            - generic [ref=e24]:
+              - generic [ref=e25]: Model
+              - combobox [ref=e26]:
+                - option "Tiny (Fastest)"
+                - option "Base" [selected]
+                - option "Small"
+                - option "Medium"
+                - option "Large V3 (Best)"
+                - option "Large V3 Turbo"
+            - generic [ref=e27]:
+              - generic [ref=e28]: Language
+              - combobox [ref=e29]:
+                - option "Auto-detect" [selected]
+                - option "English"
+                - option "Spanish"
+                - option "French"
+                - option "German"
+                - option "Italian"
+                - option "Portuguese"
+                - option "Russian"
+                - option "Japanese"
+                - option "Korean"
+                - option "Chinese"
+                - option "Arabic"
+                - option "Hindi"
+        - generic [ref=e31] [cursor=pointer]:
+          - button "Choose File" [ref=e32]
+          - img [ref=e33]
+          - paragraph [ref=e36]: Drag & drop files here, or click to select
+          - paragraph [ref=e37]: Supports audio (WAV, MP3, M4A, OGG, FLAC) and video (MP4, MOV, AVI, MKV, WebM)
+  - alert [ref=e38]
+```
