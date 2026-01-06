@@ -1,8 +1,10 @@
+// Frontend hot reload test - polling-based file watching enabled for Podman
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FileUpload from '@/components/FileUpload';
 import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
+import Toast, { ToastType } from '@/components/Toast';
 
 interface UploadResult {
   job_id: string;
@@ -11,23 +13,24 @@ interface UploadResult {
 }
 
 export default function HomePage() {
-  const [apiKey, setApiKey] = useState(process.env.NEXT_PUBLIC_API_KEY || '');
   const [provider, setProvider] = useState('whisper');
   const [model, setModel] = useState('base');
   const [language, setLanguage] = useState('');
   const [results, setResults] = useState<UploadResult[]>([]);
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+
+  const showToast = (message: string, type: ToastType = 'info') => {
+    setToast({ message, type });
+  };
 
   const handleUpload = async (files: File[]) => {
-    if (!apiKey) {
-      setError('Please enter your API key');
-      return;
-    }
-
     setIsUploading(true);
     setError('');
     const uploadResults: UploadResult[] = [];
+    let successCount = 0;
+    let failCount = 0;
 
     for (const file of files) {
       try {
@@ -39,9 +42,6 @@ export default function HomePage() {
 
         const response = await fetch('/api/v1/upload', {
           method: 'POST',
-          headers: {
-            'X-API-Key': apiKey,
-          },
           body: formData,
         });
 
@@ -66,9 +66,19 @@ export default function HomePage() {
           filename: file.name,
           status: 'queued',
         });
+        successCount++;
       } catch (err: any) {
         setError(err.message || 'Upload failed');
+        showToast(`Failed to upload ${file.name}: ${err.message}`, 'error');
+        failCount++;
       }
+    }
+
+    if (successCount > 0) {
+      showToast(
+        `${successCount} file${successCount > 1 ? 's' : ''} uploaded successfully`,
+        'success'
+      );
     }
 
     setResults((prev) => [...uploadResults, ...prev]);
@@ -78,7 +88,7 @@ export default function HomePage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="mb-2 text-3xl font-bold text-gray-900">
           Upload Audio/Video
         </h1>
         <p className="text-gray-600">
@@ -87,25 +97,12 @@ export default function HomePage() {
       </div>
 
       {/* Settings */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <div className="p-6 space-y-4 bg-white border border-gray-200 rounded-lg">
         <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              API Key {process.env.NEXT_PUBLIC_API_KEY && <span className="text-xs text-green-600">(Auto-configured)</span>}
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={process.env.NEXT_PUBLIC_API_KEY ? "Using configured API key" : "Enter your API key"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block mb-1 text-sm font-medium text-gray-700">
               Provider
             </label>
             <select
@@ -120,7 +117,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block mb-1 text-sm font-medium text-gray-700">
               Model
             </label>
             <select
@@ -156,7 +153,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block mb-1 text-sm font-medium text-gray-700">
               Language
             </label>
             <select
@@ -187,7 +184,7 @@ export default function HomePage() {
 
       {/* Error message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+        <div className="flex items-center gap-3 p-4 border border-red-200 rounded-lg bg-red-50">
           <AlertCircle className="w-5 h-5 text-red-500" />
           <p className="text-red-700">{error}</p>
         </div>
@@ -195,15 +192,15 @@ export default function HomePage() {
 
       {/* Upload results */}
       {results.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="p-6 bg-white border border-gray-200 rounded-lg">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">
             Uploaded Files
           </h2>
           <div className="space-y-3">
             {results.map((result, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                className="flex items-center justify-between p-3 rounded-lg bg-gray-50"
               >
                 <div className="flex items-center gap-3">
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -215,7 +212,7 @@ export default function HomePage() {
                   </span>
                   <a
                     href={`/jobs`}
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800"
                   >
                     View Status →
                   </a>
@@ -224,6 +221,15 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

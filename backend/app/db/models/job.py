@@ -10,6 +10,7 @@ from app.db.session import Base
 
 class JobStatus(str, enum.Enum):
     PENDING = "pending"
+    QUEUED = "queued"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"

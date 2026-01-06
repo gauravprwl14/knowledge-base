@@ -1,0 +1,361 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import {
+  X,
+  Copy,
+  Download,
+  CheckCircle,
+  Languages,
+  FileText,
+} from 'lucide-react';
+
+interface Transcription {
+  id: string;
+  job_id: string;
+  text: string;
+  language: string;
+  confidence: number;
+  word_count: number;
+  processing_time_ms: number;
+  provider: string;
+  model_name: string;
+  created_at: string;
+}
+
+interface TranscriptionSidebarProps {
+  jobId: string;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function TranscriptionSidebar({
+  jobId,
+  isOpen,
+  onClose,
+}: TranscriptionSidebarProps) {
+  const [apiKey, setApiKey] = useState<string>('');
+  const [transcription, setTranscription] = useState<Transcription | null>(
+    null
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  // Translation state
+  const [targetLanguage, setTargetLanguage] = useState('es');
+  const [translationProvider, setTranslationProvider] = useState('openai');
+  const [translatedText, setTranslatedText] = useState('');
+  const [translating, setTranslating] = useState(false);
+
+  // Load API key from environment on mount
+  useEffect(() => {
+    const loadApiKey = async () => {
+      try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+        setApiKey(data.apiKey || '');
+      } catch (error) {
+        console.error('Failed to load API key:', error);
+      }
+    };
+    
+    loadApiKey();
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && jobId) {
+      fetchTranscription();
+    }
+  }, [isOpen, jobId]);
+
+  const fetchTranscription = async () => {
+    if (!apiKey || !jobId) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // Get transcriptions
+      const transResponse = await fetch('/api/v1/transcriptions', {
+        headers: { 'X-API-Key': apiKey },
+      });
+
+      if (!transResponse.ok) {
+        throw new Error('Failed to fetch transcriptions');
+      }
+
+      const data = await transResponse.json();
+      const trans = data.transcriptions.find(
+        (t: Transcription) => t.job_id === jobId
+      );
+
+      if (trans) {
+        setTranscription(trans);
+      } else {
+        setError('Transcription not found');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    if (transcription) {
+      try {
+        await navigator.clipboard.writeText(transcription.text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (!transcription || !apiKey) return;
+
+    setTranslating(true);
+
+    try {
+      const response = await fetch(
+        `/api/v1/transcriptions/${transcription.id}/translate`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKey,
+          },
+          body: JSON.stringify({
+            target_language: targetLanguage,
+            provider: translationProvider,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Translation failed');
+      }
+
+      const data = await response.json();
+      setTranslatedText(data.translated_text);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const downloadTranscription = (format: string) => {
+    if (!transcription || !apiKey) return;
+    const url = `/api/v1/transcriptions/${transcription.id}/download?format=${format}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `transcription-${transcription.id}.${format}`;
+    a.click();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        onClick={onClose}
+      />
+
+      {/* Sidebar */}
+      <div className="fixed right-0 top-0 h-full w-full md:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">
+              Transcription Result
+            </h2>
+            <p className="text-sm text-gray-500">Job ID: {jobId.slice(0, 8)}...</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {loading && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Loading transcription...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-700">{error}</p>
+            </div>
+          )}
+
+          {transcription && (
+            <>
+              {/* Metadata */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                  Details
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Language</p>
+                    <p className="text-sm font-medium">
+                      {transcription.language || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Word Count</p>
+                    <p className="text-sm font-medium">
+                      {transcription.word_count}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Confidence</p>
+                    <p className="text-sm font-medium">
+                      {transcription.confidence
+                        ? `${(transcription.confidence * 100).toFixed(1)}%`
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Processing Time</p>
+                    <p className="text-sm font-medium">
+                      {transcription.processing_time_ms
+                        ? `${(transcription.processing_time_ms / 1000).toFixed(2)}s`
+                        : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transcription Text */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Transcription
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={copyToClipboard}
+                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+                    >
+                      {copied ? (
+                        <CheckCircle className="w-3 h-3 text-green-500" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                    <button
+                      onClick={() => downloadTranscription('txt')}
+                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+                    >
+                      <Download className="w-3 h-3" />
+                      TXT
+                    </button>
+                    <button
+                      onClick={() => downloadTranscription('json')}
+                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+                    >
+                      <Download className="w-3 h-3" />
+                      JSON
+                    </button>
+                    <button
+                      onClick={() => downloadTranscription('srt')}
+                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+                    >
+                      <Download className="w-3 h-3" />
+                      SRT
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                    {transcription.text}
+                  </p>
+                </div>
+              </div>
+
+              {/* Translation */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Languages className="w-4 h-4" />
+                  Translate
+                </h3>
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Target Language
+                      </label>
+                      <select
+                        value={targetLanguage}
+                        onChange={(e) => setTargetLanguage(e.target.value)}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                      >
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="ru">Russian</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="zh">Chinese</option>
+                        <option value="ar">Arabic</option>
+                        <option value="hi">Hindi</option>
+                      </select>
+                    </div>
+
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Provider
+                      </label>
+                      <select
+                        value={translationProvider}
+                        onChange={(e) =>
+                          setTranslationProvider(e.target.value)
+                        }
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                      >
+                        <option value="openai">OpenAI GPT</option>
+                        <option value="gemini">Google Gemini</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleTranslate}
+                    disabled={translating}
+                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-300"
+                  >
+                    {translating ? 'Translating...' : 'Translate'}
+                  </button>
+                </div>
+
+                {translatedText && (
+                  <div className="mt-3 bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                      {translatedText}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}

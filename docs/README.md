@@ -18,6 +18,12 @@ Welcome to the Voice App documentation. This comprehensive guide will help you u
 - [Deployment Guide](./guides/DEPLOYMENT.md) - Production deployment
 - [Testing Guide](./guides/TESTING_GUIDE.md) - Running and writing tests
 
+### 🐳 Docker Infrastructure
+- [Docker Development](./DOCKER_DEVELOPMENT.md) - Hot reload development with Docker/Podman
+- [Docker Testing](./DOCKER_TESTING.md) - Test infrastructure and execution
+- [Deployment](./DEPLOYMENT.md) - Production deployment with Docker Compose
+- [Podman Compatibility](./PODMAN_COMPATIBILITY.md) - Using Podman on macOS
+
 ### 🔌 API Documentation
 - [API Overview](./api/API_OVERVIEW.md) - REST API introduction
 - [Authentication](./api/AUTHENTICATION.md) - API key management
@@ -43,13 +49,15 @@ Welcome to the Voice App documentation. This comprehensive guide will help you u
 
 ### For New Developers
 1. Start with [Getting Started](./guides/GETTING_STARTED.md)
-2. Read [Codebase Overview](./knowledge-transfer/CODEBASE_OVERVIEW.md)
-3. Set up [Development Environment](./guides/DEVELOPMENT_SETUP.md)
+2. Set up [Docker Development](./DOCKER_DEVELOPMENT.md) with hot reload
+3. Read [Codebase Overview](./knowledge-transfer/CODEBASE_OVERVIEW.md)
+4. Learn [Docker Testing](./DOCKER_TESTING.md) infrastructure
 
 ### For DevOps/SRE
 1. Review [System Architecture](./architecture/SYSTEM_ARCHITECTURE.md)
-2. Follow [Deployment Guide](./guides/DEPLOYMENT.md)
-3. Check [Production Checklist](./deployment/PRODUCTION_CHECKLIST.md)
+2. Follow [Deployment Guide](./DEPLOYMENT.md) for production
+3. Check [Podman Compatibility](./PODMAN_COMPATIBILITY.md) if using Podman
+4. Review [Production Checklist](./deployment/PRODUCTION_CHECKLIST.md)
 
 ### For API Consumers
 1. Read [API Overview](./api/API_OVERVIEW.md)
@@ -95,11 +103,18 @@ Welcome to the Voice App documentation. This comprehensive guide will help you u
 
 ## 📈 Performance Characteristics
 
+### Transcription Performance
 - **Whisper Tiny**: ~5 seconds for 2-minute audio
 - **Whisper Base**: ~10 seconds for 2-minute audio
 - **Groq Cloud**: ~2-3 seconds for 2-minute audio
 - **Max File Size**: 500 MB (configurable)
 - **Concurrent Workers**: 4 (configurable)
+
+### Development Performance (Hot Reload)
+- **Backend Hot Reload**: 2-4 seconds (no rebuild required)
+- **Frontend Hot Reload**: 1-2 seconds (Next.js Fast Refresh)
+- **Test Execution**: 10x faster with tmpfs in-memory database
+- **Build Context**: 95-99% smaller with `.dockerignore` files
 
 ## 🔐 Security Features
 

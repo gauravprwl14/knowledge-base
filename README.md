@@ -40,7 +40,8 @@ PostgreSQL Database
 
 ### Prerequisites
 
-- Docker & Docker Compose
+- **Docker Desktop** or **Podman** (see [Podman Compatibility](docs/PODMAN_COMPATIBILITY.md) if using Podman)
+- **Docker Compose** or **podman-compose**
 - (Optional) API keys for cloud providers:
   - Groq: https://console.groq.com
   - Deepgram: https://console.deepgram.com
@@ -50,7 +51,8 @@ PostgreSQL Database
 ### 1. Clone and Setup
 
 ```bash
-cd /Users/gauravporwal/Sites/projects/rnd/voice-app
+git clone <repository-url>
+cd voice-app
 
 # Copy environment file
 cp .env.example .env
@@ -59,10 +61,12 @@ cp .env.example .env
 nano .env
 ```
 
-### 2. Start Services
+### 2. Start Development Environment
+
+The project includes **hot reload** for instant code changes without rebuilds:
 
 ```bash
-# Start all services
+# Start all services with hot reload enabled
 docker-compose up -d
 
 # Check status
@@ -72,6 +76,8 @@ docker-compose ps
 docker-compose logs -f backend
 docker-compose logs -f worker
 ```
+
+**Hot Reload**: Edit Python or TypeScript files and see changes automatically in 1-4 seconds!
 
 Services will be available at:
 - **Frontend**: http://localhost:3000
@@ -124,6 +130,52 @@ Save the generated API key - you'll need it to use the application.
 4. Upload audio/video files
 5. View jobs at http://localhost:3000/jobs
 6. View results when completed
+
+## Development & Testing
+
+### Hot Reload Development
+
+Code changes are automatically detected and applied **without rebuilding containers**:
+
+- **Backend**: 2-4 second reload (Python/FastAPI)
+- **Frontend**: 1-2 second reload (Next.js Fast Refresh)
+
+```bash
+# Start development environment
+docker-compose up -d
+
+# Edit any Python file in backend/app/
+# Edit any TypeScript file in frontend/
+# Changes appear automatically - no rebuild needed!
+
+# View reload logs
+docker-compose logs -f backend  # Look for "Reloading..." messages
+```
+
+### Running Tests
+
+```bash
+# Backend unit tests
+docker-compose -f docker-compose.test.yml run --rm backend_unit_tests
+
+# Frontend unit tests
+docker-compose -f docker-compose.test.yml run --rm frontend_unit_tests
+
+# Frontend E2E tests
+docker-compose -f docker-compose.test.yml up --abort-on-container-exit frontend_e2e_tests
+
+# All tests in parallel
+docker-compose -f docker-compose.test.yml up --abort-on-container-exit
+```
+
+Tests use an in-memory (tmpfs) database for **10x faster execution**.
+
+### Documentation
+
+- **[Docker Development Guide](docs/DOCKER_DEVELOPMENT.md)** - Hot reload, debugging, macOS tips
+- **[Docker Testing Guide](docs/DOCKER_TESTING.md)** - Test infrastructure, coverage reports
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment on VPS/EC2
+- **[Podman Compatibility](docs/PODMAN_COMPATIBILITY.md)** - Using Podman instead of Docker
 
 ## Manual Setup (Without Docker)
 

@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # Workers
     worker_concurrency: int = 4
 
+    # Job Monitoring
+    job_timeout_minutes: int = 60  # Max time for a job to be in processing before considering it stale
+    scheduler_check_interval_seconds: int = 300  # How often to check for stale jobs (5 minutes)
+    enable_job_scheduler: bool = True  # Enable/disable the job monitoring scheduler
+
     # Cleanup
     temp_file_ttl_hours: int = 24
 

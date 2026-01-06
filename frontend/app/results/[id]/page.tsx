@@ -10,6 +10,7 @@ import {
   CheckCircle,
   ArrowLeft,
 } from 'lucide-react';
+import Toast, { ToastType } from '@/components/Toast';
 
 interface Transcription {
   id: string;
@@ -27,14 +28,34 @@ interface Transcription {
 export default function ResultPage() {
   const params = useParams();
   const jobId = params.id as string;
+  const [apiKey, setApiKey] = useState<string>('');
 
-  const [apiKey, setApiKey] = useState('');
   const [transcription, setTranscription] = useState<Transcription | null>(
     null
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+
+  const showToast = (message: string, type: ToastType = 'info') => {
+    setToast({ message, type });
+  };
+
+  // Load API key from environment on mount
+  useEffect(() => {
+    const loadApiKey = async () => {
+      try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+        setApiKey(data.apiKey || '');
+      } catch (error) {
+        console.error('Failed to load API key:', error);
+      }
+    };
+    
+    loadApiKey();
+  }, []);
 
   // Translation state
   const [targetLanguage, setTargetLanguage] = useState('es');
@@ -92,6 +113,7 @@ export default function ResultPage() {
     if (transcription) {
       navigator.clipboard.writeText(transcription.text);
       setCopied(true);
+      showToast('Transcription copied to clipboard', 'success');
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -123,8 +145,10 @@ export default function ResultPage() {
 
       const data = await response.json();
       setTranslatedText(data.translated_text);
+      showToast('Translation completed successfully', 'success');
     } catch (err: any) {
       setError(err.message);
+      showToast(`Translation failed: ${err.message}`, 'error');
     } finally {
       setTranslating(false);
     }
@@ -154,24 +178,23 @@ export default function ResultPage() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           Transcription Result
         </h1>
-        <p className="text-gray-600">Job ID: {jobId}</p>
-      </div>
-
-      {/* API Key Input */}
-      {!transcription && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            API Key
-          </label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter your API key"
-            className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md"
-          />
+        <div className="flex items-center gap-2">
+          <span className="text-gray-600">Job ID:</span>
+          <code className="text-sm text-gray-700 font-mono bg-gray-100 px-3 py-1 rounded">
+            {jobId}
+          </code>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(jobId);
+              showToast('Job ID copied to clipboard', 'success');
+            }}
+            className="text-gray-400 hover:text-gray-600"
+            title="Copy Job ID"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
         </div>
-      )}
+      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -324,6 +347,15 @@ export default function ResultPage() {
             )}
           </div>
         </>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

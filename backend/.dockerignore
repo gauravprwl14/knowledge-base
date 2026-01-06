@@ -1,0 +1,47 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Testing artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+coverage_html/
+.tox/
+*.cover
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Cached data (mounted as volumes)
+models/
+temp/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Git and Docker
+.git/
+.gitignore
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD scripts
+.github/
+scripts/

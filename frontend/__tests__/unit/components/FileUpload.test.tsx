@@ -19,10 +19,27 @@ describe('FileUpload Component', () => {
     expect(screen.getByText(/or click to select/i)).toBeInTheDocument()
   })
 
-  it('shows uploading state when isUploading is true', () => {
-    render(<FileUpload onUpload={mockOnUpload} isUploading={true} />)
+  it('shows uploading state when isUploading is true', async () => {
+    const { rerender } = render(<FileUpload onUpload={mockOnUpload} isUploading={false} />)
 
-    expect(screen.getByText(/uploading/i)).toBeInTheDocument()
+    // First add a file
+    const file = new File(['test'], 'test.wav', { type: 'audio/wav' })
+    const input = screen.getByRole('presentation').querySelector('input[type="file"]')
+
+    if (input) {
+      fireEvent.change(input, { target: { files: [file] } })
+
+      // Wait for file to appear
+      await waitFor(() => {
+        expect(screen.getByText('test.wav')).toBeInTheDocument()
+      })
+
+      // Rerender with isUploading true
+      rerender(<FileUpload onUpload={mockOnUpload} isUploading={true} />)
+
+      // Now check for uploading text
+      expect(screen.getByText(/uploading/i)).toBeInTheDocument()
+    }
   })
 
   it('accepts file selection', async () => {

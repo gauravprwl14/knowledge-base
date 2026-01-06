@@ -1,0 +1,188 @@
+# Docker Compose Production Configuration
+# Optimized for VPS/EC2 deployment with security and reliability features
+#
+# Usage:
+#   Build:  docker-compose -f docker-compose.prod.yml build
+#   Start:  docker-compose -f docker-compose.prod.yml up -d
+#   Logs:   docker-compose -f docker-compose.prod.yml logs -f
+#   Stop:   docker-compose -f docker-compose.prod.yml down
+#
+# Prerequisites:
+#   - Create .env.prod with required secrets
+#   - Configure nginx.conf for reverse proxy
+#   - Set up SSL certificates
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-voiceapp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: ${POSTGRES_DB:-voiceapp}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-voiceapp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend_network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS required}
+    volumes:
+      - rabbitmq_prod_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend_network
+
+  backend:
+    build:
+      context: ./backend
+      target: production
+    image: voice-app-backend:latest
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-voiceapp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voiceapp}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS}@rabbitmq:5672/
+      - TEMP_UPLOAD_DIR=/app/temp/uploads
+      - TEMP_PROCESSED_DIR=/app/temp/processed
+      - MODELS_DIR=/app/models
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      - ./temp:/app/temp
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend_network
+      - frontend_network
+
+  worker:
+    build:
+      context: ./backend
+      target: production
+    image: voice-app-backend:latest
+    command: python -m app.workers.consumer
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-voiceapp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voiceapp}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS}@rabbitmq:5672/
+      - TEMP_UPLOAD_DIR=/app/temp/uploads
+      - TEMP_PROCESSED_DIR=/app/temp/processed
+      - MODELS_DIR=/app/models
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - WORKER_CONCURRENCY=2
+      - JOB_TIMEOUT_MINUTES=60
+      - PYTHONUNBUFFERED=1
+      - OMP_NUM_THREADS=2
+      - MKL_NUM_THREADS=2
+      - OPENBLAS_NUM_THREADS=2
+    volumes:
+      - ./temp:/app/temp
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 2G
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - backend_network
+
+  dispatcher:
+    build:
+      context: ./backend
+      target: production
+    image: voice-app-backend:latest
+    command: python -m app.workers.job_dispatcher
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-voiceapp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voiceapp}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS}@rabbitmq:5672/
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 256M
+    networks:
+      - backend_network
+
+  frontend:
+    build:
+      context: ./frontend
+      target: runner
+    image: voice-app-frontend:latest
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:8000}
+      - NEXT_PUBLIC_API_KEY=${API_KEY}
+      - API_KEY=${API_KEY:?API_KEY required}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - frontend_network
+
+  # Nginx reverse proxy (recommended for production)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    networks:
+      - frontend_network
+
+volumes:
+  postgres_prod_data:
+  rabbitmq_prod_data:
+
+networks:
+  backend_network:
+    driver: bridge
+  frontend_network:
+    driver: bridge

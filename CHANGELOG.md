@@ -2,6 +2,44 @@
 
 All notable changes to the Voice App project are documented in this file.
 
+## [1.0.1] - 2026-01-06
+
+### 🔧 Fixed
+
+#### Frontend Architecture
+- **Fixed jobs page not loading** - Jobs now display correctly on the jobs page
+- **Implemented Next.js API routes** - Created server-side API routes to proxy requests to the backend
+  - `/api/v1/jobs` - List jobs
+  - `/api/v1/jobs/[id]` - Get job details
+  - `/api/v1/transcriptions` - List transcriptions
+  - `/api/v1/transcriptions/[id]/download` - Download transcription
+  - `/api/v1/transcriptions/[id]/translate` - Translate transcription
+  - `/api/v1/upload` - Upload files
+  - `/api/config` - Get runtime configuration
+- **Removed client-side API key handling** - API keys are now only handled server-side for better security
+  - Removed API key input fields from all pages (upload, jobs, results)
+  - API routes automatically inject API key from environment variables
+  - Clients make unauthenticated requests to Next.js API routes
+  - API routes add authentication when calling FastAPI backend
+
+#### Environment Variables
+- **Updated docker-compose configuration** - Added `API_KEY` environment variable alongside `NEXT_PUBLIC_API_KEY`
+- **Fixed runtime API key loading** - API keys now properly accessible in Next.js server-side API routes
+
+#### UI Components
+- **Updated jobs page** - Removed API key loading logic from client-side
+- **Updated upload page** - Simplified to use API routes without client-side authentication
+- **Updated results page** - Removed client-side API key handling
+- **Updated TranscriptionSidebar** - Simplified to use API routes without authentication headers
+
+### 🎯 Improved
+- **Better separation of concerns** - Frontend no longer manages authentication directly
+- **Enhanced security** - API keys never exposed to client-side JavaScript
+- **Simplified client code** - Removed complex API key loading logic from all components
+- **More robust architecture** - Next.js API routes act as a secure gateway to the backend
+
+---
+
 ## [1.0.0] - 2026-01-05
 
 ### 🎉 Initial Release

@@ -80,9 +80,20 @@ export class VoiceAppApi {
     return this.request<any>(`/api/v1/jobs/${jobId}`);
   }
 
-  async cancelJob(jobId: string) {
-    return this.request<{ message: string }>(`/api/v1/jobs/${jobId}`, {
+  async deleteJob(jobId: string) {
+    return this.request<{
+      message: string;
+      job_id: string;
+      files_deleted: string[];
+      files_failed: any[];
+    }>(`/api/v1/jobs/${jobId}`, {
       method: 'DELETE',
+    });
+  }
+
+  async cancelJob(jobId: string) {
+    return this.request<{ message: string }>(`/api/v1/jobs/${jobId}/cancel`, {
+      method: 'POST',
     });
   }
 

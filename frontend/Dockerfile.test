@@ -1,0 +1,39 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install system dependencies for Playwright
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Set environment variables for Playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install all dependencies (including dev dependencies for testing)
+RUN npm ci
+
+# Copy application code
+COPY . .
+
+# Install Playwright browsers (if needed)
+RUN npx playwright install-deps || true
+
+# Build the Next.js application (required for some tests)
+RUN npm run build
+
+# Default command runs all tests
+CMD ["npm", "test"]
+
+# To run specific test suites, override CMD:
+# - Unit tests: docker run --rm <image> npm run test:unit
+# - E2E tests: docker run --rm <image> npm run test:e2e
+# - With coverage: docker run --rm <image> npm run test:coverage

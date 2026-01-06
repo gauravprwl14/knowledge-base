@@ -74,13 +74,28 @@ async def upload_file(
     # Queue the job for processing
     from app.services.job_service import JobService
     job_service = JobService()
-    await job_service.queue_job(job)
+    try:
+        await job_service.queue_job(job)
+        # Update status to QUEUED to indicate it's in the queue
+        job.status = JobStatus.QUEUED
+        await db.commit()
+    except Exception as e:
+        # If queueing fails, mark job as failed
+        job.status = JobStatus.FAILED
+        job.error_message = f"Failed to queue job: {str(e)}"
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to queue job for processing: {str(e)}"
+        )
+    finally:
+        await job_service.close()
 
     return UploadResponse(
         job_id=job.id,
         filename=file.filename or "audio.wav",
         file_size_bytes=file_size,
-        status="pending",
+        status="queued",
         message="File uploaded successfully and queued for processing"
     )
 
@@ -170,7 +185,15 @@ async def upload_batch(
         # Queue the job
         from app.services.job_service import JobService
         job_service = JobService()
-        await job_service.queue_job(job)
+        try:
+            await job_service.queue_job(job)
+            job.status = JobStatus.QUEUED
+        except Exception as e:
+            job.status = JobStatus.FAILED
+            job.error_message = f"Failed to queue job: {str(e)}"
+            batch_job.failed_files += 1
+        finally:
+            await job_service.close()
 
     await db.commit()
     await db.refresh(batch_job)
@@ -179,6 +202,6 @@ async def upload_batch(
         batch_id=batch_job.id,
         total_files=len(uploaded_jobs),
         jobs=uploaded_jobs,
-        status="pending",
+        status="queued",
         message=f"{len(uploaded_jobs)} files uploaded and queued for processing"
     )

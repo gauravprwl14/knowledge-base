@@ -1,0 +1,40 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies required for testing and the application
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libmagic1 \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements files
+COPY requirements.txt requirements-test.txt ./
+
+# Install Python dependencies (both production and test)
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-test.txt
+
+# Copy application code
+COPY . .
+
+# Create temp directories
+RUN mkdir -p /app/temp/uploads /app/temp/processed /app/models
+
+# Set environment variables for testing
+ENV PYTHONPATH=/app
+ENV TESTING=1
+
+# Default command runs all tests with coverage
+CMD ["pytest", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=html"]
+
+# To run specific test suites, override CMD:
+# - Unit tests: docker run --rm <image> pytest tests/unit -v
+# - Integration tests: docker run --rm <image> pytest tests/integration -v
+# - E2E tests: docker run --rm <image> pytest tests/e2e -v
+# - Specific test file: docker run --rm <image> pytest tests/unit/test_file.py -v
