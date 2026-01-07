@@ -1,0 +1,49 @@
+{
+  "Common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "update": "Update",
+    "search": "Search",
+    "filter": "Filter",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit"
+  },
+  "Navigation": {
+    "dashboard": "Dashboard",
+    "knowledge": "Knowledge Base",
+    "drive": "Google Drive",
+    "search": "Search",
+    "obsidian": "Obsidian",
+    "transcribe": "Transcribe",
+    "bookmarks": "Bookmarks",
+    "prompts": "Prompts",
+    "settings": "Settings"
+  },
+  "Error": {
+    "common": {
+      "not_found": "Resource not found",
+      "server_error": "Internal server error",
+      "network_error": "Network error occurred"
+    },
+    "validation": {
+      "failed": "Validation failed",
+      "required": "This field is required",
+      "invalid_format": "Invalid format",
+      "out_of_range": "Value out of range"
+    },
+    "auth": {
+      "unauthorized": "Unauthorized access",
+      "forbidden": "Access forbidden",
+      "session_expired": "Session expired"
+    }
+  }
+}

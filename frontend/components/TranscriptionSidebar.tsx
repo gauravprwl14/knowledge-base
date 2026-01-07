@@ -161,27 +161,32 @@ export default function TranscriptionSidebar({
 
   return (
     <>
-      {/* Overlay */}
+      {/* Glassmorphism Backdrop */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 animate-in fade-in duration-200"
         onClick={onClose}
       />
 
       {/* Sidebar */}
-      <div className="fixed right-0 top-0 h-full w-full md:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">
-              Transcription Result
-            </h2>
-            <p className="text-sm text-gray-500">Job ID: {jobId.slice(0, 8)}...</p>
+      <div className="fixed right-0 top-0 h-full w-full md:w-2/3 lg:w-1/2 bg-gradient-to-br from-white/95 to-gray-50/95 backdrop-blur-xl shadow-2xl z-50 overflow-y-auto animate-in slide-in-from-right duration-300">
+        {/* Header with Gradient */}
+        <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-5 flex items-center justify-between z-10 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg">
+              <FileText className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Transcription Result
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">Job ID: {jobId.slice(0, 8)}...</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full"
+            className="text-gray-500 hover:text-gray-900 transition-all p-2 rounded-xl hover:bg-gray-100/80 hover:shadow-md active:scale-95"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -202,34 +207,35 @@ export default function TranscriptionSidebar({
           {transcription && (
             <>
               {/* Metadata */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl p-5 border border-gray-200/50 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="h-1 w-1 rounded-full bg-blue-500" />
                   Details
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500">Language</p>
-                    <p className="text-sm font-medium">
+                  <div className="bg-white/60 rounded-xl p-3 border border-gray-200/50">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Language</p>
+                    <p className="text-base font-semibold text-gray-900">
                       {transcription.language || 'N/A'}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Word Count</p>
-                    <p className="text-sm font-medium">
+                  <div className="bg-white/60 rounded-xl p-3 border border-gray-200/50">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Word Count</p>
+                    <p className="text-base font-semibold text-gray-900">
                       {transcription.word_count}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Confidence</p>
-                    <p className="text-sm font-medium">
+                  <div className="bg-white/60 rounded-xl p-3 border border-gray-200/50">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Confidence</p>
+                    <p className="text-base font-semibold text-gray-900">
                       {transcription.confidence
                         ? `${(transcription.confidence * 100).toFixed(1)}%`
                         : 'N/A'}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Processing Time</p>
-                    <p className="text-sm font-medium">
+                  <div className="bg-white/60 rounded-xl p-3 border border-gray-200/50">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Processing Time</p>
+                    <p className="text-base font-semibold text-gray-900">
                       {transcription.processing_time_ms
                         ? `${(transcription.processing_time_ms / 1000).toFixed(2)}s`
                         : 'N/A'}
@@ -240,69 +246,72 @@ export default function TranscriptionSidebar({
 
               {/* Transcription Text */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-900">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    <div className="h-1 w-1 rounded-full bg-blue-500" />
                     Transcription
                   </h3>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={copyToClipboard}
-                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg text-xs font-semibold shadow-md hover:shadow-lg transition-all active:scale-95"
                     >
                       {copied ? (
-                        <CheckCircle className="w-3 h-3 text-green-500" />
+                        <CheckCircle className="w-3.5 h-3.5" />
                       ) : (
-                        <Copy className="w-3 h-3" />
+                        <Copy className="w-3.5 h-3.5" />
                       )}
                       {copied ? 'Copied!' : 'Copy'}
                     </button>
                     <button
                       onClick={() => downloadTranscription('txt')}
-                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 hover:border-gray-300 rounded-lg text-xs font-semibold shadow-sm hover:shadow transition-all active:scale-95"
                     >
-                      <Download className="w-3 h-3" />
+                      <Download className="w-3.5 h-3.5" />
                       TXT
                     </button>
                     <button
                       onClick={() => downloadTranscription('json')}
-                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 hover:border-gray-300 rounded-lg text-xs font-semibold shadow-sm hover:shadow transition-all active:scale-95"
                     >
-                      <Download className="w-3 h-3" />
+                      <Download className="w-3.5 h-3.5" />
                       JSON
                     </button>
                     <button
                       onClick={() => downloadTranscription('srt')}
-                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 hover:border-gray-300 rounded-lg text-xs font-semibold shadow-sm hover:shadow transition-all active:scale-95"
                     >
-                      <Download className="w-3 h-3" />
+                      <Download className="w-3.5 h-3.5" />
                       SRT
                     </button>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                <div className="bg-white border-2 border-gray-200/50 rounded-2xl p-5 max-h-96 overflow-y-auto shadow-inner">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
                     {transcription.text}
                   </p>
                 </div>
               </div>
 
               {/* Translation */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Languages className="w-4 h-4" />
+              <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-5 border border-purple-200/50">
+                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500">
+                    <Languages className="w-4 h-4 text-white" />
+                  </div>
                   Translate
                 </h3>
 
                 <div className="flex flex-col gap-3">
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-semibold text-gray-700 mb-2">
                         Target Language
                       </label>
                       <select
                         value={targetLanguage}
                         onChange={(e) => setTargetLanguage(e.target.value)}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                        className="w-full px-3 py-2.5 text-sm border-2 border-gray-200 bg-white rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-medium"
                       >
                         <option value="es">Spanish</option>
                         <option value="fr">French</option>
@@ -319,7 +328,7 @@ export default function TranscriptionSidebar({
                     </div>
 
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-semibold text-gray-700 mb-2">
                         Provider
                       </label>
                       <select
@@ -327,7 +336,7 @@ export default function TranscriptionSidebar({
                         onChange={(e) =>
                           setTranslationProvider(e.target.value)
                         }
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                        className="w-full px-3 py-2.5 text-sm border-2 border-gray-200 bg-white rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-medium"
                       >
                         <option value="openai">OpenAI GPT</option>
                         <option value="gemini">Google Gemini</option>
@@ -338,15 +347,25 @@ export default function TranscriptionSidebar({
                   <button
                     onClick={handleTranslate}
                     disabled={translating}
-                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-300"
+                    className="px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition-all disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed active:scale-95"
                   >
-                    {translating ? 'Translating...' : 'Translate'}
+                    {translating ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Languages className="w-4 h-4 animate-pulse" />
+                        Translating...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <Languages className="w-4 h-4" />
+                        Translate
+                      </span>
+                    )}
                   </button>
                 </div>
 
                 {translatedText && (
-                  <div className="mt-3 bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                  <div className="mt-4 bg-white border-2 border-purple-200/50 rounded-2xl p-5 max-h-96 overflow-y-auto shadow-inner">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
                       {translatedText}
                     </p>
                   </div>

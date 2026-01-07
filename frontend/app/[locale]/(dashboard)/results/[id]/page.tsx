@@ -9,6 +9,8 @@ import {
   Copy,
   CheckCircle,
   ArrowLeft,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
 import Toast, { ToastType } from '@/components/Toast';
 
@@ -163,24 +165,26 @@ export default function ResultPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 p-6">
+      {/* Back Navigation */}
       <div className="flex items-center gap-4">
         <a
           href="/jobs"
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
         >
           <ArrowLeft className="w-5 h-5" />
-          Back to Jobs
+          <span className="font-medium">Back to Jobs</span>
         </a>
       </div>
 
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+      {/* Page Header */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">
           Transcription Result
         </h1>
-        <div className="flex items-center gap-2">
-          <span className="text-gray-600">Job ID:</span>
-          <code className="text-sm text-gray-700 font-mono bg-gray-100 px-3 py-1 rounded">
+        <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-4 border border-gray-200">
+          <span className="text-sm font-medium text-gray-600">Job ID:</span>
+          <code className="text-sm text-gray-800 font-mono bg-white px-4 py-2 rounded border border-gray-200 flex-1">
             {jobId}
           </code>
           <button
@@ -188,53 +192,58 @@ export default function ResultPage() {
               navigator.clipboard.writeText(jobId);
               showToast('Job ID copied to clipboard', 'success');
             }}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition-colors"
             title="Copy Job ID"
           >
-            <Copy className="w-4 h-4" />
+            <Copy className="w-5 h-5" />
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-700">{error}</p>
+        <div className="bg-red-50 border-l-4 border-red-400 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <XCircle className="w-5 h-5 text-red-400" />
+            <p className="text-red-700 font-medium">{error}</p>
+          </div>
         </div>
       )}
 
       {loading && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Loading...</p>
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200 shadow-sm">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-500 font-medium">Loading transcription...</p>
         </div>
       )}
 
       {transcription && (
         <>
-          {/* Metadata */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {/* Metadata Card */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <FileText className="w-5 h-5" />
               Details
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Language</p>
-                <p className="font-medium">{transcription.language || 'N/A'}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+                <p className="text-sm text-blue-700 font-medium mb-1">Language</p>
+                <p className="text-lg font-bold text-blue-900">{transcription.language || 'N/A'}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Word Count</p>
-                <p className="font-medium">{transcription.word_count}</p>
+              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+                <p className="text-sm text-green-700 font-medium mb-1">Word Count</p>
+                <p className="text-lg font-bold text-green-900">{transcription.word_count.toLocaleString()}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Confidence</p>
-                <p className="font-medium">
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+                <p className="text-sm text-purple-700 font-medium mb-1">Confidence</p>
+                <p className="text-lg font-bold text-purple-900">
                   {transcription.confidence
                     ? `${(transcription.confidence * 100).toFixed(1)}%`
                     : 'N/A'}
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Processing Time</p>
-                <p className="font-medium">
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200">
+                <p className="text-sm text-orange-700 font-medium mb-1">Processing Time</p>
+                <p className="text-lg font-bold text-orange-900">
                   {transcription.processing_time_ms
                     ? `${(transcription.processing_time_ms / 1000).toFixed(2)}s`
                     : 'N/A'}
@@ -243,63 +252,88 @@ export default function ResultPage() {
             </div>
           </div>
 
-          {/* Transcription Text */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
+          {/* Transcription Text Card */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="w-5 h-5" />
                 Transcription
               </h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={copyToClipboard}
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    copied
+                      ? 'bg-green-100 text-green-700 border border-green-200'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
+                  }`}
                 >
                   {copied ? (
-                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Copied!
+                    </>
                   ) : (
-                    <Copy className="w-4 h-4" />
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </>
                   )}
-                  {copied ? 'Copied!' : 'Copy'}
                 </button>
                 <button
                   onClick={() => downloadTranscription('txt')}
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   TXT
                 </button>
                 <button
                   onClick={() => downloadTranscription('json')}
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   JSON
                 </button>
+                <button
+                  onClick={() => downloadTranscription('srt')}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  SRT
+                </button>
               </div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-              <p className="text-gray-800 whitespace-pre-wrap">
+            <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 max-h-96 overflow-y-auto">
+              <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-base">
                 {transcription.text}
               </p>
             </div>
+            <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
+              <span className="bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                Provider: <span className="font-medium text-gray-700">{transcription.provider}</span>
+              </span>
+              <span className="bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                Model: <span className="font-medium text-gray-700">{transcription.model_name}</span>
+              </span>
+            </div>
           </div>
 
-          {/* Translation */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          {/* Translation Card */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
               <Languages className="w-5 h-5" />
               Translate
             </h2>
 
-            <div className="flex items-end gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="flex flex-wrap items-end gap-4 mb-6">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Target Language
                 </label>
                 <select
                   value={targetLanguage}
                   onChange={(e) => setTargetLanguage(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
                   <option value="es">Spanish</option>
                   <option value="fr">French</option>
@@ -315,14 +349,14 @@ export default function ResultPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Provider
                 </label>
                 <select
                   value={translationProvider}
                   onChange={(e) => setTranslationProvider(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
                   <option value="openai">OpenAI GPT</option>
                   <option value="gemini">Google Gemini</option>
@@ -332,15 +366,35 @@ export default function ResultPage() {
               <button
                 onClick={handleTranslate}
                 disabled={translating}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300"
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors shadow-sm min-w-[140px]"
               >
-                {translating ? 'Translating...' : 'Translate'}
+                {translating ? (
+                  <span className="flex items-center gap-2 justify-center">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Translating...
+                  </span>
+                ) : (
+                  'Translate'
+                )}
               </button>
             </div>
 
             {translatedText && (
-              <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <p className="text-gray-800 whitespace-pre-wrap">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-blue-900">Translated Text</p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(translatedText);
+                      showToast('Translation copied to clipboard', 'success');
+                    }}
+                    className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-100 transition-colors"
+                    title="Copy translation"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-base">
                   {translatedText}
                 </p>
               </div>

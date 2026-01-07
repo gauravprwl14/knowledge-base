@@ -17,12 +17,13 @@ WORKDIR /app
 # Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
-# Create non-root user
+# Create non-root user (but don't switch to it in dev mode)
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Switch to non-root user
-USER nextjs
+# DO NOT switch to nextjs user in development
+# This allows write access to mounted volumes in Podman/Docker
+# USER nextjs
 
 EXPOSE 3000
 

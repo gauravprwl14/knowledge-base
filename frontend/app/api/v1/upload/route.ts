@@ -4,6 +4,8 @@ export async function POST(request: NextRequest) {
   // Get API key from environment (server-side)
   const apiKey = process.env.API_KEY || process.env.NEXT_PUBLIC_API_KEY || '';
 
+  console.log('API Key used in upload route:', apiKey);
+
   if (!apiKey) {
     return NextResponse.json(
       { error: 'API key not configured' },

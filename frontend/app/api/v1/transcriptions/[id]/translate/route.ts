@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const apiKey = request.headers.get('X-API-Key');
 
   if (!apiKey) {
@@ -16,7 +17,6 @@ export async function POST(
   try {
     const body = await request.json();
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000';
-    const id = params.id;
     
     const response = await fetch(`${backendUrl}/api/v1/transcriptions/${id}/translate`, {
       method: 'POST',
