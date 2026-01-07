@@ -8,3 +8,5 @@ export * from './error-factory';
 export * from './error-types';
 export * from './error-categories';
 export * from './error-codes';
+export * from './types';
+export * from './utils';

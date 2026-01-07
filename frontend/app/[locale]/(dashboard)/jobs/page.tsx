@@ -14,6 +14,8 @@ import {
 import TranscriptionSidebar from '@/components/TranscriptionSidebar';
 import Toast, { ToastType } from '@/components/Toast';
 import DeleteJobDialog from '@/components/DeleteJobDialog';
+import { JobService, TranscriptionService } from '@/services';
+import { getErrorMessage, logError } from '@/lib/errors';
 
 interface Job {
   id: string;
@@ -84,16 +86,11 @@ export default function JobsPage() {
 
     try {
       console.log(`Fetching jobs page ${pageNum}...`);
-      const response = await fetch(`/api/v1/jobs?page=${pageNum}&page_size=20`);
+      const data = await JobService.listJobs({
+        page: pageNum,
+        page_size: 20
+      });
 
-      console.log('Response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch jobs: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
       console.log('Jobs received:', data.jobs.length, 'Total:', data.total);
       
       if (append) {
@@ -105,8 +102,10 @@ export default function JobsPage() {
       setTotalJobs(data.total);
       setHasMore(data.jobs.length === 20 && (pageNum * 20) < data.total);
     } catch (err: any) {
+      const errorMessage = getErrorMessage(err);
       console.error('Error fetching jobs:', err);
-      setError(err.message);
+      logError(err, 'fetchJobs');
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -213,14 +212,7 @@ export default function JobsPage() {
 
   const handleCopySingle = async (jobId: string) => {
     try {
-      const response = await fetch('/api/v1/transcriptions');
-
-      if (!response.ok) throw new Error('Failed to fetch transcriptions');
-
-      const data = await response.json();
-      const transcription = data.transcriptions.find(
-        (t: any) => t.job_id === jobId
-      );
+      const transcription = await TranscriptionService.getTranscriptionByJobId(jobId);
 
       if (transcription) {
         await navigator.clipboard.writeText(transcription.text);
@@ -229,8 +221,10 @@ export default function JobsPage() {
         showToast('Transcription not found', 'error');
       }
     } catch (err) {
+      const errorMessage = getErrorMessage(err);
       console.error('Failed to copy:', err);
-      showToast('Failed to copy transcription', 'error');
+      logError(err, 'handleCopySingle');
+      showToast(`Failed to copy transcription: ${errorMessage}`, 'error');
     }
   };
 
@@ -239,11 +233,7 @@ export default function JobsPage() {
 
     setCopying(true);
     try {
-      const response = await fetch('/api/v1/transcriptions');
-
-      if (!response.ok) throw new Error('Failed to fetch transcriptions');
-
-      const data = await response.json();
+      const data = await TranscriptionService.listTranscriptions();
 
       // Build combined text with filename separators
       let combinedText = '';
@@ -267,8 +257,10 @@ export default function JobsPage() {
       showToast(`${selectedJobs.size} transcriptions copied to clipboard`, 'success');
       setSelectedJobs(new Set());
     } catch (err) {
+      const errorMessage = getErrorMessage(err);
       console.error('Failed to copy:', err);
-      showToast('Failed to copy transcriptions', 'error');
+      logError(err, 'handleBulkCopy');
+      showToast(`Failed to copy transcriptions: ${errorMessage}`, 'error');
     } finally {
       setCopying(false);
     }
@@ -279,6 +271,79 @@ export default function JobsPage() {
     setDeleteDialogOpen(true);
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedJobs.size === 0) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedJobs.size} selected job(s)? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    const jobIdsToDelete = Array.from(selectedJobs);
+    
+    // Mark all as deleting
+    setDeleting(prev => {
+      const newSet = new Set(prev);
+      jobIdsToDelete.forEach(id => newSet.add(id));
+      return newSet;
+    });
+
+    try {
+      const result = await JobService.bulkDeleteJobs(jobIdsToDelete);
+      console.log('Bulk delete result:', result);
+
+      // Remove deleted jobs from local state
+      setJobs(prev => prev.filter(j => !selectedJobs.has(j.id)));
+      setSelectedJobs(new Set());
+
+      // Update total count
+      setTotalJobs(prev => prev - result.deleted_count);
+
+      // Show appropriate toast based on results
+      if (result.failed_count > 0) {
+        // Partial success - show warning with details
+        const failedDetails = result.failed_jobs
+          .map((failure: any) => {
+            const jobId = failure.data?.job_id || 'Unknown';
+            const message = failure.message || 'Unknown error';
+            return `Job ${jobId.substring(0, 8)}: ${message}`;
+          })
+          .join('\n');
+        
+        showToast(
+          `${result.deleted_count} job(s) deleted, ${result.failed_count} failed`,
+          'warning'
+        );
+        
+        // Log failed jobs for debugging
+        console.error('Failed jobs:', result.failed_jobs);
+        result.failed_jobs.forEach((failure: any) => {
+          logError(
+            `Bulk delete failure - ${failure.errorCode}: ${failure.message}`,
+            'handleBulkDelete',
+            failure.data
+          );
+        });
+      } else {
+        // Complete success
+        showToast(`${result.deleted_count} job(s) deleted successfully`, 'success');
+      }
+    } catch (err: any) {
+      const errorMessage = getErrorMessage(err);
+      console.error('Error bulk deleting jobs:', err);
+      logError(err, 'handleBulkDelete');
+      showToast(`Failed to delete jobs: ${errorMessage}`, 'error');
+    } finally {
+      // Clear deleting state
+      setDeleting(prev => {
+        const newSet = new Set(prev);
+        jobIdsToDelete.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+    }
+  };
+
   const handleDeleteJob = async () => {
     if (!jobToDelete) return;
 
@@ -286,20 +351,7 @@ export default function JobsPage() {
     setDeleting(prev => new Set(prev).add(jobId));
 
     try {
-      const response = await fetch(`/api/v1/jobs/${jobId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || '',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || 'Failed to delete job');
-      }
-
-      const result = await response.json();
+      const result = await JobService.deleteJob(jobId);
       console.log('Job deleted:', result);
 
       // Remove from local state
@@ -314,8 +366,10 @@ export default function JobsPage() {
       setTotalJobs(prev => prev - 1);
       showToast('Job deleted successfully', 'success');
     } catch (err: any) {
+      const errorMessage = getErrorMessage(err);
       console.error('Error deleting job:', err);
-      showToast(`Failed to delete job: ${err.message}`, 'error');
+      logError(err, 'handleDeleteJob');
+      showToast(`Failed to delete job: ${errorMessage}`, 'error');
     } finally {
       setDeleting(prev => {
         const newSet = new Set(prev);
@@ -354,6 +408,17 @@ export default function JobsPage() {
                 >
                   <Copy className="w-4 h-4" />
                   {copying ? 'Copying...' : `Copy ${selectedJobs.size} Selected`}
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={Array.from(selectedJobs).some(id => deleting.has(id))}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 rounded-lg text-white font-medium transition-colors shadow-sm"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {Array.from(selectedJobs).some(id => deleting.has(id)) 
+                    ? 'Deleting...' 
+                    : `Delete ${selectedJobs.size} Selected`
+                  }
                 </button>
                 <button
                   onClick={() => setSelectedJobs(new Set())}

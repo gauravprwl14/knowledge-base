@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { locales } from '@/lib/i18n/config';
+import { ErrorBoundary } from '@/components/error-boundary';
 import '../globals.css';
 
 const inter = Inter({ 
@@ -41,9 +42,11 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} className="dark">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <NextIntlClientProvider messages={messages}>
-          {children}
-        </NextIntlClientProvider>
+        <ErrorBoundary>
+          <NextIntlClientProvider messages={messages}>
+            {children}
+          </NextIntlClientProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

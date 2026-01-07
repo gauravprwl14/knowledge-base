@@ -14,6 +14,7 @@ const customJestConfig = {
   },
   testMatch: [
     '**/__tests__/unit/**/*.test.[jt]s?(x)',
+    '**/__tests__/integration/**/*.test.[jt]s?(x)',
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
