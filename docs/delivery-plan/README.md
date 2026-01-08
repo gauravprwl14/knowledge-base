@@ -24,6 +24,41 @@ This folder contains the delivery plan and task tracking for the Knowledge Manag
 3. **Pick Tasks**: Each task in `TASK_BREAKDOWN.md` can be independently worked on
 4. **Update Status**: After completing tasks, update this tracker
 
+### Development Approach: TDD (Test-Driven Development)
+
+All development follows the **TDD (Red-Green-Refactor)** methodology:
+
+```
+1. RED    - Write a failing test first
+2. GREEN  - Write minimal code to make the test pass
+3. REFACTOR - Improve code while keeping tests green
+```
+
+**TDD Guidelines**:
+
+| Phase | Action | Outcome |
+|-------|--------|---------|
+| **Red** | Write test for expected behavior | Test fails (no implementation) |
+| **Green** | Write simplest code to pass | Test passes |
+| **Refactor** | Clean up code, remove duplication | Tests still pass |
+
+**Per-Task TDD Flow**:
+1. Before starting any task, write failing tests for the feature/endpoint
+2. Implement the minimum code to make tests pass
+3. Refactor for quality while maintaining green tests
+4. Commit only when all tests pass
+
+**Testing Stack**:
+- **NestJS (kms-api, search-api)**: Jest
+- **Python Workers**: pytest with pytest-asyncio
+- **Next.js Frontend**: Jest + React Testing Library
+- **E2E**: Playwright
+
+**Coverage Requirements**:
+- Unit tests: 80% minimum coverage
+- Integration tests: Critical paths covered
+- E2E tests: Happy path flows
+
 ### Timeline Summary
 
 | Milestone | Weeks | Focus | Target Completion |

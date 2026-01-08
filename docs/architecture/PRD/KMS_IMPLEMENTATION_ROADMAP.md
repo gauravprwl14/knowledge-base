@@ -1,8 +1,10 @@
 # Knowledge Management System - Implementation Roadmap
 
-**Version**: 1.0
-**Date**: 2026-01-07
+**Version**: 1.1
+**Date**: 2026-01-08
 **Purpose**: Phased delivery plan with milestones, tasks, and success criteria
+
+> **Note**: For active task tracking and progress monitoring, see [docs/delivery-plan/TASK_BREAKDOWN.md](../../delivery-plan/TASK_BREAKDOWN.md). This document provides the roadmap context; the delivery-plan folder is the canonical source for tracking individual task completion.
 
 ---
 
@@ -65,9 +67,9 @@ Quality Gates:
   - Code Review: Required (1 approver minimum)
   - Unit Tests: 80% coverage
   - Integration Tests: Critical paths covered
-  - Linting: ESLint (TypeScript), Black (Python), golangci-lint (Go)
+  - Linting: ESLint (TypeScript), Black (Python)
   - Type Checking: TypeScript strict mode, Python mypy
-  - Security: Dependency scanning (npm audit, safety, govulncheck)
+  - Security: Dependency scanning (npm audit, safety)
 ```
 
 ### Git Workflow
@@ -502,12 +504,12 @@ Closes #123
 #### Tasks
 
 **Search API Setup** (2 days)
-- [ ] **Task 4.1.1**: Initialize Go project (`search-api`)
-  - Install: Gin framework, pgx, qdrant-client
+- [ ] **Task 4.1.1**: Initialize NestJS project (`search-api`)
+  - Install: @qdrant/js-client-rest, TypeORM, ioredis
   - Project structure
   - Docker container
 - [ ] **Task 4.1.2**: Database connection pooling
-  - PostgreSQL connection with pgx
+  - PostgreSQL connection with TypeORM (read-only)
   - Connection pool configuration
 
 **Keyword Search** (3 days)

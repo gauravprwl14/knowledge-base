@@ -32,7 +32,7 @@ The Knowledge Management System (KMS) is a comprehensive, microservices-based pl
 
 **Key Decisions**:
 - **MVP Focus**: Google Drive integration, semantic search, deduplication, junk cleanup
-- **Technology Stack**: NestJS (API), Go (Search), Python (Workers), Next.js (UI), PostgreSQL, Qdrant, Neo4j
+- **Technology Stack**: NestJS (API, Search), Python (Workers), Next.js (UI), PostgreSQL, Qdrant, Neo4j
 - **Architecture**: Composable microservices with single database initially (logically separated)
 - **Timeline**: 6 months to MVP release (milestone-based delivery)
 
@@ -87,7 +87,7 @@ The Knowledge Management System (KMS) is a comprehensive, microservices-based pl
 Module 5: Search & Discovery
 ├── Feature 5.1: Keyword Search
 │   └── Sub-feature 5.1.1: Full-Text Search (PostgreSQL)
-│       ├── Task 5.1.1.1: Create search API service (Go)
+│       ├── Task 5.1.1.1: Create search API service (NestJS)
 │       ├── Task 5.1.1.2: Create POST /api/v1/search endpoint
 │       ├── Task 5.1.1.3: Implement PostgreSQL full-text search
 │       └── Task 5.1.1.4: Apply filters
@@ -233,7 +233,7 @@ docs/
    - Clone repository
    - Install Docker Desktop
    - Set up IDE (VS Code recommended)
-   - Install Node.js, Python, Go
+   - Install Node.js, Python
 
 3. **Team Assembly** (if applicable)
    - Backend developer (NestJS/Python)
@@ -413,7 +413,7 @@ docs/
 
 - [ ] **Approve architecture**: Review `KMS_SYSTEM_ARCHITECTURE.md` and confirm approach
 - [ ] **Approve timeline**: 6 months to MVP acceptable? Or need faster delivery?
-- [ ] **Approve tech stack**: NestJS, Go, Python, Next.js, PostgreSQL, Qdrant, Neo4j
+- [ ] **Approve tech stack**: NestJS, Python, Next.js, PostgreSQL, Qdrant, Neo4j
 - [ ] **Approve priorities**: MVP feature list confirmed? Any must-haves missing?
 - [ ] **Budget approval**: ~$100/month infrastructure + developer time
 - [ ] **Team composition**: Who will work on this? Full-time or part-time?

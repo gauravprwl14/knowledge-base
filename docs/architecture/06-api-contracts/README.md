@@ -265,7 +265,6 @@ Complete OpenAPI 3.0 specification is available:
 |----------|---------|--------|
 | TypeScript | `@kms/client` | Planned |
 | Python | `kms-client` | Planned |
-| Go | `github.com/kms/go-client` | Planned |
 
 ---
 

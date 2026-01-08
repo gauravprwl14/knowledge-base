@@ -16,15 +16,19 @@ The KMS uses a polyglot architecture where each service is built with the most a
 | Concern | Technology | Rationale |
 |---------|------------|-----------|
 | Main API | NestJS (TypeScript) | Type safety, enterprise patterns, great tooling |
-| Search API | Go | High concurrency, low latency, efficient memory |
+| Search API | NestJS (TypeScript) | Consistent stack with kms-api, type safety, excellent tooling |
 | Workers | Python | Rich ML ecosystem, async support, rapid development |
 | Frontend | Next.js | React ecosystem, SSR, excellent DX |
 | Primary DB | PostgreSQL | Mature, reliable, full-text search, JSONB |
-| Vector DB | Qdrant | Open source, HNSW index, excellent Go/Python clients |
+| Vector DB | Qdrant | Open source, HNSW index, excellent JS/Python clients |
 | Graph DB | Neo4j | Intuitive relationships, Cypher queries |
 | Message Queue | RabbitMQ | Existing infrastructure, priority queues, DLX |
 | Cache | Redis | Fast, versatile, excellent client libraries |
 | Object Storage | MinIO | S3-compatible, self-hosted |
+| Telemetry | OpenTelemetry | Vendor-neutral, unified traces/metrics/logs |
+| Tracing | Jaeger | Open source, distributed tracing |
+| Metrics | Prometheus | Industry standard, time-series metrics |
+| Dashboards | Grafana | Unified visualization, alerting |
 
 ---
 
@@ -48,6 +52,10 @@ The KMS uses a polyglot architecture where each service is built with the most a
 | **Swagger** | @nestjs/swagger | 7.x | OpenAPI documentation |
 | **Config** | @nestjs/config | 3.x | Environment configuration |
 | **HTTP** | axios | 1.x | External API calls |
+| **Telemetry** | @opentelemetry/sdk-node | 0.52.x | OTel SDK for Node.js |
+| **Telemetry** | @opentelemetry/auto-instrumentations-node | 0.49.x | Auto-instrumentation |
+| **Telemetry** | @opentelemetry/exporter-trace-otlp-grpc | 0.52.x | OTLP trace exporter |
+| **Telemetry** | @opentelemetry/exporter-metrics-otlp-grpc | 0.52.x | OTLP metrics exporter |
 
 **Project Structure**:
 ```
@@ -103,6 +111,10 @@ kms-api/
 | **Swagger** | @nestjs/swagger | 7.x | API documentation |
 | **Metrics** | @willsoto/nestjs-prometheus | 6.x | Prometheus metrics |
 | **Testing** | Jest | 29.x | Unit/integration tests |
+| **Telemetry** | @opentelemetry/sdk-node | 0.52.x | OTel SDK for Node.js |
+| **Telemetry** | @opentelemetry/auto-instrumentations-node | 0.49.x | Auto-instrumentation |
+| **Telemetry** | @opentelemetry/exporter-trace-otlp-grpc | 0.52.x | OTLP trace exporter |
+| **Telemetry** | @opentelemetry/exporter-metrics-otlp-grpc | 0.52.x | OTLP metrics exporter |
 
 **Project Structure**:
 ```
@@ -156,6 +168,10 @@ search-api/
 | **HTTP** | aiohttp | 3.x | Async HTTP client |
 | **Validation** | pydantic | 2.x | Data validation |
 | **Logging** | structlog | 23.x | Structured logging |
+| **Telemetry** | opentelemetry-sdk | 1.25.x | OTel SDK for Python |
+| **Telemetry** | opentelemetry-exporter-otlp | 1.25.x | OTLP exporter |
+| **Telemetry** | opentelemetry-instrumentation-asyncpg | 0.46b.x | asyncpg instrumentation |
+| **Telemetry** | opentelemetry-instrumentation-aio-pika | 0.46b.x | aio-pika instrumentation |
 
 **Project Structure**:
 ```
@@ -206,6 +222,10 @@ scan-worker/
 | **Vector Store** | qdrant-client | 1.x | Qdrant API |
 | **Queue** | aio-pika | 9.x | RabbitMQ consumer |
 | **Database** | asyncpg | 0.29.x | PostgreSQL |
+| **Telemetry** | opentelemetry-sdk | 1.25.x | OTel SDK for Python |
+| **Telemetry** | opentelemetry-exporter-otlp | 1.25.x | OTLP exporter |
+| **Telemetry** | opentelemetry-instrumentation-asyncpg | 0.46b.x | asyncpg instrumentation |
+| **Telemetry** | opentelemetry-instrumentation-aio-pika | 0.46b.x | aio-pika instrumentation |
 
 **Project Structure**:
 ```
@@ -254,6 +274,10 @@ embedding-worker/
 | **Difflib** | difflib | (stdlib) | String similarity |
 | **Queue** | aio-pika | 9.x | RabbitMQ consumer |
 | **Database** | asyncpg | 0.29.x | PostgreSQL |
+| **Telemetry** | opentelemetry-sdk | 1.25.x | OTel SDK for Python |
+| **Telemetry** | opentelemetry-exporter-otlp | 1.25.x | OTLP exporter |
+| **Telemetry** | opentelemetry-instrumentation-asyncpg | 0.46b.x | asyncpg instrumentation |
+| **Telemetry** | opentelemetry-instrumentation-aio-pika | 0.46b.x | aio-pika instrumentation |
 
 **Project Structure**:
 ```
@@ -298,6 +322,9 @@ dedup-worker/
 | **ML (Future)** | xgboost | 2.x | Gradient boosting |
 | **Database** | asyncpg | 0.29.x | PostgreSQL |
 | **Logging** | structlog | 23.x | Structured logging |
+| **Telemetry** | opentelemetry-sdk | 1.25.x | OTel SDK for Python |
+| **Telemetry** | opentelemetry-exporter-otlp | 1.25.x | OTLP exporter |
+| **Telemetry** | opentelemetry-instrumentation-asyncpg | 0.46b.x | asyncpg instrumentation |
 
 **Project Structure**:
 ```
@@ -440,6 +467,109 @@ web-ui/
 
 ---
 
+## Observability Stack
+
+### 14. OpenTelemetry Collector
+
+| Feature | Configuration |
+|---------|---------------|
+| **Version** | 0.96.0+ |
+| **Receivers** | OTLP (gRPC: 4317, HTTP: 4318) |
+| **Processors** | batch, memory_limiter |
+| **Exporters** | jaeger, prometheus |
+| **Health Check** | Port 13133 |
+
+**Collector Configuration**:
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+  memory_limiter:
+    limit_mib: 512
+
+exporters:
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, memory_limiter]
+      exporters: [jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+```
+
+### 15. Jaeger
+
+| Feature | Configuration |
+|---------|---------------|
+| **Version** | 1.54.0+ |
+| **UI Port** | 16686 |
+| **gRPC Port** | 14250 |
+| **Storage** | Elasticsearch / Cassandra (prod) |
+| **Sampling** | Adaptive (1% default) |
+
+### 16. Prometheus
+
+| Feature | Configuration |
+|---------|---------------|
+| **Version** | 2.50.0+ |
+| **Port** | 9090 |
+| **Scrape Interval** | 15s |
+| **Retention** | 15 days |
+| **Targets** | OTel Collector (8889), services (/metrics) |
+
+**Scrape Configuration**:
+```yaml
+scrape_configs:
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8889']
+  - job_name: 'kms-api'
+    static_configs:
+      - targets: ['kms-api:3000']
+  - job_name: 'search-api'
+    static_configs:
+      - targets: ['search-api:3001']
+```
+
+### 17. Grafana
+
+| Feature | Configuration |
+|---------|---------------|
+| **Version** | 10.3.0+ |
+| **Port** | 3001 |
+| **Data Sources** | Prometheus, Jaeger |
+| **Provisioning** | dashboards/, datasources/ |
+
+**Pre-configured Dashboards**:
+| Dashboard | Description |
+|-----------|-------------|
+| KMS Overview | System health, throughput, latency |
+| API Performance | Request rates, response times, errors |
+| Worker Metrics | Queue depth, processing time, failures |
+| Infrastructure | CPU, memory, disk, network |
+| Trace Explorer | Distributed trace analysis |
+
+---
+
 ## Development Tools
 
 | Tool | Purpose |
@@ -449,7 +579,7 @@ web-ui/
 | **GitHub Actions** | CI/CD |
 | **ESLint** | TypeScript linting |
 | **Black** | Python formatting |
-| **golangci-lint** | Go linting |
+| **Prettier** | Code formatting |
 | **Jest** | JS/TS testing |
 | **pytest** | Python testing |
 | **Playwright** | E2E testing |
@@ -462,7 +592,12 @@ web-ui/
 |-----------|---------|-------------|---------|
 | Node.js | 18.x | 20.x | 22.x |
 | Python | 3.10 | 3.11 | 3.12 |
-| Go | 1.20 | 1.21 | 1.22 |
 | PostgreSQL | 14 | 15 | 16 |
 | Docker | 24.x | 25.x | latest |
 | Docker Compose | 2.20 | 2.23 | latest |
+| OpenTelemetry Collector | 0.90 | 0.96+ | latest |
+| Jaeger | 1.50 | 1.54+ | latest |
+| Prometheus | 2.45 | 2.50+ | latest |
+| Grafana | 10.0 | 10.3+ | latest |
+| @opentelemetry/sdk-node | 0.50.x | 0.52.x | latest |
+| opentelemetry-sdk (Python) | 1.23.x | 1.25.x | latest |

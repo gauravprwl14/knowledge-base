@@ -32,7 +32,7 @@ This session focused entirely on **planning and architecting** a comprehensive K
 **Microservices Stack**:
 ```
 kms-api (NestJS)           → File management, user operations, scan orchestration
-search-api (Go)            → Hybrid search engine (keyword + semantic)
+search-api (NestJS)        → Hybrid search engine (keyword + semantic)
 scan-worker (Python)       → Google Drive, local FS, external drive scanning
 embedding-worker (Python)  → Text extraction, embedding generation
 dedup-worker (Python)      → Duplicate detection (hash + semantic)
@@ -267,7 +267,7 @@ Concurrent scans: 10
 ```
 Backend APIs:
   - kms-api: NestJS (TypeScript) - Type safety, enterprise patterns
-  - search-api: Go - Concurrency, performance for search
+  - search-api: NestJS (TypeScript) - Consistent stack, shared patterns
   - voice-app: FastAPI (Python) - Existing, no changes
 
 Workers:
@@ -922,7 +922,7 @@ To continue this work in a new session:
 - [ ] Understand integration with existing voice-app
 
 **Prepare for Development**:
-- [ ] Set up development environment (Docker, Node.js, Python, Go)
+- [ ] Set up development environment (Docker, Node.js, Python)
 - [ ] Clone/fork repository
 - [ ] Review voice-app codebase patterns (optional but helpful)
 - [ ] Create project board with Milestone 1 tasks

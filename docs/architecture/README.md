@@ -41,7 +41,7 @@ Detailed documentation for each service.
 |----------|-------------|
 | [Overview](./02-microservices/README.md) | Services summary and responsibilities |
 | [kms-api Service](./02-microservices/kms-api-service.md) | Main API gateway (NestJS) |
-| [search-api Service](./02-microservices/search-api-service.md) | Search engine (Go) |
+| [search-api Service](./02-microservices/search-api-service.md) | Search engine (NestJS) |
 | [scan-worker Service](./02-microservices/scan-worker-service.md) | File scanner (Python) |
 | [embedding-worker Service](./02-microservices/embedding-worker-service.md) | Content processor (Python) |
 | [dedup-worker Service](./02-microservices/dedup-worker-service.md) | Deduplication (Python) |
@@ -141,7 +141,7 @@ Deployment and operations documentation.
                     ▼                                   ▼
 ┌───────────────────────────────┐       ┌───────────────────────────────┐
 │         kms-api               │       │        search-api             │
-│        (NestJS)               │       │          (Go)                 │
+│        (NestJS)               │       │        (NestJS)               │
 │  • User management            │       │  • Keyword search             │
 │  • Source management          │       │  • Semantic search            │
 │  • File operations            │       │  • Hybrid ranking             │
@@ -185,7 +185,7 @@ Deployment and operations documentation.
 | **Frontend** | Next.js 14, TypeScript, TailwindCSS, shadcn/ui |
 | **API Gateway** | Nginx |
 | **Main API** | NestJS (TypeScript) |
-| **Search API** | Go (Gin/Fiber) |
+| **Search API** | NestJS (TypeScript) |
 | **Workers** | Python 3.11+, aio-pika |
 | **Database** | PostgreSQL 15+ |
 | **Vector Store** | Qdrant |

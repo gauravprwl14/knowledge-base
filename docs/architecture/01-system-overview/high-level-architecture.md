@@ -57,7 +57,7 @@ The Knowledge Management System (KMS) is a distributed, event-driven architectur
                 ▼                                   ▼
 ┌───────────────────────────────────┐   ┌───────────────────────────────────┐
 │           kms-api                 │   │          search-api               │
-│          (NestJS)                 │   │            (Go)                   │
+│          (NestJS)                 │   │          (NestJS)                 │
 ├───────────────────────────────────┤   ├───────────────────────────────────┤
 │                                   │   │                                   │
 │  RESPONSIBILITIES:                │   │  RESPONSIBILITIES:                │
@@ -69,11 +69,11 @@ The Knowledge Management System (KMS) is a distributed, event-driven architectur
 │  ├─ Duplicate Management          │   │  └─ Result Caching               │
 │  ├─ Junk File Management          │   │                                   │
 │  └─ Webhook Dispatch              │   │  TECH STACK:                      │
-│                                   │   │  ├─ Go 1.21+                      │
-│  TECH STACK:                      │   │  ├─ Gin/Fiber Framework           │
-│  ├─ NestJS 10.x                   │   │  ├─ pgx (PostgreSQL)              │
-│  ├─ TypeORM                       │   │  ├─ qdrant-go-client              │
-│  ├─ class-validator               │   │  └─ go-redis                      │
+│                                   │   │  ├─ NestJS 10.x                   │
+│  TECH STACK:                      │   │  ├─ TypeORM (read-only)           │
+│  ├─ NestJS 10.x                   │   │  ├─ @qdrant/js-client-rest        │
+│  ├─ TypeORM                       │   │  ├─ ioredis                       │
+│  ├─ class-validator               │   │  └─ @nestjs/cache-manager         │
 │  └─ @nestjs/swagger               │   │                                   │
 │                                   │   │  PORTS:                           │
 │  PORTS:                           │   │  └─ 8001 (HTTP)                   │
@@ -168,6 +168,75 @@ The Knowledge Management System (KMS) is a distributed, event-driven architectur
 │  │                       │  │                       │                               │
 │  │  PORT: 9000           │  │                       │                               │
 │  └───────────────────────┘  └───────────────────────┘                               │
+│                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     │ All services push telemetry
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                            OBSERVABILITY LAYER                                       │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
+│  │                    OpenTelemetry Collector (OTel)                            │   │
+│  │                         Port: 4317 (gRPC), 4318 (HTTP)                       │   │
+│  ├─────────────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                              │   │
+│  │  RECEIVES:                    EXPORTS TO:                                    │   │
+│  │  • Traces (OTLP)              • Jaeger (traces)                             │   │
+│  │  • Metrics (OTLP)             • Prometheus (metrics)                        │   │
+│  │  • Logs (OTLP)                • (Future: Loki for logs)                     │   │
+│  │                                                                              │   │
+│  │  PROCESSORS:                  FEATURES:                                      │   │
+│  │  • Batch processing           • Service discovery                           │   │
+│  │  • Attribute enrichment       • Tail-based sampling                         │   │
+│  │  • Sampling                   • Data transformation                         │   │
+│  │                                                                              │   │
+│  └─────────────────────────────────────────────────────────────────────────────┘   │
+│                          │                           │                              │
+│            ┌─────────────┘                           └─────────────┐                │
+│            │                                                       │                │
+│            ▼                                                       ▼                │
+│  ┌───────────────────────┐                           ┌───────────────────────┐     │
+│  │        Jaeger         │                           │      Prometheus       │     │
+│  │       (Traces)        │                           │       (Metrics)       │     │
+│  ├───────────────────────┤                           ├───────────────────────┤     │
+│  │                       │                           │                       │     │
+│  │  STORES:              │                           │  SCRAPES:             │     │
+│  │  • Distributed traces │                           │  • OTel Collector     │     │
+│  │  • Span data          │                           │  • Service metrics    │     │
+│  │  • Service maps       │                           │  • System metrics     │     │
+│  │                       │                           │                       │     │
+│  │  FEATURES:            │                           │  FEATURES:            │     │
+│  │  • Trace search       │                           │  • PromQL queries     │     │
+│  │  • Latency analysis   │                           │  • Alert rules        │     │
+│  │  • Dependency graph   │                           │  • Recording rules    │     │
+│  │                       │                           │                       │     │
+│  │  PORT: 16686 (UI)     │                           │  PORT: 9090           │     │
+│  │  PORT: 14250 (gRPC)   │                           │                       │     │
+│  └───────────────────────┘                           └───────────────────────┘     │
+│            │                                                       │                │
+│            └───────────────────────┬───────────────────────────────┘                │
+│                                    │                                                 │
+│                                    ▼                                                 │
+│                      ┌───────────────────────┐                                      │
+│                      │       Grafana         │                                      │
+│                      │    (Visualization)    │                                      │
+│                      ├───────────────────────┤                                      │
+│                      │                       │                                      │
+│                      │  DATA SOURCES:        │                                      │
+│                      │  • Prometheus         │                                      │
+│                      │  • Jaeger             │                                      │
+│                      │                       │                                      │
+│                      │  DASHBOARDS:          │                                      │
+│                      │  • Service health     │                                      │
+│                      │  • Request latency    │                                      │
+│                      │  • Queue depth        │                                      │
+│                      │  • Search performance │                                      │
+│                      │  • Error rates        │                                      │
+│                      │                       │                                      │
+│                      │  PORT: 3001           │                                      │
+│                      └───────────────────────┘                                      │
 │                                                                                      │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -452,7 +521,69 @@ Client
 
 ---
 
-## Monitoring Points
+## Observability & Monitoring
+
+### Observability Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           TELEMETRY FLOW                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │   kms-api    │  │  search-api  │  │   workers    │  │  voice-app   │    │
+│  │   (NestJS)   │  │   (NestJS)   │  │   (Python)   │  │  (FastAPI)   │    │
+│  │              │  │              │  │              │  │              │    │
+│  │ OTel SDK     │  │ OTel SDK     │  │ OTel SDK     │  │ OTel SDK     │    │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │
+│         │                 │                 │                 │             │
+│         └─────────────────┴─────────────────┴─────────────────┘             │
+│                                    │                                         │
+│                                    │ OTLP (gRPC/HTTP)                        │
+│                                    ▼                                         │
+│                    ┌───────────────────────────────┐                        │
+│                    │    OpenTelemetry Collector    │                        │
+│                    │    (otel-collector:4317)      │                        │
+│                    └───────────────┬───────────────┘                        │
+│                                    │                                         │
+│              ┌─────────────────────┼─────────────────────┐                  │
+│              │                     │                     │                  │
+│              ▼                     ▼                     ▼                  │
+│     ┌────────────────┐   ┌────────────────┐   ┌────────────────┐           │
+│     │     Jaeger     │   │   Prometheus   │   │    (Future)    │           │
+│     │   (Traces)     │   │   (Metrics)    │   │     Loki       │           │
+│     │   :16686       │   │    :9090       │   │    (Logs)      │           │
+│     └────────┬───────┘   └────────┬───────┘   └────────────────┘           │
+│              │                    │                                         │
+│              └──────────┬─────────┘                                         │
+│                         ▼                                                    │
+│                ┌────────────────┐                                           │
+│                │    Grafana     │                                           │
+│                │     :3001      │                                           │
+│                └────────────────┘                                           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Observability Stack
+
+| Component | Version | Port | Purpose |
+|-----------|---------|------|---------|
+| **OpenTelemetry Collector** | 0.96+ | 4317 (gRPC), 4318 (HTTP) | Central telemetry receiver and processor |
+| **Jaeger** | 1.54+ | 16686 (UI), 14250 (gRPC) | Distributed tracing backend |
+| **Prometheus** | 2.50+ | 9090 | Metrics collection and alerting |
+| **Grafana** | 10.3+ | 3001 | Unified visualization and dashboards |
+
+### Service Instrumentation
+
+| Service | Language | OTel SDK | Auto-Instrumentation |
+|---------|----------|----------|---------------------|
+| kms-api | TypeScript | @opentelemetry/sdk-node | @opentelemetry/auto-instrumentations-node |
+| search-api | TypeScript | @opentelemetry/sdk-node | @opentelemetry/auto-instrumentations-node |
+| scan-worker | Python | opentelemetry-sdk | opentelemetry-instrumentation |
+| embedding-worker | Python | opentelemetry-sdk | opentelemetry-instrumentation |
+| dedup-worker | Python | opentelemetry-sdk | opentelemetry-instrumentation |
+| voice-app | Python | opentelemetry-sdk | opentelemetry-instrumentation-fastapi |
 
 ### Health Checks
 
@@ -463,10 +594,44 @@ Client
 | PostgreSQL | pg_isready | 5s |
 | Qdrant | GET /health | 10s |
 | RabbitMQ | rabbitmq-diagnostics | 10s |
+| OTel Collector | GET /health | 10s |
+| Jaeger | GET /health | 10s |
+| Prometheus | GET /-/healthy | 10s |
+| Grafana | GET /api/health | 10s |
 
-### Key Metrics
+### Metrics (via OpenTelemetry)
 
-- **API**: Request rate, latency (p50, p95, p99), error rate
-- **Workers**: Queue depth, processing time, success rate
-- **Database**: Connection pool usage, query latency
-- **Search**: Query latency, cache hit rate
+| Category | Metrics | Labels |
+|----------|---------|--------|
+| **HTTP** | http_server_request_duration, http_server_active_requests | service, method, route, status |
+| **Database** | db_client_operation_duration, db_client_connections | service, db_system, operation |
+| **Queue** | messaging_publish_duration, messaging_process_duration | service, queue, operation |
+| **Search** | search_query_duration, search_cache_hit_ratio | service, search_type, cache_status |
+| **Custom** | files_processed_total, embeddings_generated_total | service, status |
+
+### Traces
+
+All services emit distributed traces with:
+- **Trace Context Propagation**: W3C Trace Context
+- **Span Attributes**: service.name, service.version, http.method, db.statement
+- **Custom Spans**: Business logic operations (scan, embed, search)
+
+### Grafana Dashboards
+
+| Dashboard | Metrics Displayed |
+|-----------|-------------------|
+| **Service Overview** | Request rate, error rate, latency (p50, p95, p99) |
+| **Search Performance** | Query latency, cache hit rate, result count |
+| **Worker Health** | Queue depth, processing time, success rate |
+| **Database Performance** | Connection pool, query latency, active connections |
+| **Infrastructure** | CPU, memory, disk I/O per container |
+
+### Alerting Rules (Prometheus)
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| HighErrorRate | error_rate > 5% for 5m | critical |
+| HighLatency | p95_latency > 500ms for 5m | warning |
+| QueueBacklog | queue_depth > 1000 for 10m | warning |
+| ServiceDown | up == 0 for 1m | critical |
+| HighMemory | memory_usage > 80% for 10m | warning |

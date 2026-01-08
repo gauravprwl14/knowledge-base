@@ -600,7 +600,7 @@
 
 ## Module 5: Search & Discovery
 
-**Owner**: search-api (Go)
+**Owner**: search-api (NestJS)
 **Database**: PostgreSQL + Qdrant + Neo4j
 **Priority**: P0 (MVP)
 
@@ -614,9 +614,9 @@
 - Returns ranked results (relevance score)
 
 **Tasks**:
-1. **Task 5.1.1.1**: Create search API service (Go)
-   - Initialize Gin web framework
-   - Connect to PostgreSQL with `pgx`
+1. **Task 5.1.1.1**: Create search API service (NestJS)
+   - Initialize NestJS application
+   - Connect to PostgreSQL with TypeORM (read-only)
 2. **Task 5.1.1.2**: Create `POST /api/v1/search` endpoint
    - Input: `{ query: "string", filters: {...} }`
    - Parse query
@@ -670,7 +670,7 @@
 
 **Tasks**:
 1. **Task 5.3.1.1**: Run searches concurrently
-   - Use Go goroutines
+   - Use Promise.all() for parallel execution
    - Wait for both to complete
 2. **Task 5.3.1.2**: Merge and re-rank
    - Combine scores: `final_score = 0.4 * keyword_score + 0.6 * semantic_score`
@@ -1228,7 +1228,7 @@
    - Catch all exceptions
    - Return standardized response
 3. **Task CC1.3**: Set up logging
-   - Use Winston (NestJS), structlog (Python), zap (Go)
+   - Use Winston (NestJS), structlog (Python)
    - Log to stdout (Docker captures)
 
 **Acceptance Criteria**:
@@ -1263,7 +1263,6 @@
 1. **Task CC3.1**: Set up testing frameworks
    - Jest (NestJS, Next.js)
    - pytest (Python)
-   - testing package (Go)
 2. **Task CC3.2**: Write unit tests for services
 3. **Task CC3.3**: Write integration tests
 4. **Task CC3.4**: Set up CI/CD with test automation

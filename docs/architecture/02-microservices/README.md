@@ -17,7 +17,7 @@ The KMS consists of 8 microservices, each with a single responsibility:
 │  API SERVICES (Synchronous)                                                  │
 │  ┌─────────────────────────────────┐ ┌─────────────────────────────────┐    │
 │  │         kms-api                 │ │        search-api               │    │
-│  │        (NestJS)                 │ │          (Go)                   │    │
+│  │        (NestJS)                 │ │        (NestJS)                 │    │
 │  │                                 │ │                                 │    │
 │  │  Port: 8000                     │ │  Port: 8001                     │    │
 │  │  Role: Main API Gateway         │ │  Role: Search Operations        │    │
@@ -60,7 +60,7 @@ The KMS consists of 8 microservices, each with a single responsibility:
 | Service | Language | Type | Port | Queue | Database Tables |
 |---------|----------|------|------|-------|-----------------|
 | [kms-api](./kms-api-service.md) | TypeScript | API | 8000 | - | auth_*, kms_* |
-| [search-api](./search-api-service.md) | Go | API | 8001 | - | (read-only) |
+| [search-api](./search-api-service.md) | TypeScript | API | 8001 | - | (read-only) |
 | [scan-worker](./scan-worker-service.md) | Python | Worker | - | scan.queue | kms_sources, kms_files |
 | [embedding-worker](./embedding-worker-service.md) | Python | Worker | - | embed.queue | kms_files, kms_embeddings |
 | [dedup-worker](./dedup-worker-service.md) | Python | Worker | - | dedup.queue | kms_duplicates |
@@ -188,6 +188,85 @@ Workers health is monitored via:
 | dedup-worker | 2 cores | 4 GB | - |
 | junk-detector | 1 core | 1 GB | - |
 | web-ui | 1 core | 1 GB | - |
+
+---
+
+## Observability Integration
+
+All services are instrumented with OpenTelemetry for unified observability.
+
+### Telemetry Flow
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                           SERVICE TELEMETRY                                   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│   ┌─────────┐ ┌──────────┐ ┌────────────┐ ┌────────────┐ ┌─────────┐         │
+│   │ kms-api │ │search-api│ │scan-worker │ │embed-worker│ │ web-ui  │         │
+│   │ (OTel)  │ │  (OTel)  │ │   (OTel)   │ │   (OTel)   │ │ (OTel)  │         │
+│   └────┬────┘ └────┬─────┘ └─────┬──────┘ └─────┬──────┘ └────┬────┘         │
+│        │           │             │              │             │               │
+│        └───────────┴─────────────┴──────────────┴─────────────┘               │
+│                                  │                                            │
+│                                  ▼ OTLP (gRPC/HTTP)                           │
+│                    ┌──────────────────────────────┐                           │
+│                    │   OpenTelemetry Collector    │                           │
+│                    │        Port: 4317/4318       │                           │
+│                    └──────────────┬───────────────┘                           │
+│                                   │                                           │
+│                     ┌─────────────┴──────────────┐                            │
+│                     │                            │                            │
+│                     ▼                            ▼                            │
+│              ┌────────────┐              ┌─────────────┐                      │
+│              │   Jaeger   │              │ Prometheus  │                      │
+│              │  (Traces)  │              │  (Metrics)  │                      │
+│              │ Port: 16686│              │ Port: 9090  │                      │
+│              └─────┬──────┘              └──────┬──────┘                      │
+│                    │                            │                             │
+│                    └────────────┬───────────────┘                             │
+│                                 │                                             │
+│                                 ▼                                             │
+│                          ┌───────────┐                                        │
+│                          │  Grafana  │                                        │
+│                          │ Port: 3001│                                        │
+│                          └───────────┘                                        │
+│                                                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Service Instrumentation
+
+| Service | OTel Library | Traces | Metrics | Logs |
+|---------|--------------|--------|---------|------|
+| kms-api | @opentelemetry/sdk-node | ✅ | ✅ | ✅ |
+| search-api | @opentelemetry/sdk-node | ✅ | ✅ | ✅ |
+| scan-worker | opentelemetry-sdk | ✅ | ✅ | ✅ |
+| embedding-worker | opentelemetry-sdk | ✅ | ✅ | ✅ |
+| dedup-worker | opentelemetry-sdk | ✅ | ✅ | ✅ |
+| junk-detector | opentelemetry-sdk | ✅ | ✅ | ✅ |
+| web-ui | @opentelemetry/sdk-trace-web | ✅ | ❌ | ❌ |
+
+### Key Metrics by Service
+
+| Service | Metrics |
+|---------|---------|
+| kms-api | `http_requests_total`, `http_request_duration_seconds`, `db_query_duration` |
+| search-api | `search_requests_total`, `search_latency_seconds`, `cache_hit_ratio` |
+| scan-worker | `files_scanned_total`, `scan_duration_seconds`, `queue_depth` |
+| embedding-worker | `embeddings_generated_total`, `embedding_duration_seconds`, `model_load_time` |
+| dedup-worker | `duplicates_found_total`, `dedup_duration_seconds`, `similarity_score` |
+
+### Trace Context Propagation
+
+Distributed tracing is enabled across all services using W3C TraceContext:
+
+```
+web-ui → kms-api → RabbitMQ → worker
+   │        │          │         │
+   └────────┴──────────┴─────────┘
+              trace_id propagated
+```
 
 ---
 

@@ -1,7 +1,7 @@
 # KMS Task Breakdown
 
 **Last Updated**: 2026-01-08
-**Total Tasks**: 125
+**Total Tasks**: 142
 
 ---
 
@@ -59,51 +59,74 @@
 | 1.3.4 | Configure hot reload for development | P0 | 2h | [ ] | |
 | 1.3.5 | Create health check endpoint in kms-api | P0 | 1h | [ ] | |
 
+### Feature 1.4: Observability Stack
+
+| ID | Task | Priority | Effort | Status | Notes |
+|----|------|----------|--------|--------|-------|
+| 1.4.1 | Add OpenTelemetry Collector to docker-compose.kms.yml | P0 | 2h | [ ] | Port 4317 (gRPC), 4318 (HTTP) |
+| 1.4.2 | Configure OTel Collector receivers (OTLP gRPC/HTTP) | P0 | 1h | [ ] | |
+| 1.4.3 | Configure OTel Collector processors (batch, memory_limiter) | P0 | 1h | [ ] | |
+| 1.4.4 | Add Jaeger to docker-compose.kms.yml | P0 | 1h | [ ] | Port 16686 (UI), 14250 (gRPC) |
+| 1.4.5 | Configure OTel Collector exporter to Jaeger | P0 | 1h | [ ] | |
+| 1.4.6 | Add Prometheus to docker-compose.kms.yml | P0 | 1h | [ ] | Port 9090 |
+| 1.4.7 | Configure OTel Collector exporter to Prometheus | P0 | 1h | [ ] | Export metrics on port 8889 |
+| 1.4.8 | Create Prometheus scrape config for OTel Collector | P0 | 1h | [ ] | |
+| 1.4.9 | Add Grafana to docker-compose.kms.yml | P0 | 1h | [ ] | Port 3001 |
+| 1.4.10 | Configure Grafana data sources (Prometheus, Jaeger) | P0 | 1h | [ ] | |
+| 1.4.11 | Install @opentelemetry/sdk-node in kms-api | P0 | 1h | [ ] | |
+| 1.4.12 | Install @opentelemetry/auto-instrumentations-node in kms-api | P0 | 30m | [ ] | |
+| 1.4.13 | Configure OTLP exporters (trace + metrics) in kms-api | P0 | 2h | [ ] | |
+| 1.4.14 | Install opentelemetry-sdk in Python workers | P0 | 1h | [ ] | |
+| 1.4.15 | Configure OTel instrumentation for asyncpg, aio-pika | P0 | 2h | [ ] | |
+| 1.4.16 | Create otel-collector-config.yaml configuration file | P0 | 1h | [ ] | |
+| 1.4.17 | Verify traces flow from services → OTel → Jaeger | P0 | 1h | [ ] | |
+| 1.4.18 | Verify metrics flow from services → OTel → Prometheus | P0 | 1h | [ ] | |
+
 ---
 
 ## Sprint 2: Authentication System (Week 3-4)
 
-### Feature 1.4: Database Schema (Auth)
+### Feature 1.5: Database Schema (Auth)
 
 | ID | Task | Priority | Effort | Status | Notes |
 |----|------|----------|--------|--------|-------|
-| 1.4.1 | Create `auth_users` table migration | P0 | 2h | [ ] | |
-| 1.4.2 | Create `auth_api_keys` table migration | P0 | 2h | [ ] | |
-| 1.4.3 | Create `auth_teams` table migration (placeholder) | P2 | 1h | [ ] | |
-| 1.4.4 | Create `auth_team_members` table migration (placeholder) | P2 | 1h | [ ] | |
-| 1.4.5 | Add indexes and constraints | P0 | 1h | [ ] | |
+| 1.5.1 | Create `auth_users` table migration | P0 | 2h | [ ] | |
+| 1.5.2 | Create `auth_api_keys` table migration | P0 | 2h | [ ] | |
+| 1.5.3 | Create `auth_teams` table migration (placeholder) | P2 | 1h | [ ] | |
+| 1.5.4 | Create `auth_team_members` table migration (placeholder) | P2 | 1h | [ ] | |
+| 1.5.5 | Add indexes and constraints | P0 | 1h | [ ] | |
 
-### Feature 1.5: Backend Authentication
-
-| ID | Task | Priority | Effort | Status | Notes |
-|----|------|----------|--------|--------|-------|
-| 1.5.1 | Create `AuthModule` with UsersService, AuthService | P0 | 4h | [ ] | |
-| 1.5.2 | Implement bcrypt password hashing utility | P0 | 1h | [ ] | |
-| 1.5.3 | Create `POST /api/v1/auth/register` endpoint | P0 | 3h | [ ] | |
-| 1.5.4 | Create `POST /api/v1/auth/login` endpoint | P0 | 2h | [ ] | |
-| 1.5.5 | Implement JWT token generation | P0 | 2h | [ ] | |
-| 1.5.6 | Install passport-google-oauth20 | P0 | 1h | [ ] | |
-| 1.5.7 | Create GoogleStrategy for OAuth | P0 | 3h | [ ] | |
-| 1.5.8 | Create `GET /api/v1/auth/google` endpoint | P0 | 2h | [ ] | |
-| 1.5.9 | Create `GET /api/v1/auth/google/callback` endpoint | P0 | 2h | [ ] | |
-| 1.5.10 | Create `POST /api/v1/api-keys` endpoint | P0 | 2h | [ ] | |
-| 1.5.11 | Create `GET /api/v1/api-keys` endpoint | P0 | 1h | [ ] | |
-| 1.5.12 | Create `DELETE /api/v1/api-keys/:id` endpoint | P0 | 1h | [ ] | |
-| 1.5.13 | Create API key guard for authentication | P0 | 2h | [ ] | |
-| 1.5.14 | Write unit tests for AuthService (80% coverage) | P0 | 4h | [ ] | |
-
-### Feature 1.6: Frontend Authentication
+### Feature 1.6: Backend Authentication
 
 | ID | Task | Priority | Effort | Status | Notes |
 |----|------|----------|--------|--------|-------|
-| 1.6.1 | Create `/login` page with email/password form | P0 | 4h | [ ] | |
-| 1.6.2 | Create `/register` page with validation | P0 | 4h | [ ] | |
-| 1.6.3 | Add password strength indicator | P0 | 2h | [ ] | |
-| 1.6.4 | Implement "Sign in with Google" button | P0 | 2h | [ ] | |
-| 1.6.5 | Create auth context for user state | P0 | 3h | [ ] | |
-| 1.6.6 | Implement JWT storage in httpOnly cookie | P0 | 2h | [ ] | |
-| 1.6.7 | Create protected route HOC | P0 | 2h | [ ] | |
-| 1.6.8 | Create `/dashboard` page | P0 | 3h | [ ] | |
+| 1.6.1 | Create `AuthModule` with UsersService, AuthService | P0 | 4h | [ ] | |
+| 1.6.2 | Implement bcrypt password hashing utility | P0 | 1h | [ ] | |
+| 1.6.3 | Create `POST /api/v1/auth/register` endpoint | P0 | 3h | [ ] | |
+| 1.6.4 | Create `POST /api/v1/auth/login` endpoint | P0 | 2h | [ ] | |
+| 1.6.5 | Implement JWT token generation | P0 | 2h | [ ] | |
+| 1.6.6 | Install passport-google-oauth20 | P0 | 1h | [ ] | |
+| 1.6.7 | Create GoogleStrategy for OAuth | P0 | 3h | [ ] | |
+| 1.6.8 | Create `GET /api/v1/auth/google` endpoint | P0 | 2h | [ ] | |
+| 1.6.9 | Create `GET /api/v1/auth/google/callback` endpoint | P0 | 2h | [ ] | |
+| 1.6.10 | Create `POST /api/v1/api-keys` endpoint | P0 | 2h | [ ] | |
+| 1.6.11 | Create `GET /api/v1/api-keys` endpoint | P0 | 1h | [ ] | |
+| 1.6.12 | Create `DELETE /api/v1/api-keys/:id` endpoint | P0 | 1h | [ ] | |
+| 1.6.13 | Create API key guard for authentication | P0 | 2h | [ ] | |
+| 1.6.14 | Write unit tests for AuthService (80% coverage) | P0 | 4h | [ ] | |
+
+### Feature 1.7: Frontend Authentication
+
+| ID | Task | Priority | Effort | Status | Notes |
+|----|------|----------|--------|--------|-------|
+| 1.7.1 | Create `/login` page with email/password form | P0 | 4h | [ ] | |
+| 1.7.2 | Create `/register` page with validation | P0 | 4h | [ ] | |
+| 1.7.3 | Add password strength indicator | P0 | 2h | [ ] | |
+| 1.7.4 | Implement "Sign in with Google" button | P0 | 2h | [ ] | |
+| 1.7.5 | Create auth context for user state | P0 | 3h | [ ] | |
+| 1.7.6 | Implement JWT storage in httpOnly cookie | P0 | 2h | [ ] | |
+| 1.7.7 | Create protected route HOC | P0 | 2h | [ ] | |
+| 1.7.8 | Create `/dashboard` page | P0 | 3h | [ ] | |
 
 ---
 
@@ -299,10 +322,10 @@
 
 | ID | Task | Priority | Effort | Status | Notes |
 |----|------|----------|--------|--------|-------|
-| 4.1.1 | Initialize Go project (`search-api`) with Gin framework | P0 | 3h | [ ] | |
-| 4.1.2 | Install pgx and qdrant-client-go | P0 | 1h | [ ] | |
+| 4.1.1 | Initialize NestJS project (`search-api`) | P0 | 3h | [ ] | |
+| 4.1.2 | Install @qdrant/js-client-rest, TypeORM, ioredis | P0 | 1h | [ ] | |
 | 4.1.3 | Add search-api to docker-compose.kms.yml | P0 | 2h | [ ] | |
-| 4.1.4 | Configure database connection pooling with pgx | P0 | 2h | [ ] | |
+| 4.1.4 | Configure TypeORM connection pooling (read-only) | P0 | 2h | [ ] | |
 
 ### Feature 4.2: Keyword Search
 
@@ -318,7 +341,7 @@
 
 | ID | Task | Priority | Effort | Status | Notes |
 |----|------|----------|--------|--------|-------|
-| 4.3.1 | Implement query embedding generation (call Python service or embed in Go) | P0 | 4h | [ ] | |
+| 4.3.1 | Implement query embedding generation (call embedding-worker service) | P0 | 4h | [ ] | |
 | 4.3.2 | Implement Qdrant vector search | P0 | 3h | [ ] | |
 | 4.3.3 | Apply metadata filters in Qdrant query | P0 | 2h | [ ] | |
 | 4.3.4 | Bulk fetch file metadata from PostgreSQL | P0 | 2h | [ ] | |
@@ -331,7 +354,7 @@
 
 | ID | Task | Priority | Effort | Status | Notes |
 |----|------|----------|--------|--------|-------|
-| 4.4.1 | Implement concurrent keyword + semantic search with goroutines | P0 | 3h | [ ] | |
+| 4.4.1 | Implement concurrent keyword + semantic search with Promise.all() | P0 | 3h | [ ] | |
 | 4.4.2 | Merge results with weighted scores (40% keyword, 60% semantic) | P0 | 3h | [ ] | |
 | 4.4.3 | Deduplicate results | P0 | 1h | [ ] | |
 | 4.4.4 | Implement boost factors (filename match, recent, important) | P0 | 2h | [ ] | |
@@ -532,11 +555,10 @@ These tasks span multiple milestones and should be addressed throughout developm
 
 | ID | Task | Priority | Effort | Status | Notes |
 |----|------|----------|--------|--------|-------|
-| CC.1.1 | Set up Jest for NestJS unit tests | P0 | 2h | [ ] | |
+| CC.1.1 | Set up Jest for NestJS unit tests (kms-api, search-api) | P0 | 2h | [ ] | |
 | CC.1.2 | Set up Jest for Next.js tests | P0 | 2h | [ ] | |
 | CC.1.3 | Set up pytest for Python workers | P0 | 2h | [ ] | |
-| CC.1.4 | Set up Go testing package | P0 | 1h | [ ] | |
-| CC.1.5 | Achieve 80% code coverage | P0 | Ongoing | [ ] | |
+| CC.1.4 | Achieve 80% code coverage | P0 | Ongoing | [ ] | |
 | CC.1.6 | Write E2E tests for critical user flows | P0 | 8h | [ ] | |
 
 ### Error Handling & Logging
@@ -553,7 +575,7 @@ These tasks span multiple milestones and should be addressed throughout developm
 | ID | Task | Priority | Effort | Status | Notes |
 |----|------|----------|--------|--------|-------|
 | CC.3.1 | Set up GitHub Actions workflow | P0 | 4h | [ ] | |
-| CC.3.2 | Add linting step (ESLint, Black, golangci-lint) | P0 | 2h | [ ] | |
+| CC.3.2 | Add linting step (ESLint, Black, Prettier) | P0 | 2h | [ ] | |
 | CC.3.3 | Add test step with coverage reporting | P0 | 2h | [ ] | |
 | CC.3.4 | Add Docker build step | P0 | 2h | [ ] | |
 | CC.3.5 | Configure dependency scanning (npm audit, safety) | P0 | 2h | [ ] | |
@@ -564,15 +586,17 @@ These tasks span multiple milestones and should be addressed throughout developm
 
 | Milestone | Total Tasks | P0 | P1 | P2 |
 |-----------|-------------|----|----|-----|
-| M1: Foundation | 25 | 23 | 0 | 2 |
+| M1: Foundation | 43 | 41 | 0 | 2 |
 | M2: Google Drive | 24 | 24 | 0 | 0 |
 | M3: Content Processing | 22 | 22 | 0 | 0 |
 | M4: Search | 20 | 20 | 0 | 0 |
 | M5: Deduplication | 18 | 14 | 4 | 0 |
 | M6: Polish & Release | 16 | 15 | 1 | 0 |
-| **Total** | **125** | **118** | **5** | **2** |
+| **Total** | **142** | **135** | **5** | **2** |
 
 ---
 
-**Document Version**: 1.0
+**Document Version**: 1.2
 **Last Updated**: 2026-01-08
+**Tech Stack**: NestJS (APIs), Python (Workers), Next.js (Frontend)
+**Observability**: OpenTelemetry, Jaeger, Prometheus, Grafana

@@ -16,8 +16,9 @@
 6. [Integration Points](#integration-points)
 7. [Data Flow](#data-flow)
 8. [Scalability & Performance](#scalability--performance)
-9. [Design Trade-offs](#design-trade-offs)
-10. [Future Roadmap](#future-roadmap)
+9. [Observability & Monitoring](#observability--monitoring)
+10. [Design Trade-offs](#design-trade-offs)
+11. [Future Roadmap](#future-roadmap)
 
 ---
 
@@ -36,7 +37,7 @@ The Knowledge Management System (KMS) is a composable, microservices-based platf
 
 1. **Composable Architecture**: Microservices can be developed, deployed, and scaled independently
 2. **Logical Database Separation**: Single PostgreSQL database initially with clear table boundaries for future database split
-3. **Polyglot Microservices**: Best language for each service (NestJS, Python, Go)
+3. **Polyglot Microservices**: Best language for each service (NestJS for APIs, Python for Workers)
 4. **Open Source First**: Prefer open source tools with optional cloud provider integration
 5. **Milestone-Based Delivery**: Incremental value delivery with clear MVP definition
 
@@ -67,7 +68,7 @@ The Knowledge Management System (KMS) is a composable, microservices-based platf
          ▼                        ▼                        ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   KMS API       │    │  Voice App API  │    │   Search API    │
-│   (NestJS)      │    │   (FastAPI)     │    │   (Go)          │
+│   (NestJS)      │    │   (FastAPI)     │    │   (NestJS)      │
 │                 │    │                 │    │                 │
 │ - File Mgmt     │    │ - Transcription │    │ - Semantic      │
 │ - Scan Jobs     │    │ - Translation   │    │ - Keyword       │
@@ -90,7 +91,7 @@ The Knowledge Management System (KMS) is a composable, microservices-based platf
          ▼                        ▼                        ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  Scan Worker    │    │ Embedding Worker│    │ Deduplication   │
-│  (Python/Go)    │    │  (Python)       │    │  Worker (Python)│
+│  (Python)       │    │  (Python)       │    │  Worker (Python)│
 │                 │    │                 │    │                 │
 │ - Google Drive  │    │ - Text Extract  │    │ - Hash Compare  │
 │ - Local FS      │    │ - Embeddings    │    │ - Semantic Sim  │
@@ -118,6 +119,39 @@ The Knowledge Management System (KMS) is a composable, microservices-based platf
 │  │           - Extracted content (text, thumbnails)             │      │
 │  └──────────────────────────────────────────────────────────────┘      │
 └─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       OBSERVABILITY LAYER                               │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │           OpenTelemetry Collector (Central Telemetry Hub)       │   │
+│  │               Port: 4317 (gRPC), 4318 (HTTP)                    │   │
+│  │                                                                  │   │
+│  │  Receives: Traces + Metrics from all services via OTLP          │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                    │                           │                        │
+│                    ▼                           ▼                        │
+│  ┌──────────────────────┐        ┌──────────────────────┐              │
+│  │   Jaeger (Traces)    │        │ Prometheus (Metrics) │              │
+│  │   Port: 16686 (UI)   │        │   Port: 9090         │              │
+│  │                      │        │                      │              │
+│  │  - Distributed Trace │        │  - Time-series DB    │              │
+│  │  - Span Analysis     │        │  - Alerting Rules    │              │
+│  │  - Service Map       │        │  - Service Metrics   │              │
+│  └──────────────────────┘        └──────────────────────┘              │
+│                    │                           │                        │
+│                    └─────────────┬─────────────┘                        │
+│                                  ▼                                      │
+│                    ┌──────────────────────┐                             │
+│                    │   Grafana (Dashboards)│                            │
+│                    │     Port: 3001        │                            │
+│                    │                       │                            │
+│                    │  - Unified Dashboards │                            │
+│                    │  - Trace Correlation  │                            │
+│                    │  - Alert Management   │                            │
+│                    └──────────────────────┘                             │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -129,7 +163,7 @@ The Knowledge Management System (KMS) is a composable, microservices-based platf
 | Service | Language | Responsibility | Scales Independently |
 |---------|----------|----------------|---------------------|
 | **kms-api** | NestJS | File management, user operations, scan job orchestration | ✅ Horizontal |
-| **search-api** | Go | Search queries, filtering, ranking | ✅ Horizontal |
+| **search-api** | NestJS | Search queries, filtering, ranking | ✅ Horizontal |
 | **scan-worker** | Python | File discovery from sources (Google Drive, local FS, external drives) | ✅ Horizontal (worker pool) |
 | **embedding-worker** | Python | Content extraction, text embedding generation, chunking | ✅ Horizontal (worker pool) |
 | **dedup-worker** | Python | Duplicate detection (hash-based + semantic) | ✅ Horizontal (worker pool) |
@@ -496,7 +530,7 @@ CREATE TABLE kms_transcription_links (
 | Service | Primary Language | Framework | Key Libraries |
 |---------|-----------------|-----------|---------------|
 | **kms-api** | TypeScript | NestJS | TypeORM, class-validator, @nestjs/bull |
-| **search-api** | Go | Gin/Fiber | go-qdrant, neo4j-go-driver, pgx |
+| **search-api** | TypeScript | NestJS | @qdrant/js-client-rest, TypeORM, ioredis |
 | **scan-worker** | Python | - | google-api-python-client, watchdog, aiofiles |
 | **embedding-worker** | Python | - | sentence-transformers, pypdf2, python-docx, qdrant-client |
 | **dedup-worker** | Python | - | scikit-learn, qdrant-client, neo4j |
@@ -537,7 +571,7 @@ services:
   # API Layer
   nginx:          # Reverse proxy
   kms-api:        # NestJS
-  search-api:     # Go
+  search-api:     # NestJS
   voice-app:      # FastAPI (existing)
 
   # Worker Layer
@@ -547,6 +581,12 @@ services:
 
   # Frontend
   web-ui:         # Next.js
+
+  # Observability Layer
+  otel-collector:  # OpenTelemetry Collector (4317, 4318)
+  jaeger:          # Distributed Tracing (16686)
+  prometheus:      # Metrics (9090)
+  grafana:         # Dashboards (3001)
 ```
 
 ---
@@ -919,6 +959,112 @@ WHERE is_junk = TRUE;
 
 ---
 
+## Observability & Monitoring
+
+### Overview
+
+The KMS implements comprehensive observability using the OpenTelemetry standard, enabling distributed tracing, metrics collection, and centralized monitoring across all services.
+
+### Telemetry Stack
+
+| Component | Version | Purpose | Port |
+|-----------|---------|---------|------|
+| **OpenTelemetry Collector** | 0.96+ | Central telemetry hub | 4317 (gRPC), 4318 (HTTP) |
+| **Jaeger** | 1.54+ | Distributed tracing | 16686 (UI), 14250 (gRPC) |
+| **Prometheus** | 2.50+ | Metrics collection | 9090 |
+| **Grafana** | 10.3+ | Dashboards & alerting | 3001 |
+
+### Telemetry Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SERVICE INSTRUMENTATION                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
+│  │ kms-api  │ │search-api│ │scan-worker│ │embed-wkr │ │dedup-wkr │  │
+│  │  (OTel)  │ │  (OTel)  │ │  (OTel)  │ │  (OTel)  │ │  (OTel)  │  │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘  │
+│       │            │            │            │            │         │
+│       └────────────┴────────────┴────────────┴────────────┘         │
+│                                 │                                    │
+│                                 ▼ OTLP Protocol                      │
+│                   ┌──────────────────────────────┐                   │
+│                   │   OpenTelemetry Collector    │                   │
+│                   │     (Receives, Processes,    │                   │
+│                   │      Batches, Exports)       │                   │
+│                   └──────────────┬───────────────┘                   │
+│                                  │                                   │
+│                    ┌─────────────┴─────────────┐                     │
+│                    │                           │                     │
+│                    ▼                           ▼                     │
+│             ┌───────────┐               ┌────────────┐               │
+│             │  Jaeger   │               │ Prometheus │               │
+│             │ (Traces)  │               │ (Metrics)  │               │
+│             └─────┬─────┘               └──────┬─────┘               │
+│                   │                            │                     │
+│                   └────────────┬───────────────┘                     │
+│                                ▼                                     │
+│                         ┌───────────┐                                │
+│                         │  Grafana  │                                │
+│                         └───────────┘                                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Service Instrumentation
+
+| Service | Language | OTel SDK | Traces | Metrics | Auto-Instrumentation |
+|---------|----------|----------|--------|---------|---------------------|
+| kms-api | TypeScript | @opentelemetry/sdk-node | ✅ | ✅ | HTTP, TypeORM, Bull |
+| search-api | TypeScript | @opentelemetry/sdk-node | ✅ | ✅ | HTTP, TypeORM, Redis |
+| scan-worker | Python | opentelemetry-sdk | ✅ | ✅ | asyncpg, aio-pika |
+| embedding-worker | Python | opentelemetry-sdk | ✅ | ✅ | asyncpg, aio-pika |
+| dedup-worker | Python | opentelemetry-sdk | ✅ | ✅ | asyncpg, aio-pika |
+| web-ui | TypeScript | @opentelemetry/sdk-trace-web | ✅ | ❌ | Fetch, Navigation |
+
+### Key Metrics
+
+**API Services:**
+- `http_requests_total` - Total HTTP requests by method, path, status
+- `http_request_duration_seconds` - Request latency histogram
+- `db_query_duration_seconds` - Database query latency
+- `active_connections` - Current active connections
+
+**Workers:**
+- `files_processed_total` - Files processed by type and status
+- `processing_duration_seconds` - Processing time per file type
+- `queue_depth` - Current queue depth
+- `queue_consumer_lag` - Consumer lag time
+
+**Search:**
+- `search_requests_total` - Search requests by type (keyword/semantic/hybrid)
+- `search_latency_seconds` - End-to-end search latency
+- `cache_hit_ratio` - Redis cache effectiveness
+- `qdrant_query_latency` - Vector search latency
+
+### Grafana Dashboards
+
+| Dashboard | Purpose |
+|-----------|---------|
+| **KMS Overview** | System health, request rates, error rates, latency P50/P95/P99 |
+| **API Performance** | Per-endpoint metrics, slow queries, error breakdown |
+| **Worker Metrics** | Queue depth, processing throughput, failure rates |
+| **Search Analytics** | Search types, query latency, cache performance |
+| **Infrastructure** | CPU, memory, disk, network for all services |
+
+### Alerting Rules
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| High Error Rate | Error rate > 5% for 5 minutes | Critical |
+| High Latency | P95 latency > 2s for 5 minutes | Warning |
+| Queue Backlog | Queue depth > 1000 for 10 minutes | Warning |
+| Service Down | Health check failed for 2 minutes | Critical |
+| Disk Space Low | Disk usage > 85% | Warning |
+
+---
+
 ## Design Trade-offs
 
 ### Decision Log
@@ -929,7 +1075,7 @@ WHERE is_junk = TRUE;
 | **Qdrant over pgvector** | pgvector, Pinecone, Weaviate | Open source, excellent performance, easy Docker deployment, dedicated vector DB scales better. |
 | **Neo4j Community over alternatives** | PostgreSQL recursive CTEs, AWS Neptune | Industry standard for graphs, Cypher query language is expressive, Community Edition is free. |
 | **NestJS for KMS API** | FastAPI (like voice-app) | TypeScript type safety, enterprise patterns, scalability, large ecosystem. Familiarity with Next.js frontend. |
-| **Go for Search API** | Rust (faster), Python (easier) | Balance of performance and productivity. Excellent concurrency for handling searches. Easier than Rust, faster than Python. |
+| **NestJS for Search API** | Go, Rust, Python | Consistent stack with kms-api, type safety, shared code patterns. Promise.all() for concurrent searches. |
 | **Hybrid search (keyword + semantic)** | Semantic-only | Best accuracy. Keyword catches exact matches, semantic handles natural language. |
 | **Nginx over API Gateway** | Kong, Traefik, AWS API Gateway | Simpler for MVP. Can migrate to Kong later when needed (rate limiting, plugins). |
 | **MinIO over S3 directly** | Direct S3, Local filesystem | S3-compatible, can run locally, easy migration to cloud S3 later. Cost-effective for self-hosted. |
@@ -1028,11 +1174,11 @@ WHERE is_junk = TRUE;
 - Better alignment with Next.js frontend (both TypeScript)
 - Enterprise patterns (guards, interceptors, pipes)
 
-**Why Go over Rust for Search API?**
-- Faster development than Rust (gentler learning curve)
-- Excellent standard library for concurrent programming
-- Still very fast (much faster than Python)
-- Great tooling and ecosystem
+**Why NestJS for Search API?**
+- Consistent stack with kms-api (shared knowledge, patterns, libraries)
+- TypeScript type safety throughout
+- Promise.all() for concurrent search execution
+- Shared code and utilities between API services
 
 ### References
 
@@ -1045,6 +1191,7 @@ WHERE is_junk = TRUE;
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2026-01-07
+**Document Version**: 1.1
+**Last Updated**: 2026-01-08
 **Next Review**: After MVP Phase 1 completion
+**Observability**: OpenTelemetry, Jaeger, Prometheus, Grafana
