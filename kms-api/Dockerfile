@@ -1,0 +1,147 @@
+# =============================================================================
+# KMS API Multi-Stage Dockerfile
+# =============================================================================
+# Stages:
+# - base: OS dependencies and system packages
+# - dependencies: Production Node.js dependencies
+# - development: Development setup with hot reload
+# - test: Test environment with all dependencies
+# - builder: Build the application
+# - production: Production-optimized runtime
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage: Base
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS base
+
+# Install system dependencies
+RUN apk add --no-cache \
+    openssl \
+    libc6-compat \
+    dumb-init
+
+# Set working directory
+WORKDIR /app
+
+# -----------------------------------------------------------------------------
+# Stage: Dependencies
+# -----------------------------------------------------------------------------
+FROM base AS dependencies
+
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install production dependencies
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# -----------------------------------------------------------------------------
+# Stage: Development
+# -----------------------------------------------------------------------------
+FROM base AS development
+
+# Install all dependencies including devDependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy Prisma schema and generate client
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copy source code
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Start with hot reload
+CMD ["npm", "run", "start:dev"]
+
+# -----------------------------------------------------------------------------
+# Stage: Test
+# -----------------------------------------------------------------------------
+FROM base AS test
+
+# Install PostgreSQL client for test database setup
+RUN apk add --no-cache postgresql-client
+
+# Install all dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy Prisma schema and generate client
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copy source code
+COPY . .
+
+# Default test command
+CMD ["npm", "run", "test"]
+
+# -----------------------------------------------------------------------------
+# Stage: Builder
+# -----------------------------------------------------------------------------
+FROM base AS builder
+
+# Install all dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy Prisma schema and generate client
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Prune dev dependencies after build
+RUN npm prune --production
+
+# -----------------------------------------------------------------------------
+# Stage: Production
+# -----------------------------------------------------------------------------
+FROM base AS production
+
+# Set environment
+ENV NODE_ENV=production
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs
+
+# Copy production dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy built application
+COPY --from=builder /app/dist ./dist
+
+# Copy Prisma files for migrations
+COPY --from=builder /app/prisma ./prisma
+
+# Copy package.json for scripts
+COPY --from=builder /app/package.json ./
+
+# Change ownership to non-root user
+RUN chown -R nestjs:nodejs /app
+
+# Switch to non-root user
+USER nestjs
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/api/v1/health/live || exit 1
+
+# Start application with dumb-init for proper signal handling
+CMD ["dumb-init", "node", "dist/main.js"]

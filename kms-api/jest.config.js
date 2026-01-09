@@ -1,0 +1,40 @@
+module.exports = {
+  moduleFileExtensions: ['js', 'json', 'ts'],
+  rootDir: '.',
+  testRegex: '.*\\.spec\\.ts$',
+  transform: {
+    '^.+\\.(t|j)s$': 'ts-jest',
+  },
+  collectCoverageFrom: [
+    'src/**/*.(t|j)s',
+    '!src/**/*.module.ts',
+    '!src/**/*.interface.ts',
+    '!src/**/*.dto.ts',
+    '!src/**/index.ts',
+    '!src/main.ts',
+  ],
+  coverageDirectory: './coverage',
+  testEnvironment: 'node',
+  roots: ['<rootDir>/src/', '<rootDir>/test/'],
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@config/(.*)$': '<rootDir>/src/config/$1',
+    '^@common/(.*)$': '<rootDir>/src/common/$1',
+    '^@database/(.*)$': '<rootDir>/src/database/$1',
+    '^@errors/(.*)$': '<rootDir>/src/errors/$1',
+    '^@modules/(.*)$': '<rootDir>/src/modules/$1',
+    '^@telemetry/(.*)$': '<rootDir>/src/telemetry/$1',
+    '^@logger/(.*)$': '<rootDir>/src/logger/$1',
+    '^@test/(.*)$': '<rootDir>/test/$1',
+  },
+  coverageThresholds: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 80,
+      statements: 80,
+    },
+  },
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
+  testTimeout: 30000,
+};

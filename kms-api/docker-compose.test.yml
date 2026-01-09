@@ -1,0 +1,145 @@
+# =============================================================================
+# KMS API Docker Compose - Testing
+# =============================================================================
+# Usage:
+#   docker-compose -f docker-compose.test.yml up --abort-on-container-exit
+#   docker-compose -f docker-compose.test.yml run --rm unit_tests
+#   docker-compose -f docker-compose.test.yml run --rm integration_tests
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Unit Tests
+  # ---------------------------------------------------------------------------
+  unit_tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: kms-unit-tests
+    environment:
+      - NODE_ENV=test
+      - LOG_LEVEL=error
+    volumes:
+      - ./coverage:/app/coverage
+    command: npm run test:unit -- --coverage
+    networks:
+      - kms-test-network
+
+  # ---------------------------------------------------------------------------
+  # Integration Tests
+  # ---------------------------------------------------------------------------
+  integration_tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: kms-integration-tests
+    environment:
+      - NODE_ENV=test
+      - LOG_LEVEL=error
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_test:5432/kms_test?schema=public
+      - REDIS_HOST=redis_test
+      - REDIS_PORT=6379
+      - REDIS_DB=1
+      - QUEUE_HOST=rabbitmq_test
+      - QUEUE_PORT=5672
+      - JWT_ACCESS_SECRET=test-jwt-access-secret-for-testing-only
+      - JWT_REFRESH_SECRET=test-jwt-refresh-secret-for-testing-only
+      - API_KEY_ENCRYPTION_SECRET=test-api-key-encryption-secret-32
+      - OTEL_ENABLED=false
+    volumes:
+      - ./coverage:/app/coverage
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      redis_test:
+        condition: service_healthy
+    command: npm run test:integration -- --coverage
+    networks:
+      - kms-test-network
+
+  # ---------------------------------------------------------------------------
+  # E2E Tests
+  # ---------------------------------------------------------------------------
+  e2e_tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: kms-e2e-tests
+    environment:
+      - NODE_ENV=test
+      - LOG_LEVEL=error
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_test:5432/kms_test?schema=public
+      - REDIS_HOST=redis_test
+      - REDIS_PORT=6379
+      - REDIS_DB=1
+      - QUEUE_HOST=rabbitmq_test
+      - QUEUE_PORT=5672
+      - JWT_ACCESS_SECRET=test-jwt-access-secret-for-testing-only
+      - JWT_REFRESH_SECRET=test-jwt-refresh-secret-for-testing-only
+      - API_KEY_ENCRYPTION_SECRET=test-api-key-encryption-secret-32
+      - OTEL_ENABLED=false
+    volumes:
+      - ./coverage:/app/coverage
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      redis_test:
+        condition: service_healthy
+    command: npm run test:e2e -- --coverage
+    networks:
+      - kms-test-network
+
+  # ---------------------------------------------------------------------------
+  # Test PostgreSQL Database (tmpfs for speed)
+  # ---------------------------------------------------------------------------
+  postgres_test:
+    image: postgres:16-alpine
+    container_name: kms-postgres-test
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=kms_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - kms-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kms_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Test Redis
+  # ---------------------------------------------------------------------------
+  redis_test:
+    image: redis:7-alpine
+    container_name: kms-redis-test
+    networks:
+      - kms-test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Test RabbitMQ
+  # ---------------------------------------------------------------------------
+  rabbitmq_test:
+    image: rabbitmq:3-alpine
+    container_name: kms-rabbitmq-test
+    networks:
+      - kms-test-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  kms-test-network:
+    driver: bridge

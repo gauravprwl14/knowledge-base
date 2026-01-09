@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+
+# Git
+.git/
+.gitignore
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
+.nyc_output/
+test-results/
+*.lcov
+
+# Environment files (production should use runtime env)
+.env
+.env.*
+!.env.example
+
+# Documentation (not needed in container)
+docs/
+*.md
+!README.md
+
+# Prisma generated (will regenerate in container)
+prisma/*.db
+prisma/*.db-journal
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.docker/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Misc
+*.tgz
+.cache/
+tmp/
+temp/
+*.log
+
+# Husky (not needed in container)
+.husky/
