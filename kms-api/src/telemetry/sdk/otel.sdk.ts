@@ -2,11 +2,11 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import {
-  ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
-  ATTR_DEPLOYMENT_ENVIRONMENT,
+  SEMRESATTRS_SERVICE_NAME,
+  SEMRESATTRS_SERVICE_VERSION,
+  SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
 } from '@opentelemetry/semantic-conventions';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
@@ -65,10 +65,10 @@ export function initOtelSdk(config: OtelSdkConfig): NodeSDK | null {
   }
 
   // Create resource with service information
-  const resource = new Resource({
-    [ATTR_SERVICE_NAME]: config.serviceName,
-    [ATTR_SERVICE_VERSION]: config.serviceVersion || '1.0.0',
-    [ATTR_DEPLOYMENT_ENVIRONMENT]: config.environment,
+  const resource = resourceFromAttributes({
+    [SEMRESATTRS_SERVICE_NAME]: config.serviceName,
+    [SEMRESATTRS_SERVICE_VERSION]: config.serviceVersion || '1.0.0',
+    [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: config.environment,
   });
 
   // Create trace exporter

@@ -80,7 +80,7 @@ export class TransformInterceptor<T> implements NestInterceptor<T, SuccessRespon
     const traceContext = getTraceContext();
 
     // Get request ID
-    const requestId = (request.headers['x-request-id'] as string) || request.id || undefined;
+    const requestId = (request.headers['x-request-id'] as string) || undefined;
 
     return next.handle().pipe(
       map((data) => {

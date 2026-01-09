@@ -210,13 +210,13 @@ export class AuthService {
       // Generate new tokens
       return this.generateTokens(user);
     } catch (error) {
-      if (error.name === 'TokenExpiredError') {
+      if (error instanceof Error && error.name === 'TokenExpiredError') {
         throw ErrorFactory.authentication(
           ERROR_CODES.AUT.REFRESH_TOKEN_EXPIRED,
           'Refresh token has expired',
         );
       }
-      if (error.name === 'JsonWebTokenError') {
+      if (error instanceof Error && error.name === 'JsonWebTokenError') {
         throw ErrorFactory.authentication(
           ERROR_CODES.AUT.REFRESH_TOKEN_INVALID,
           'Invalid refresh token',

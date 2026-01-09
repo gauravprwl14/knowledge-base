@@ -10,23 +10,7 @@ import { Request, Response } from 'express';
 import { AppError } from '../../errors/types/app-error';
 import { ERROR_CODES } from '../../errors/error-codes';
 import { getTraceContext, recordSpanException } from '../../telemetry';
-
-/**
- * Standard error response format
- */
-export interface ErrorResponse {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-    details?: any[];
-    requestId?: string;
-    traceId?: string;
-  };
-  timestamp: string;
-  path: string;
-  method: string;
-}
+import { ErrorResponse } from '../dto/response.dto';
 
 /**
  * Global HTTP exception filter
@@ -59,8 +43,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
     const traceContext = getTraceContext();
 
-    // Get request ID from headers or generate
-    const requestId = (request.headers['x-request-id'] as string) || request.id || undefined;
+    // Get request ID from headers
+    const requestId = (request.headers['x-request-id'] as string) || undefined;
 
     let errorResponse: ErrorResponse;
 

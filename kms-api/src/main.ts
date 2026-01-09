@@ -24,7 +24,7 @@ const sdk = initOtelSdk({
 import { NestFactory, Reflector } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
-import * as compression from 'compression';
+import compression from 'compression';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/config.service';
 import { globalLogger } from './logger/logger.service';

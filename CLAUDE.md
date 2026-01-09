@@ -394,3 +394,43 @@ Comprehensive guides available in `docs/`:
 - **Database connection errors**: Verify postgres container is healthy
 - **Model download fails**: Check internet connection and HuggingFace availability
 - **Jobs stuck in PROCESSING**: Restart worker (triggers stale job recovery)
+
+## Session Changelog
+
+At the end of each significant development session, create a session summary in `docs/session-summary/` with the following:
+
+### File Naming Convention
+
+```
+docs/session-summary/YYYY-MM-DD_HH-MM-SS_<short-description>.md
+```
+
+Example: `2026-01-08_04-45-02_kms-architecture-docs.md`
+
+### Session Summary Template
+
+Each session summary should include:
+
+1. **Header**: Date, Session ID, Duration
+2. **Objective**: What was the goal of this session
+3. **Changes Made**: Directory structure, files created/modified
+4. **Key Technical Decisions**: Important choices made and rationale
+5. **Architecture Highlights**: Summary of architectural changes
+6. **Files Modified**: List of changed files
+7. **Next Steps**: Suggested follow-up tasks
+8. **Context at Session End**: Token usage, active plans, branch
+
+### When to Create a Summary
+
+Create a session summary when:
+- Completing a major feature or documentation effort
+- Making significant architectural changes
+- Before context window approaches limits (>70% usage)
+- At natural stopping points in multi-session work
+
+### Recent Sessions
+
+| Date | Session | Description |
+|------|---------|-------------|
+| 2026-01-08 | observability-stack | Added OTel, Jaeger, Prometheus, Grafana to architecture docs |
+| 2026-01-08 | kms-architecture-docs | Created comprehensive KMS architecture documentation (35 files) |

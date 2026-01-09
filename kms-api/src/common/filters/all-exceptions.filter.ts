@@ -8,9 +8,10 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AppError } from '../../errors/types/app-error';
-import { ERROR_CODES } from '../../errors/error-codes';
+import { ERROR_CODES, ErrorCode } from '../../errors/error-codes';
 import { handlePrismaError, isPrismaError } from '../../errors/handlers/prisma-error.handler';
 import { getTraceContext, recordSpanException } from '../../telemetry';
+import { ErrorResponse } from '../dto/response.dto';
 
 /**
  * Global exception filter that catches ALL exceptions
@@ -42,7 +43,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const traceContext = getTraceContext();
-    const requestId = (request.headers['x-request-id'] as string) || request.id || undefined;
+    const requestId = (request.headers['x-request-id'] as string) || undefined;
 
     // Convert exception to AppError if needed
     const appError = this.normalizeException(exception);
@@ -55,7 +56,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ...errorResponse,
       path: request.url,
       method: request.method,
-    };
+    } as ErrorResponse & { path: string; method: string };
 
     // Add trace context
     if (traceContext.traceId && responseBody.error) {
@@ -136,7 +137,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   /**
    * Maps HTTP status to error code
    */
-  private getCodeFromStatus(status: number): string {
+  private getCodeFromStatus(status: number): ErrorCode {
     switch (status) {
       case HttpStatus.BAD_REQUEST:
         return ERROR_CODES.VAL.INVALID_INPUT;

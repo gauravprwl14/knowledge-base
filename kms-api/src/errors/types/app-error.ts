@@ -89,7 +89,7 @@ export class AppError extends HttpException {
   public readonly details?: ValidationErrorDetail[];
 
   /** Original error that caused this error */
-  public readonly cause?: Error;
+  public readonly cause: Error | undefined;
 
   /** Additional context */
   public readonly context?: ErrorContext;
@@ -128,7 +128,7 @@ export class AppError extends HttpException {
       timestamp: new Date().toISOString(),
     };
 
-    super(responseBody, statusCode);
+    super(responseBody, statusCode, { cause });
 
     this.code = code;
     this.details = details;
