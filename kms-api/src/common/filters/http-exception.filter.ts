@@ -104,29 +104,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
   private getErrorCodeFromStatus(status: number): string {
     switch (status) {
       case HttpStatus.BAD_REQUEST:
-        return ERROR_CODES.VAL.INVALID_INPUT;
+        return ERROR_CODES.VAL.INVALID_INPUT.code;
       case HttpStatus.UNAUTHORIZED:
-        return ERROR_CODES.AUT.UNAUTHENTICATED;
+        return ERROR_CODES.AUT.UNAUTHENTICATED.code;
       case HttpStatus.FORBIDDEN:
-        return ERROR_CODES.AUZ.FORBIDDEN;
+        return ERROR_CODES.AUZ.FORBIDDEN.code;
       case HttpStatus.NOT_FOUND:
-        return ERROR_CODES.DAT.NOT_FOUND;
+        return ERROR_CODES.DAT.NOT_FOUND.code;
       case HttpStatus.CONFLICT:
-        return ERROR_CODES.DAT.CONFLICT;
+        return ERROR_CODES.DAT.CONFLICT.code;
       case HttpStatus.UNPROCESSABLE_ENTITY:
-        return ERROR_CODES.VAL.INVALID_INPUT;
+        return ERROR_CODES.VAL.INVALID_INPUT.code;
       case HttpStatus.TOO_MANY_REQUESTS:
-        return ERROR_CODES.GEN.RATE_LIMITED;
+        return ERROR_CODES.GEN.RATE_LIMITED.code;
       case HttpStatus.INTERNAL_SERVER_ERROR:
-        return ERROR_CODES.SRV.INTERNAL_ERROR;
+        return ERROR_CODES.SRV.INTERNAL_ERROR.code;
       case HttpStatus.BAD_GATEWAY:
-        return ERROR_CODES.EXT.SERVICE_ERROR;
+        return ERROR_CODES.EXT.SERVICE_ERROR.code;
       case HttpStatus.SERVICE_UNAVAILABLE:
-        return ERROR_CODES.GEN.SERVICE_UNAVAILABLE;
+        return ERROR_CODES.GEN.SERVICE_UNAVAILABLE.code;
       case HttpStatus.GATEWAY_TIMEOUT:
-        return ERROR_CODES.GEN.TIMEOUT;
+        return ERROR_CODES.GEN.TIMEOUT.code;
       default:
-        return ERROR_CODES.GEN.UNKNOWN;
+        return ERROR_CODES.GEN.UNKNOWN.code;
     }
   }
 

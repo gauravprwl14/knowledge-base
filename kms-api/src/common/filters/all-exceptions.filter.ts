@@ -117,7 +117,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         : exception.message;
 
       return new AppError({
-        code: ERROR_CODES.SRV.INTERNAL_ERROR,
+        code: ERROR_CODES.SRV.INTERNAL_ERROR.code,
         message,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         cause: exception,
@@ -127,7 +127,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     // Unknown error type
     return new AppError({
-      code: ERROR_CODES.GEN.UNKNOWN,
+      code: ERROR_CODES.GEN.UNKNOWN.code,
       message: 'An unknown error occurred',
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       isOperational: false,
@@ -140,19 +140,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private getCodeFromStatus(status: number): ErrorCode {
     switch (status) {
       case HttpStatus.BAD_REQUEST:
-        return ERROR_CODES.VAL.INVALID_INPUT;
+        return ERROR_CODES.VAL.INVALID_INPUT.code;
       case HttpStatus.UNAUTHORIZED:
-        return ERROR_CODES.AUT.UNAUTHENTICATED;
+        return ERROR_CODES.AUT.UNAUTHENTICATED.code;
       case HttpStatus.FORBIDDEN:
-        return ERROR_CODES.AUZ.FORBIDDEN;
+        return ERROR_CODES.AUZ.FORBIDDEN.code;
       case HttpStatus.NOT_FOUND:
-        return ERROR_CODES.DAT.NOT_FOUND;
+        return ERROR_CODES.DAT.NOT_FOUND.code;
       case HttpStatus.CONFLICT:
-        return ERROR_CODES.DAT.CONFLICT;
+        return ERROR_CODES.DAT.CONFLICT.code;
       case HttpStatus.TOO_MANY_REQUESTS:
-        return ERROR_CODES.GEN.RATE_LIMITED;
+        return ERROR_CODES.GEN.RATE_LIMITED.code;
       default:
-        return status >= 500 ? ERROR_CODES.SRV.INTERNAL_ERROR : ERROR_CODES.GEN.UNKNOWN;
+        return status >= 500 ? ERROR_CODES.SRV.INTERNAL_ERROR.code : ERROR_CODES.GEN.UNKNOWN.code;
     }
   }
 
