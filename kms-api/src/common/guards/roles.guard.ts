@@ -39,7 +39,7 @@ export class RolesGuard implements CanActivate {
     // No user attached (authentication should have failed)
     if (!user) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.UNAUTHENTICATED,
+        ERROR_CODES.AUT.UNAUTHENTICATED.code,
         'Authentication required',
       );
     }
@@ -49,7 +49,7 @@ export class RolesGuard implements CanActivate {
 
     if (!hasRole) {
       throw ErrorFactory.authorization(
-        ERROR_CODES.AUZ.ROLE_REQUIRED,
+        ERROR_CODES.AUZ.ROLE_REQUIRED.code,
         `Required role: ${requiredRoles.join(' or ')}`,
       );
     }
