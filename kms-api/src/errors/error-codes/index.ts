@@ -14,143 +14,793 @@
  * - SRV: Server/Internal errors
  * - EXT: External service errors
  *
+ * Each error definition includes:
+ * - code: Unique error identifier
+ * - message: Human-readable error message
+ * - httpStatus: HTTP status code
+ * - severity: Error severity level
+ * - retryable: Whether the operation can be retried
+ * - userFacing: Whether safe to show to end users
+ *
  * @example
  * ```typescript
- * import { ERROR_CODES, getErrorMessage } from '@errors/error-codes';
+ * import { ERROR_CODES, ErrorDefinition } from '@errors/error-codes';
  *
- * throw ErrorFactory.validation(ERROR_CODES.VAL.INVALID_EMAIL);
+ * const error = ERROR_CODES.VAL.INVALID_EMAIL;
+ * console.log(error.code); // 'VAL0001'
+ * console.log(error.message); // 'Invalid email address'
+ * console.log(error.httpStatus); // 400
  * ```
  */
+
+/**
+ * Error severity levels
+ */
+export type ErrorSeverity = 'ERROR' | 'WARNING' | 'INFO';
+
+/**
+ * Error definition with rich metadata
+ */
+export interface ErrorDefinition {
+  /** Unique error code (e.g., 'VAL0001') */
+  readonly code: string;
+  /** Human-readable error message */
+  readonly message: string;
+  /** HTTP status code */
+  readonly httpStatus: number;
+  /** Error severity level */
+  readonly severity: ErrorSeverity;
+  /** Whether the operation can be retried */
+  readonly retryable: boolean;
+  /** Whether safe to show to end users */
+  readonly userFacing: boolean;
+}
 
 /**
  * General Error Codes (GEN0000 - GEN9999)
  */
 export const GEN_ERROR_CODES = {
-  UNKNOWN: 'GEN0000',
-  INTERNAL_ERROR: 'GEN0001',
-  NOT_IMPLEMENTED: 'GEN0002',
-  SERVICE_UNAVAILABLE: 'GEN0003',
-  TIMEOUT: 'GEN0004',
-  RATE_LIMITED: 'GEN0005',
-  MAINTENANCE_MODE: 'GEN0006',
-} as const;
+  UNKNOWN: {
+    code: 'GEN0000',
+    message: 'An unknown error occurred',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INTERNAL_ERROR: {
+    code: 'GEN0001',
+    message: 'An internal error occurred',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  NOT_IMPLEMENTED: {
+    code: 'GEN0002',
+    message: 'This feature is not implemented',
+    httpStatus: 501,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  SERVICE_UNAVAILABLE: {
+    code: 'GEN0003',
+    message: 'Service is temporarily unavailable',
+    httpStatus: 503,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  TIMEOUT: {
+    code: 'GEN0004',
+    message: 'Request timed out',
+    httpStatus: 504,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  RATE_LIMITED: {
+    code: 'GEN0005',
+    message: 'Too many requests, please try again later',
+    httpStatus: 429,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  MAINTENANCE_MODE: {
+    code: 'GEN0006',
+    message: 'Service is under maintenance',
+    httpStatus: 503,
+    severity: 'INFO',
+    retryable: true,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
 
 /**
  * Validation Error Codes (VAL0000 - VAL9999)
  */
 export const VAL_ERROR_CODES = {
-  INVALID_INPUT: 'VAL0000',
-  INVALID_EMAIL: 'VAL0001',
-  INVALID_PASSWORD: 'VAL0002',
-  INVALID_UUID: 'VAL0003',
-  INVALID_DATE: 'VAL0004',
-  INVALID_ENUM: 'VAL0005',
-  REQUIRED_FIELD: 'VAL0006',
-  FIELD_TOO_SHORT: 'VAL0007',
-  FIELD_TOO_LONG: 'VAL0008',
-  INVALID_FORMAT: 'VAL0009',
-  INVALID_TYPE: 'VAL0010',
-  INVALID_RANGE: 'VAL0011',
-  INVALID_JSON: 'VAL0012',
-  INVALID_API_KEY_FORMAT: 'VAL0013',
-  INVALID_PAGINATION: 'VAL0014',
-  PASSWORDS_DO_NOT_MATCH: 'VAL0015',
-  WEAK_PASSWORD: 'VAL0016',
-} as const;
+  INVALID_INPUT: {
+    code: 'VAL0000',
+    message: 'Invalid input provided',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_EMAIL: {
+    code: 'VAL0001',
+    message: 'Invalid email address',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_PASSWORD: {
+    code: 'VAL0002',
+    message: 'Invalid password',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_UUID: {
+    code: 'VAL0003',
+    message: 'Invalid UUID format',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_DATE: {
+    code: 'VAL0004',
+    message: 'Invalid date format',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_ENUM: {
+    code: 'VAL0005',
+    message: 'Invalid enum value',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  REQUIRED_FIELD: {
+    code: 'VAL0006',
+    message: 'Required field is missing',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  FIELD_TOO_SHORT: {
+    code: 'VAL0007',
+    message: 'Field value is too short',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  FIELD_TOO_LONG: {
+    code: 'VAL0008',
+    message: 'Field value is too long',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_FORMAT: {
+    code: 'VAL0009',
+    message: 'Invalid format',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_TYPE: {
+    code: 'VAL0010',
+    message: 'Invalid type',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_RANGE: {
+    code: 'VAL0011',
+    message: 'Value is out of range',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_JSON: {
+    code: 'VAL0012',
+    message: 'Invalid JSON',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_API_KEY_FORMAT: {
+    code: 'VAL0013',
+    message: 'Invalid API key format',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_PAGINATION: {
+    code: 'VAL0014',
+    message: 'Invalid pagination parameters',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  PASSWORDS_DO_NOT_MATCH: {
+    code: 'VAL0015',
+    message: 'Passwords do not match',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  WEAK_PASSWORD: {
+    code: 'VAL0016',
+    message: 'Password does not meet security requirements',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
 
 /**
  * Authentication Error Codes (AUT0000 - AUT9999)
  */
 export const AUT_ERROR_CODES = {
-  UNAUTHENTICATED: 'AUT0000',
-  INVALID_CREDENTIALS: 'AUT0001',
-  TOKEN_EXPIRED: 'AUT0002',
-  TOKEN_INVALID: 'AUT0003',
-  TOKEN_REVOKED: 'AUT0004',
-  REFRESH_TOKEN_EXPIRED: 'AUT0005',
-  REFRESH_TOKEN_INVALID: 'AUT0006',
-  API_KEY_INVALID: 'AUT0007',
-  API_KEY_EXPIRED: 'AUT0008',
-  API_KEY_REVOKED: 'AUT0009',
-  SESSION_EXPIRED: 'AUT0010',
-  ACCOUNT_LOCKED: 'AUT0011',
-  ACCOUNT_NOT_VERIFIED: 'AUT0012',
-  ACCOUNT_SUSPENDED: 'AUT0013',
-  MFA_REQUIRED: 'AUT0014',
-  MFA_INVALID: 'AUT0015',
-  OAUTH_FAILED: 'AUT0016',
-} as const;
+  UNAUTHENTICATED: {
+    code: 'AUT0000',
+    message: 'Authentication required',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INVALID_CREDENTIALS: {
+    code: 'AUT0001',
+    message: 'Invalid credentials',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  TOKEN_EXPIRED: {
+    code: 'AUT0002',
+    message: 'Access token has expired',
+    httpStatus: 401,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  TOKEN_INVALID: {
+    code: 'AUT0003',
+    message: 'Invalid access token',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  TOKEN_REVOKED: {
+    code: 'AUT0004',
+    message: 'Access token has been revoked',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  REFRESH_TOKEN_EXPIRED: {
+    code: 'AUT0005',
+    message: 'Refresh token has expired',
+    httpStatus: 401,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  REFRESH_TOKEN_INVALID: {
+    code: 'AUT0006',
+    message: 'Invalid refresh token',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  API_KEY_INVALID: {
+    code: 'AUT0007',
+    message: 'Invalid API key',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  API_KEY_EXPIRED: {
+    code: 'AUT0008',
+    message: 'API key has expired',
+    httpStatus: 401,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  API_KEY_REVOKED: {
+    code: 'AUT0009',
+    message: 'API key has been revoked',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  SESSION_EXPIRED: {
+    code: 'AUT0010',
+    message: 'Session has expired',
+    httpStatus: 401,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  ACCOUNT_LOCKED: {
+    code: 'AUT0011',
+    message: 'Account is locked',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  ACCOUNT_NOT_VERIFIED: {
+    code: 'AUT0012',
+    message: 'Account email is not verified',
+    httpStatus: 403,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  ACCOUNT_SUSPENDED: {
+    code: 'AUT0013',
+    message: 'Account has been suspended',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  MFA_REQUIRED: {
+    code: 'AUT0014',
+    message: 'Multi-factor authentication required',
+    httpStatus: 401,
+    severity: 'INFO',
+    retryable: false,
+    userFacing: true,
+  },
+  MFA_INVALID: {
+    code: 'AUT0015',
+    message: 'Invalid MFA code',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  OAUTH_FAILED: {
+    code: 'AUT0016',
+    message: 'OAuth authentication failed',
+    httpStatus: 401,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
 
 /**
  * Authorization Error Codes (AUZ0000 - AUZ9999)
  */
 export const AUZ_ERROR_CODES = {
-  FORBIDDEN: 'AUZ0000',
-  INSUFFICIENT_PERMISSIONS: 'AUZ0001',
-  RESOURCE_ACCESS_DENIED: 'AUZ0002',
-  ACTION_NOT_ALLOWED: 'AUZ0003',
-  SCOPE_INSUFFICIENT: 'AUZ0004',
-  ROLE_REQUIRED: 'AUZ0005',
-  OWNERSHIP_REQUIRED: 'AUZ0006',
-  IP_NOT_ALLOWED: 'AUZ0007',
-} as const;
+  FORBIDDEN: {
+    code: 'AUZ0000',
+    message: 'Access forbidden',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  INSUFFICIENT_PERMISSIONS: {
+    code: 'AUZ0001',
+    message: 'Insufficient permissions',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  RESOURCE_ACCESS_DENIED: {
+    code: 'AUZ0002',
+    message: 'Access to resource denied',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  ACTION_NOT_ALLOWED: {
+    code: 'AUZ0003',
+    message: 'Action not allowed',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  SCOPE_INSUFFICIENT: {
+    code: 'AUZ0004',
+    message: 'Insufficient scope',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  ROLE_REQUIRED: {
+    code: 'AUZ0005',
+    message: 'Required role not present',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  OWNERSHIP_REQUIRED: {
+    code: 'AUZ0006',
+    message: 'Resource ownership required',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  IP_NOT_ALLOWED: {
+    code: 'AUZ0007',
+    message: 'IP address not allowed',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
 
 /**
  * Data/Database Error Codes (DAT0000 - DAT9999)
  */
 export const DAT_ERROR_CODES = {
-  NOT_FOUND: 'DAT0000',
-  ALREADY_EXISTS: 'DAT0001',
-  CONFLICT: 'DAT0002',
-  CONSTRAINT_VIOLATION: 'DAT0003',
-  FOREIGN_KEY_VIOLATION: 'DAT0004',
-  UNIQUE_VIOLATION: 'DAT0005',
-  TRANSACTION_FAILED: 'DAT0006',
-  CONNECTION_FAILED: 'DAT0007',
-  QUERY_FAILED: 'DAT0008',
-  DATA_INTEGRITY_ERROR: 'DAT0009',
-  RECORD_LOCKED: 'DAT0010',
-  STALE_DATA: 'DAT0011',
-  USER_NOT_FOUND: 'DAT0012',
-  API_KEY_NOT_FOUND: 'DAT0013',
-  SESSION_NOT_FOUND: 'DAT0014',
-} as const;
+  NOT_FOUND: {
+    code: 'DAT0000',
+    message: 'Resource not found',
+    httpStatus: 404,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  ALREADY_EXISTS: {
+    code: 'DAT0001',
+    message: 'Resource already exists',
+    httpStatus: 409,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  CONFLICT: {
+    code: 'DAT0002',
+    message: 'Resource conflict',
+    httpStatus: 409,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  CONSTRAINT_VIOLATION: {
+    code: 'DAT0003',
+    message: 'Database constraint violation',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  FOREIGN_KEY_VIOLATION: {
+    code: 'DAT0004',
+    message: 'Foreign key constraint violation',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  UNIQUE_VIOLATION: {
+    code: 'DAT0005',
+    message: 'Unique constraint violation',
+    httpStatus: 409,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  TRANSACTION_FAILED: {
+    code: 'DAT0006',
+    message: 'Database transaction failed',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: false,
+  },
+  CONNECTION_FAILED: {
+    code: 'DAT0007',
+    message: 'Database connection failed',
+    httpStatus: 503,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: false,
+  },
+  QUERY_FAILED: {
+    code: 'DAT0008',
+    message: 'Database query failed',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  DATA_INTEGRITY_ERROR: {
+    code: 'DAT0009',
+    message: 'Data integrity error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  RECORD_LOCKED: {
+    code: 'DAT0010',
+    message: 'Record is locked',
+    httpStatus: 409,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  STALE_DATA: {
+    code: 'DAT0011',
+    message: 'Data has been modified',
+    httpStatus: 409,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  USER_NOT_FOUND: {
+    code: 'DAT0012',
+    message: 'User not found',
+    httpStatus: 404,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  API_KEY_NOT_FOUND: {
+    code: 'DAT0013',
+    message: 'API key not found',
+    httpStatus: 404,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  SESSION_NOT_FOUND: {
+    code: 'DAT0014',
+    message: 'Session not found',
+    httpStatus: 404,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
 
 /**
  * Server/Internal Error Codes (SRV0000 - SRV9999)
  */
 export const SRV_ERROR_CODES = {
-  INTERNAL_ERROR: 'SRV0000',
-  CONFIGURATION_ERROR: 'SRV0001',
-  DEPENDENCY_ERROR: 'SRV0002',
-  RESOURCE_EXHAUSTED: 'SRV0003',
-  QUEUE_ERROR: 'SRV0004',
-  CACHE_ERROR: 'SRV0005',
-  FILE_SYSTEM_ERROR: 'SRV0006',
-  SERIALIZATION_ERROR: 'SRV0007',
-  DESERIALIZATION_ERROR: 'SRV0008',
-  STARTUP_ERROR: 'SRV0009',
-  SHUTDOWN_ERROR: 'SRV0010',
-  HEALTH_CHECK_FAILED: 'SRV0011',
-} as const;
+  INTERNAL_ERROR: {
+    code: 'SRV0000',
+    message: 'Internal server error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  CONFIGURATION_ERROR: {
+    code: 'SRV0001',
+    message: 'Configuration error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  DEPENDENCY_ERROR: {
+    code: 'SRV0002',
+    message: 'Service dependency error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: false,
+  },
+  RESOURCE_EXHAUSTED: {
+    code: 'SRV0003',
+    message: 'Server resources exhausted',
+    httpStatus: 503,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  QUEUE_ERROR: {
+    code: 'SRV0004',
+    message: 'Queue processing error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: false,
+  },
+  CACHE_ERROR: {
+    code: 'SRV0005',
+    message: 'Cache operation error',
+    httpStatus: 500,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: false,
+  },
+  FILE_SYSTEM_ERROR: {
+    code: 'SRV0006',
+    message: 'File system error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  SERIALIZATION_ERROR: {
+    code: 'SRV0007',
+    message: 'Serialization error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  DESERIALIZATION_ERROR: {
+    code: 'SRV0008',
+    message: 'Deserialization error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  STARTUP_ERROR: {
+    code: 'SRV0009',
+    message: 'Service startup error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  SHUTDOWN_ERROR: {
+    code: 'SRV0010',
+    message: 'Service shutdown error',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  HEALTH_CHECK_FAILED: {
+    code: 'SRV0011',
+    message: 'Health check failed',
+    httpStatus: 503,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: false,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
 
 /**
  * External Service Error Codes (EXT0000 - EXT9999)
  */
 export const EXT_ERROR_CODES = {
-  SERVICE_ERROR: 'EXT0000',
-  SERVICE_UNAVAILABLE: 'EXT0001',
-  SERVICE_TIMEOUT: 'EXT0002',
-  SERVICE_RATE_LIMITED: 'EXT0003',
-  INVALID_RESPONSE: 'EXT0004',
-  CONNECTION_REFUSED: 'EXT0005',
-  DNS_RESOLUTION_FAILED: 'EXT0006',
-  SSL_ERROR: 'EXT0007',
-  API_VERSION_MISMATCH: 'EXT0008',
-  WEBHOOK_FAILED: 'EXT0009',
-  VOICE_APP_ERROR: 'EXT0010',
-  SEARCH_API_ERROR: 'EXT0011',
-} as const;
+  SERVICE_ERROR: {
+    code: 'EXT0000',
+    message: 'External service error',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  SERVICE_UNAVAILABLE: {
+    code: 'EXT0001',
+    message: 'External service unavailable',
+    httpStatus: 503,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  SERVICE_TIMEOUT: {
+    code: 'EXT0002',
+    message: 'External service timeout',
+    httpStatus: 504,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  SERVICE_RATE_LIMITED: {
+    code: 'EXT0003',
+    message: 'External service rate limited',
+    httpStatus: 429,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+  INVALID_RESPONSE: {
+    code: 'EXT0004',
+    message: 'Invalid response from external service',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: false,
+  },
+  CONNECTION_REFUSED: {
+    code: 'EXT0005',
+    message: 'Connection refused by external service',
+    httpStatus: 503,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: false,
+  },
+  DNS_RESOLUTION_FAILED: {
+    code: 'EXT0006',
+    message: 'DNS resolution failed',
+    httpStatus: 503,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: false,
+  },
+  SSL_ERROR: {
+    code: 'EXT0007',
+    message: 'SSL/TLS error',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  API_VERSION_MISMATCH: {
+    code: 'EXT0008',
+    message: 'API version mismatch',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  WEBHOOK_FAILED: {
+    code: 'EXT0009',
+    message: 'Webhook delivery failed',
+    httpStatus: 502,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: false,
+  },
+  VOICE_APP_ERROR: {
+    code: 'EXT0010',
+    message: 'Voice App service error',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  SEARCH_API_ERROR: {
+    code: 'EXT0011',
+    message: 'Search API service error',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
 
 /**
  * Combined error codes object
@@ -166,165 +816,68 @@ export const ERROR_CODES = {
 } as const;
 
 /**
- * Error code type union
+ * Error code type union (extracts just the code string)
  */
 export type ErrorCode =
-  | (typeof GEN_ERROR_CODES)[keyof typeof GEN_ERROR_CODES]
-  | (typeof VAL_ERROR_CODES)[keyof typeof VAL_ERROR_CODES]
-  | (typeof AUT_ERROR_CODES)[keyof typeof AUT_ERROR_CODES]
-  | (typeof AUZ_ERROR_CODES)[keyof typeof AUZ_ERROR_CODES]
-  | (typeof DAT_ERROR_CODES)[keyof typeof DAT_ERROR_CODES]
-  | (typeof SRV_ERROR_CODES)[keyof typeof SRV_ERROR_CODES]
-  | (typeof EXT_ERROR_CODES)[keyof typeof EXT_ERROR_CODES];
+  | (typeof GEN_ERROR_CODES)[keyof typeof GEN_ERROR_CODES]['code']
+  | (typeof VAL_ERROR_CODES)[keyof typeof VAL_ERROR_CODES]['code']
+  | (typeof AUT_ERROR_CODES)[keyof typeof AUT_ERROR_CODES]['code']
+  | (typeof AUZ_ERROR_CODES)[keyof typeof AUZ_ERROR_CODES]['code']
+  | (typeof DAT_ERROR_CODES)[keyof typeof DAT_ERROR_CODES]['code']
+  | (typeof SRV_ERROR_CODES)[keyof typeof SRV_ERROR_CODES]['code']
+  | (typeof EXT_ERROR_CODES)[keyof typeof EXT_ERROR_CODES]['code'];
 
 /**
- * Default error messages for each error code
+ * Helper type to extract error definition from error codes object
  */
-export const ERROR_MESSAGES: Record<ErrorCode, string> = {
-  // General
-  [GEN_ERROR_CODES.UNKNOWN]: 'An unknown error occurred',
-  [GEN_ERROR_CODES.INTERNAL_ERROR]: 'An internal error occurred',
-  [GEN_ERROR_CODES.NOT_IMPLEMENTED]: 'This feature is not implemented',
-  [GEN_ERROR_CODES.SERVICE_UNAVAILABLE]: 'Service is temporarily unavailable',
-  [GEN_ERROR_CODES.TIMEOUT]: 'Request timed out',
-  [GEN_ERROR_CODES.RATE_LIMITED]: 'Too many requests, please try again later',
-  [GEN_ERROR_CODES.MAINTENANCE_MODE]: 'Service is under maintenance',
+type ExtractErrorDef<T> = T extends Record<string, infer U> ? U : never;
 
-  // Validation
-  [VAL_ERROR_CODES.INVALID_INPUT]: 'Invalid input provided',
-  [VAL_ERROR_CODES.INVALID_EMAIL]: 'Invalid email address',
-  [VAL_ERROR_CODES.INVALID_PASSWORD]: 'Invalid password',
-  [VAL_ERROR_CODES.INVALID_UUID]: 'Invalid UUID format',
-  [VAL_ERROR_CODES.INVALID_DATE]: 'Invalid date format',
-  [VAL_ERROR_CODES.INVALID_ENUM]: 'Invalid enum value',
-  [VAL_ERROR_CODES.REQUIRED_FIELD]: 'Required field is missing',
-  [VAL_ERROR_CODES.FIELD_TOO_SHORT]: 'Field value is too short',
-  [VAL_ERROR_CODES.FIELD_TOO_LONG]: 'Field value is too long',
-  [VAL_ERROR_CODES.INVALID_FORMAT]: 'Invalid format',
-  [VAL_ERROR_CODES.INVALID_TYPE]: 'Invalid type',
-  [VAL_ERROR_CODES.INVALID_RANGE]: 'Value is out of range',
-  [VAL_ERROR_CODES.INVALID_JSON]: 'Invalid JSON',
-  [VAL_ERROR_CODES.INVALID_API_KEY_FORMAT]: 'Invalid API key format',
-  [VAL_ERROR_CODES.INVALID_PAGINATION]: 'Invalid pagination parameters',
-  [VAL_ERROR_CODES.PASSWORDS_DO_NOT_MATCH]: 'Passwords do not match',
-  [VAL_ERROR_CODES.WEAK_PASSWORD]: 'Password does not meet security requirements',
+/**
+ * Type representing any error definition
+ */
+export type AnyErrorDefinition =
+  | ExtractErrorDef<typeof GEN_ERROR_CODES>
+  | ExtractErrorDef<typeof VAL_ERROR_CODES>
+  | ExtractErrorDef<typeof AUT_ERROR_CODES>
+  | ExtractErrorDef<typeof AUZ_ERROR_CODES>
+  | ExtractErrorDef<typeof DAT_ERROR_CODES>
+  | ExtractErrorDef<typeof SRV_ERROR_CODES>
+  | ExtractErrorDef<typeof EXT_ERROR_CODES>;
 
-  // Authentication
-  [AUT_ERROR_CODES.UNAUTHENTICATED]: 'Authentication required',
-  [AUT_ERROR_CODES.INVALID_CREDENTIALS]: 'Invalid credentials',
-  [AUT_ERROR_CODES.TOKEN_EXPIRED]: 'Access token has expired',
-  [AUT_ERROR_CODES.TOKEN_INVALID]: 'Invalid access token',
-  [AUT_ERROR_CODES.TOKEN_REVOKED]: 'Access token has been revoked',
-  [AUT_ERROR_CODES.REFRESH_TOKEN_EXPIRED]: 'Refresh token has expired',
-  [AUT_ERROR_CODES.REFRESH_TOKEN_INVALID]: 'Invalid refresh token',
-  [AUT_ERROR_CODES.API_KEY_INVALID]: 'Invalid API key',
-  [AUT_ERROR_CODES.API_KEY_EXPIRED]: 'API key has expired',
-  [AUT_ERROR_CODES.API_KEY_REVOKED]: 'API key has been revoked',
-  [AUT_ERROR_CODES.SESSION_EXPIRED]: 'Session has expired',
-  [AUT_ERROR_CODES.ACCOUNT_LOCKED]: 'Account is locked',
-  [AUT_ERROR_CODES.ACCOUNT_NOT_VERIFIED]: 'Account email is not verified',
-  [AUT_ERROR_CODES.ACCOUNT_SUSPENDED]: 'Account has been suspended',
-  [AUT_ERROR_CODES.MFA_REQUIRED]: 'Multi-factor authentication required',
-  [AUT_ERROR_CODES.MFA_INVALID]: 'Invalid MFA code',
-  [AUT_ERROR_CODES.OAUTH_FAILED]: 'OAuth authentication failed',
-
-  // Authorization
-  [AUZ_ERROR_CODES.FORBIDDEN]: 'Access forbidden',
-  [AUZ_ERROR_CODES.INSUFFICIENT_PERMISSIONS]: 'Insufficient permissions',
-  [AUZ_ERROR_CODES.RESOURCE_ACCESS_DENIED]: 'Access to resource denied',
-  [AUZ_ERROR_CODES.ACTION_NOT_ALLOWED]: 'Action not allowed',
-  [AUZ_ERROR_CODES.SCOPE_INSUFFICIENT]: 'Insufficient scope',
-  [AUZ_ERROR_CODES.ROLE_REQUIRED]: 'Required role not present',
-  [AUZ_ERROR_CODES.OWNERSHIP_REQUIRED]: 'Resource ownership required',
-  [AUZ_ERROR_CODES.IP_NOT_ALLOWED]: 'IP address not allowed',
-
-  // Data
-  [DAT_ERROR_CODES.NOT_FOUND]: 'Resource not found',
-  [DAT_ERROR_CODES.ALREADY_EXISTS]: 'Resource already exists',
-  [DAT_ERROR_CODES.CONFLICT]: 'Resource conflict',
-  [DAT_ERROR_CODES.CONSTRAINT_VIOLATION]: 'Database constraint violation',
-  [DAT_ERROR_CODES.FOREIGN_KEY_VIOLATION]: 'Foreign key constraint violation',
-  [DAT_ERROR_CODES.UNIQUE_VIOLATION]: 'Unique constraint violation',
-  [DAT_ERROR_CODES.TRANSACTION_FAILED]: 'Database transaction failed',
-  [DAT_ERROR_CODES.CONNECTION_FAILED]: 'Database connection failed',
-  [DAT_ERROR_CODES.QUERY_FAILED]: 'Database query failed',
-  [DAT_ERROR_CODES.DATA_INTEGRITY_ERROR]: 'Data integrity error',
-  [DAT_ERROR_CODES.RECORD_LOCKED]: 'Record is locked',
-  [DAT_ERROR_CODES.STALE_DATA]: 'Data has been modified',
-  [DAT_ERROR_CODES.USER_NOT_FOUND]: 'User not found',
-  [DAT_ERROR_CODES.API_KEY_NOT_FOUND]: 'API key not found',
-  [DAT_ERROR_CODES.SESSION_NOT_FOUND]: 'Session not found',
-
-  // Server
-  [SRV_ERROR_CODES.INTERNAL_ERROR]: 'Internal server error',
-  [SRV_ERROR_CODES.CONFIGURATION_ERROR]: 'Configuration error',
-  [SRV_ERROR_CODES.DEPENDENCY_ERROR]: 'Service dependency error',
-  [SRV_ERROR_CODES.RESOURCE_EXHAUSTED]: 'Server resources exhausted',
-  [SRV_ERROR_CODES.QUEUE_ERROR]: 'Queue processing error',
-  [SRV_ERROR_CODES.CACHE_ERROR]: 'Cache operation error',
-  [SRV_ERROR_CODES.FILE_SYSTEM_ERROR]: 'File system error',
-  [SRV_ERROR_CODES.SERIALIZATION_ERROR]: 'Serialization error',
-  [SRV_ERROR_CODES.DESERIALIZATION_ERROR]: 'Deserialization error',
-  [SRV_ERROR_CODES.STARTUP_ERROR]: 'Service startup error',
-  [SRV_ERROR_CODES.SHUTDOWN_ERROR]: 'Service shutdown error',
-  [SRV_ERROR_CODES.HEALTH_CHECK_FAILED]: 'Health check failed',
-
-  // External
-  [EXT_ERROR_CODES.SERVICE_ERROR]: 'External service error',
-  [EXT_ERROR_CODES.SERVICE_UNAVAILABLE]: 'External service unavailable',
-  [EXT_ERROR_CODES.SERVICE_TIMEOUT]: 'External service timeout',
-  [EXT_ERROR_CODES.SERVICE_RATE_LIMITED]: 'External service rate limited',
-  [EXT_ERROR_CODES.INVALID_RESPONSE]: 'Invalid response from external service',
-  [EXT_ERROR_CODES.CONNECTION_REFUSED]: 'Connection refused by external service',
-  [EXT_ERROR_CODES.DNS_RESOLUTION_FAILED]: 'DNS resolution failed',
-  [EXT_ERROR_CODES.SSL_ERROR]: 'SSL/TLS error',
-  [EXT_ERROR_CODES.API_VERSION_MISMATCH]: 'API version mismatch',
-  [EXT_ERROR_CODES.WEBHOOK_FAILED]: 'Webhook delivery failed',
-  [EXT_ERROR_CODES.VOICE_APP_ERROR]: 'Voice App service error',
-  [EXT_ERROR_CODES.SEARCH_API_ERROR]: 'Search API service error',
-};
+/**
+ * Gets the error definition for a given error code
+ * @param code - The error code
+ * @returns The error definition or undefined if not found
+ */
+export function getErrorDefinition(code: ErrorCode): ErrorDefinition | undefined {
+  for (const category of Object.values(ERROR_CODES)) {
+    for (const errorDef of Object.values(category)) {
+      if (errorDef.code === code) {
+        return errorDef;
+      }
+    }
+  }
+  return undefined;
+}
 
 /**
  * Gets the default message for an error code
  * @param code - The error code
  * @returns The default error message
+ * @deprecated Use error definition's message property instead
  */
 export function getErrorMessage(code: ErrorCode): string {
-  return ERROR_MESSAGES[code] || ERROR_MESSAGES[GEN_ERROR_CODES.UNKNOWN];
+  const definition = getErrorDefinition(code);
+  return definition?.message || 'An unknown error occurred';
 }
 
 /**
  * Gets the HTTP status code for an error code
  * @param code - The error code
  * @returns The HTTP status code
+ * @deprecated Use error definition's httpStatus property instead
  */
 export function getHttpStatusForCode(code: ErrorCode): number {
-  const prefix = code.substring(0, 3);
-
-  switch (prefix) {
-    case 'VAL':
-      return 400; // Bad Request
-    case 'AUT':
-      return 401; // Unauthorized
-    case 'AUZ':
-      return 403; // Forbidden
-    case 'DAT':
-      if (code === DAT_ERROR_CODES.NOT_FOUND) return 404;
-      if (code === DAT_ERROR_CODES.CONFLICT || code === DAT_ERROR_CODES.ALREADY_EXISTS)
-        return 409;
-      return 400;
-    case 'GEN':
-      if (code === GEN_ERROR_CODES.RATE_LIMITED) return 429;
-      if (code === GEN_ERROR_CODES.SERVICE_UNAVAILABLE) return 503;
-      if (code === GEN_ERROR_CODES.TIMEOUT) return 504;
-      return 500;
-    case 'SRV':
-      return 500; // Internal Server Error
-    case 'EXT':
-      if (code === EXT_ERROR_CODES.SERVICE_UNAVAILABLE) return 503;
-      if (code === EXT_ERROR_CODES.SERVICE_TIMEOUT) return 504;
-      return 502; // Bad Gateway
-    default:
-      return 500;
-  }
+  const definition = getErrorDefinition(code);
+  return definition?.httpStatus || 500;
 }
