@@ -19,7 +19,7 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   P2003: (error) => {
     const field = error.meta?.field_name as string | undefined;
     return new AppError({
-      code: ERROR_CODES.DAT.FOREIGN_KEY_VIOLATION,
+      code: ERROR_CODES.DAT.FOREIGN_KEY_VIOLATION.code,
       message: field
         ? `Related ${field} does not exist`
         : 'Related record does not exist',
@@ -39,7 +39,7 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   P2011: (error) => {
     const constraint = error.meta?.constraint as string | undefined;
     return new AppError({
-      code: ERROR_CODES.VAL.REQUIRED_FIELD,
+      code: ERROR_CODES.VAL.REQUIRED_FIELD.code,
       message: constraint
         ? `Required field '${constraint}' is missing`
         : 'Required field is missing',
@@ -50,7 +50,7 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   // Constraint violation
   P2004: () =>
     new AppError({
-      code: ERROR_CODES.DAT.CONSTRAINT_VIOLATION,
+      code: ERROR_CODES.DAT.CONSTRAINT_VIOLATION.code,
       statusCode: 400,
     }),
 
@@ -58,7 +58,7 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   P2000: (error) => {
     const column = error.meta?.column as string | undefined;
     return new AppError({
-      code: ERROR_CODES.VAL.FIELD_TOO_LONG,
+      code: ERROR_CODES.VAL.FIELD_TOO_LONG.code,
       message: column
         ? `Value for '${column}' is too long`
         : 'Value is too long for the column',
@@ -70,7 +70,7 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   P2005: (error) => {
     const column = error.meta?.column as string | undefined;
     return new AppError({
-      code: ERROR_CODES.VAL.INVALID_TYPE,
+      code: ERROR_CODES.VAL.INVALID_TYPE.code,
       message: column ? `Invalid value for '${column}'` : 'Invalid value provided',
       statusCode: 400,
     });
@@ -79,35 +79,35 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   // Connection errors
   P1001: () =>
     new AppError({
-      code: ERROR_CODES.DAT.CONNECTION_FAILED,
+      code: ERROR_CODES.DAT.CONNECTION_FAILED.code,
       message: 'Cannot reach database server',
       statusCode: 503,
     }),
 
   P1002: () =>
     new AppError({
-      code: ERROR_CODES.DAT.CONNECTION_FAILED,
+      code: ERROR_CODES.DAT.CONNECTION_FAILED.code,
       message: 'Database server connection timed out',
       statusCode: 503,
     }),
 
   P1003: () =>
     new AppError({
-      code: ERROR_CODES.DAT.CONNECTION_FAILED,
+      code: ERROR_CODES.DAT.CONNECTION_FAILED.code,
       message: 'Database does not exist',
       statusCode: 503,
     }),
 
   P1008: () =>
     new AppError({
-      code: ERROR_CODES.GEN.TIMEOUT,
+      code: ERROR_CODES.GEN.TIMEOUT.code,
       message: 'Database operation timed out',
       statusCode: 504,
     }),
 
   P1017: () =>
     new AppError({
-      code: ERROR_CODES.DAT.CONNECTION_FAILED,
+      code: ERROR_CODES.DAT.CONNECTION_FAILED.code,
       message: 'Server closed the connection',
       statusCode: 503,
     }),
@@ -115,7 +115,7 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   // Transaction errors
   P2034: () =>
     new AppError({
-      code: ERROR_CODES.DAT.TRANSACTION_FAILED,
+      code: ERROR_CODES.DAT.TRANSACTION_FAILED.code,
       message: 'Transaction failed due to write conflict or deadlock',
       statusCode: 409,
     }),
@@ -149,7 +149,7 @@ export function handlePrismaError(error: unknown): AppError {
 
     // Unknown Prisma error code
     return new AppError({
-      code: ERROR_CODES.DAT.QUERY_FAILED,
+      code: ERROR_CODES.DAT.QUERY_FAILED.code,
       message: `Database error: ${error.message}`,
       cause: error,
       isOperational: false,
@@ -165,7 +165,7 @@ export function handlePrismaError(error: unknown): AppError {
   // Handle validation errors
   if (error instanceof Prisma.PrismaClientValidationError) {
     return new AppError({
-      code: ERROR_CODES.VAL.INVALID_INPUT,
+      code: ERROR_CODES.VAL.INVALID_INPUT.code,
       message: 'Invalid data provided to database operation',
       cause: error,
       statusCode: 400,
@@ -175,7 +175,7 @@ export function handlePrismaError(error: unknown): AppError {
   // Handle initialization errors
   if (error instanceof Prisma.PrismaClientInitializationError) {
     return new AppError({
-      code: ERROR_CODES.DAT.CONNECTION_FAILED,
+      code: ERROR_CODES.DAT.CONNECTION_FAILED.code,
       message: 'Failed to initialize database connection',
       cause: error,
       statusCode: 503,
@@ -186,7 +186,7 @@ export function handlePrismaError(error: unknown): AppError {
   // Handle Rust panic errors
   if (error instanceof Prisma.PrismaClientRustPanicError) {
     return new AppError({
-      code: ERROR_CODES.SRV.INTERNAL_ERROR,
+      code: ERROR_CODES.SRV.INTERNAL_ERROR.code,
       message: 'Database engine error',
       cause: error,
       statusCode: 500,
@@ -197,7 +197,7 @@ export function handlePrismaError(error: unknown): AppError {
   // Handle unknown request errors
   if (error instanceof Prisma.PrismaClientUnknownRequestError) {
     return new AppError({
-      code: ERROR_CODES.DAT.QUERY_FAILED,
+      code: ERROR_CODES.DAT.QUERY_FAILED.code,
       message: 'Unknown database error',
       cause: error,
       statusCode: 500,
@@ -206,7 +206,7 @@ export function handlePrismaError(error: unknown): AppError {
   }
 
   // If not a Prisma error, wrap as internal error
-  return AppError.wrap(error, ERROR_CODES.DAT.QUERY_FAILED);
+  return AppError.wrap(error, ERROR_CODES.DAT.QUERY_FAILED.code);
 }
 
 /**
