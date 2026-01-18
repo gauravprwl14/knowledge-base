@@ -49,7 +49,7 @@ export class ApiKeyAuthGuard extends AuthGuard('api-key') {
 
     if (!result) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.API_KEY_INVALID,
+        ERROR_CODES.AUT.API_KEY_INVALID.code,
         'Valid API key required',
       );
     }

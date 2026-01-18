@@ -95,7 +95,7 @@ export class AuthService {
 
     if (!user || !user.passwordHash) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.INVALID_CREDENTIALS,
+        ERROR_CODES.AUT.INVALID_CREDENTIALS.code,
         'Invalid email or password',
       );
     }
@@ -106,7 +106,7 @@ export class AuthService {
         (user.lockedUntil.getTime() - Date.now()) / (1000 * 60),
       );
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.ACCOUNT_LOCKED,
+        ERROR_CODES.AUT.ACCOUNT_LOCKED.code,
         `Account locked. Try again in ${remainingMinutes} minutes`,
       );
     }
@@ -126,13 +126,13 @@ export class AuthService {
 
       if (shouldLock) {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.ACCOUNT_LOCKED,
+          ERROR_CODES.AUT.ACCOUNT_LOCKED.code,
           `Account locked due to too many failed attempts. Try again in ${AUTH.ACCOUNT_LOCK_DURATION_MINUTES} minutes`,
         );
       }
 
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.INVALID_CREDENTIALS,
+        ERROR_CODES.AUT.INVALID_CREDENTIALS.code,
         'Invalid email or password',
       );
     }
@@ -141,18 +141,18 @@ export class AuthService {
     if (user.status !== UserStatus.ACTIVE) {
       if (user.status === UserStatus.PENDING_VERIFICATION) {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.ACCOUNT_NOT_VERIFIED,
+          ERROR_CODES.AUT.ACCOUNT_NOT_VERIFIED.code,
           'Please verify your email before logging in',
         );
       }
       if (user.status === UserStatus.SUSPENDED) {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.ACCOUNT_SUSPENDED,
+          ERROR_CODES.AUT.ACCOUNT_SUSPENDED.code,
           'Account has been suspended',
         );
       }
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.UNAUTHENTICATED,
+        ERROR_CODES.AUT.UNAUTHENTICATED.code,
         'Account is not active',
       );
     }
@@ -192,7 +192,7 @@ export class AuthService {
 
       if (payload.type !== 'refresh') {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.REFRESH_TOKEN_INVALID,
+          ERROR_CODES.AUT.REFRESH_TOKEN_INVALID.code,
           'Invalid refresh token',
         );
       }
@@ -202,7 +202,7 @@ export class AuthService {
 
       if (!user || user.status !== UserStatus.ACTIVE) {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.REFRESH_TOKEN_INVALID,
+          ERROR_CODES.AUT.REFRESH_TOKEN_INVALID.code,
           'User not found or inactive',
         );
       }
@@ -212,13 +212,13 @@ export class AuthService {
     } catch (error) {
       if (error instanceof Error && error.name === 'TokenExpiredError') {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.REFRESH_TOKEN_EXPIRED,
+          ERROR_CODES.AUT.REFRESH_TOKEN_EXPIRED.code,
           'Refresh token has expired',
         );
       }
       if (error instanceof Error && error.name === 'JsonWebTokenError') {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.REFRESH_TOKEN_INVALID,
+          ERROR_CODES.AUT.REFRESH_TOKEN_INVALID.code,
           'Invalid refresh token',
         );
       }
@@ -244,7 +244,7 @@ export class AuthService {
 
     if (!isPasswordValid) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.INVALID_CREDENTIALS,
+        ERROR_CODES.AUT.INVALID_CREDENTIALS.code,
         'Current password is incorrect',
       );
     }

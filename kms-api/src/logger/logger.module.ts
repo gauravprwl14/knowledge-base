@@ -26,7 +26,12 @@ import { AppLogger, LoggerConfig } from './logger.service';
  */
 @Global()
 @Module({
-  providers: [AppLogger],
+  providers: [
+    {
+      provide: AppLogger,
+      useFactory: () => new AppLogger(),
+    },
+  ],
   exports: [AppLogger],
 })
 export class LoggerModule {

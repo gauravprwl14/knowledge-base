@@ -21,7 +21,7 @@ export class ParseUUIDPipe implements PipeTransform<string, string> {
   transform(value: string): string {
     if (!PATTERNS.UUID.test(value)) {
       throw ErrorFactory.validation(
-        ERROR_CODES.VAL.INVALID_UUID,
+        ERROR_CODES.VAL.INVALID_UUID.code,
         `Value '${value}' is not a valid UUID`,
         [{ field: 'id', message: 'Must be a valid UUID' }],
       );

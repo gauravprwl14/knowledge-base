@@ -1,6 +1,5 @@
 import { Global, Module } from '@nestjs/common';
 import { PrismaModule } from './prisma/prisma.module';
-import { PrismaService } from './prisma/prisma.service';
 import { UserRepository } from './repositories/user.repository';
 import { ApiKeyRepository } from './repositories/api-key.repository';
 import { AuditLogRepository } from './repositories/audit-log.repository';
@@ -37,7 +36,6 @@ import { AuditLogRepository } from './repositories/audit-log.repository';
   ],
   exports: [
     PrismaModule,
-    PrismaService,
     UserRepository,
     ApiKeyRepository,
     AuditLogRepository,

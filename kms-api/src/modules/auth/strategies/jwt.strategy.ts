@@ -56,7 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // Ensure this is an access token
     if (payload.type !== 'access') {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.TOKEN_INVALID,
+        ERROR_CODES.AUT.TOKEN_INVALID.code,
         'Invalid token type',
       );
     }
@@ -65,7 +65,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     if (!user) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.UNAUTHENTICATED,
+        ERROR_CODES.AUT.UNAUTHENTICATED.code,
         'User not found',
       );
     }
@@ -74,18 +74,18 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (user.status !== UserStatus.ACTIVE) {
       if (user.status === UserStatus.SUSPENDED) {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.ACCOUNT_SUSPENDED,
+          ERROR_CODES.AUT.ACCOUNT_SUSPENDED.code,
           'Account has been suspended',
         );
       }
       if (user.status === UserStatus.PENDING_VERIFICATION) {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.ACCOUNT_NOT_VERIFIED,
+          ERROR_CODES.AUT.ACCOUNT_NOT_VERIFIED.code,
           'Email verification required',
         );
       }
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.UNAUTHENTICATED,
+        ERROR_CODES.AUT.UNAUTHENTICATED.code,
         'Account is not active',
       );
     }
@@ -93,7 +93,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // Check if account is locked
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.ACCOUNT_LOCKED,
+        ERROR_CODES.AUT.ACCOUNT_LOCKED.code,
         'Account is temporarily locked',
       );
     }

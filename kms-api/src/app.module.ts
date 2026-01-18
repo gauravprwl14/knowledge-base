@@ -63,7 +63,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     // Global interceptors (order matters - executed in reverse)
     {
       provide: APP_INTERCEPTOR,
-      useClass: TimeoutInterceptor,
+      useFactory: () => new TimeoutInterceptor(30000),
     },
     {
       provide: APP_INTERCEPTOR,

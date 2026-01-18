@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { ErrorCode, getErrorMessage, getHttpStatusForCode } from '../error-codes';
+import { ErrorCode, getErrorDefinition } from '../error-codes';
 
 /**
  * Error details interface for validation errors
@@ -107,20 +107,25 @@ export class AppError extends HttpException {
   constructor(options: AppErrorOptions) {
     const {
       code,
-      message = getErrorMessage(code),
-      statusCode = getHttpStatusForCode(code),
+      message,
+      statusCode,
       details,
       cause,
       context,
       isOperational = true,
     } = options;
 
+    // Get error definition for defaults
+    const definition = getErrorDefinition(code);
+    const finalMessage = message || definition?.message || 'An error occurred';
+    const finalStatusCode = statusCode || definition?.httpStatus || 500;
+
     // Build the response body
     const responseBody = {
       success: false,
       error: {
         code,
-        message,
+        message: finalMessage,
         ...(details && details.length > 0 && { details }),
         ...(context?.requestId && { requestId: context.requestId }),
         ...(context?.traceId && { traceId: context.traceId }),
@@ -128,7 +133,7 @@ export class AppError extends HttpException {
       timestamp: new Date().toISOString(),
     };
 
-    super(responseBody, statusCode, { cause });
+    super(responseBody, finalStatusCode, { cause });
 
     this.code = code;
     this.details = details;

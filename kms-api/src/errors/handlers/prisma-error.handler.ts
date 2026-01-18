@@ -9,20 +9,18 @@ import { ERROR_CODES } from '../error-codes';
  */
 const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   // Unique constraint violation
-  P2002: (error) => {
+  P2002: error => {
     const target = error.meta?.target as string[] | undefined;
     const field = target?.[0] || 'field';
     return ErrorFactory.uniqueViolation(field);
   },
 
   // Foreign key constraint failure
-  P2003: (error) => {
+  P2003: error => {
     const field = error.meta?.field_name as string | undefined;
     return new AppError({
       code: ERROR_CODES.DAT.FOREIGN_KEY_VIOLATION.code,
-      message: field
-        ? `Related ${field} does not exist`
-        : 'Related record does not exist',
+      message: field ? `Related ${field} does not exist` : 'Related record does not exist',
       statusCode: 400,
     });
   },
@@ -30,13 +28,13 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
   // Record not found
   P2001: () => ErrorFactory.notFound(),
   P2018: () => ErrorFactory.notFound(),
-  P2025: (error) => {
+  P2025: error => {
     const modelName = error.meta?.modelName || error.meta?.cause;
     return ErrorFactory.notFound(modelName);
   },
 
   // Required field missing
-  P2011: (error) => {
+  P2011: error => {
     const constraint = error.meta?.constraint as string | undefined;
     return new AppError({
       code: ERROR_CODES.VAL.REQUIRED_FIELD.code,
@@ -55,19 +53,17 @@ const PRISMA_ERROR_MAP: Record<string, (error: any) => AppError> = {
     }),
 
   // Value too long
-  P2000: (error) => {
+  P2000: error => {
     const column = error.meta?.column as string | undefined;
     return new AppError({
       code: ERROR_CODES.VAL.FIELD_TOO_LONG.code,
-      message: column
-        ? `Value for '${column}' is too long`
-        : 'Value is too long for the column',
+      message: column ? `Value for '${column}' is too long` : 'Value is too long for the column',
       statusCode: 400,
     });
   },
 
   // Invalid value
-  P2005: (error) => {
+  P2005: error => {
     const column = error.meta?.column as string | undefined;
     return new AppError({
       code: ERROR_CODES.VAL.INVALID_TYPE.code,
@@ -237,9 +233,7 @@ export function isPrismaError(error: unknown): boolean {
  * }
  * ```
  */
-export async function withPrismaErrorHandling<T>(
-  operation: () => Promise<T>,
-): Promise<T> {
+export async function withPrismaErrorHandling<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
   } catch (error) {

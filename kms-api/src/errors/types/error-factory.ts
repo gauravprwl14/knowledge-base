@@ -1,5 +1,11 @@
 import { AppError, ValidationErrorDetail, ErrorContext } from './app-error';
-import { ERROR_CODES, ErrorCode, getErrorMessage } from '../error-codes';
+import {
+  ERROR_CODES,
+  ErrorCode,
+  ErrorDefinition,
+  AnyErrorDefinition,
+  getErrorDefinition,
+} from '../error-codes';
 
 /**
  * ErrorFactory - Factory class for creating typed application errors
@@ -34,15 +40,16 @@ export class ErrorFactory {
    * @param details - Field-level validation details
    */
   static validation(
-    code: ErrorCode = ERROR_CODES.VAL.INVALID_INPUT,
+    code: ErrorCode = ERROR_CODES.VAL.INVALID_INPUT.code,
     message?: string,
     details?: ValidationErrorDetail[],
   ): AppError {
+    const definition = getErrorDefinition(code);
     return new AppError({
       code,
-      message,
+      message: message || definition?.message,
       details,
-      statusCode: 400,
+      statusCode: definition?.httpStatus || 400,
     });
   }
 
@@ -56,11 +63,12 @@ export class ErrorFactory {
       message: issue.message,
     }));
 
+    const definition = getErrorDefinition(ERROR_CODES.VAL.INVALID_INPUT.code);
     return new AppError({
-      code: ERROR_CODES.VAL.INVALID_INPUT,
+      code: ERROR_CODES.VAL.INVALID_INPUT.code,
       message: 'Validation failed',
       details,
-      statusCode: 400,
+      statusCode: definition?.httpStatus || 400,
     });
   }
 
@@ -83,11 +91,12 @@ export class ErrorFactory {
       value: error.value,
     }));
 
+    const definition = getErrorDefinition(ERROR_CODES.VAL.INVALID_INPUT.code);
     return new AppError({
-      code: ERROR_CODES.VAL.INVALID_INPUT,
+      code: ERROR_CODES.VAL.INVALID_INPUT.code,
       message: 'Validation failed',
       details,
-      statusCode: 400,
+      statusCode: definition?.httpStatus || 400,
     });
   }
 
@@ -97,13 +106,14 @@ export class ErrorFactory {
    * @param message - Custom message
    */
   static authentication(
-    code: ErrorCode = ERROR_CODES.AUT.UNAUTHENTICATED,
+    code: ErrorCode = ERROR_CODES.AUT.UNAUTHENTICATED.code,
     message?: string,
   ): AppError {
+    const definition = getErrorDefinition(code);
     return new AppError({
       code,
-      message,
-      statusCode: 401,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 401,
     });
   }
 
@@ -112,7 +122,7 @@ export class ErrorFactory {
    * @param message - Custom message
    */
   static unauthorized(message?: string): AppError {
-    return ErrorFactory.authentication(ERROR_CODES.AUT.INVALID_CREDENTIALS, message);
+    return ErrorFactory.authentication(ERROR_CODES.AUT.INVALID_CREDENTIALS.code, message);
   }
 
   /**
@@ -121,13 +131,14 @@ export class ErrorFactory {
    * @param message - Custom message
    */
   static authorization(
-    code: ErrorCode = ERROR_CODES.AUZ.FORBIDDEN,
+    code: ErrorCode = ERROR_CODES.AUZ.FORBIDDEN.code,
     message?: string,
   ): AppError {
+    const definition = getErrorDefinition(code);
     return new AppError({
       code,
-      message,
-      statusCode: 403,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 403,
     });
   }
 
@@ -136,7 +147,7 @@ export class ErrorFactory {
    * @param message - Custom message
    */
   static forbidden(message?: string): AppError {
-    return ErrorFactory.authorization(ERROR_CODES.AUZ.FORBIDDEN, message);
+    return ErrorFactory.authorization(ERROR_CODES.AUZ.FORBIDDEN.code, message);
   }
 
   /**
@@ -148,7 +159,7 @@ export class ErrorFactory {
       ? `Missing required permission: ${requiredPermission}`
       : undefined;
 
-    return ErrorFactory.authorization(ERROR_CODES.AUZ.INSUFFICIENT_PERMISSIONS, message);
+    return ErrorFactory.authorization(ERROR_CODES.AUZ.INSUFFICIENT_PERMISSIONS.code, message);
   }
 
   /**
@@ -165,10 +176,11 @@ export class ErrorFactory {
       message = `${resource} not found`;
     }
 
+    const definition = getErrorDefinition(ERROR_CODES.DAT.NOT_FOUND.code);
     return new AppError({
-      code: ERROR_CODES.DAT.NOT_FOUND,
-      message,
-      statusCode: 404,
+      code: ERROR_CODES.DAT.NOT_FOUND.code,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 404,
       context: resource
         ? { resource, resourceId: identifier }
         : undefined,
@@ -189,10 +201,11 @@ export class ErrorFactory {
       message = `${resource} already exists`;
     }
 
+    const definition = getErrorDefinition(ERROR_CODES.DAT.CONFLICT.code);
     return new AppError({
-      code: ERROR_CODES.DAT.CONFLICT,
-      message,
-      statusCode: 409,
+      code: ERROR_CODES.DAT.CONFLICT.code,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 409,
       context: resource
         ? { resource, resourceId: identifier }
         : undefined,
@@ -209,10 +222,11 @@ export class ErrorFactory {
       ? `${field} '${value}' already exists`
       : `${field} already exists`;
 
+    const definition = getErrorDefinition(ERROR_CODES.DAT.UNIQUE_VIOLATION.code);
     return new AppError({
-      code: ERROR_CODES.DAT.UNIQUE_VIOLATION,
+      code: ERROR_CODES.DAT.UNIQUE_VIOLATION.code,
       message,
-      statusCode: 409,
+      statusCode: definition?.httpStatus || 409,
       details: [{ field, message }],
     });
   }
@@ -226,10 +240,11 @@ export class ErrorFactory {
       ? `Too many requests. Please retry after ${retryAfter} seconds`
       : undefined;
 
+    const definition = getErrorDefinition(ERROR_CODES.GEN.RATE_LIMITED.code);
     return new AppError({
-      code: ERROR_CODES.GEN.RATE_LIMITED,
-      message,
-      statusCode: 429,
+      code: ERROR_CODES.GEN.RATE_LIMITED.code,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 429,
       context: retryAfter ? { metadata: { retryAfter } } : undefined,
     });
   }
@@ -240,10 +255,11 @@ export class ErrorFactory {
    * @param cause - Original error
    */
   static internal(message?: string, cause?: Error): AppError {
+    const definition = getErrorDefinition(ERROR_CODES.SRV.INTERNAL_ERROR.code);
     return new AppError({
-      code: ERROR_CODES.SRV.INTERNAL_ERROR,
-      message,
-      statusCode: 500,
+      code: ERROR_CODES.SRV.INTERNAL_ERROR.code,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 500,
       cause,
       isOperational: false,
     });
@@ -258,10 +274,11 @@ export class ErrorFactory {
       ? `Service '${serviceName}' is temporarily unavailable`
       : undefined;
 
+    const definition = getErrorDefinition(ERROR_CODES.GEN.SERVICE_UNAVAILABLE.code);
     return new AppError({
-      code: ERROR_CODES.GEN.SERVICE_UNAVAILABLE,
-      message,
-      statusCode: 503,
+      code: ERROR_CODES.GEN.SERVICE_UNAVAILABLE.code,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 503,
     });
   }
 
@@ -271,10 +288,11 @@ export class ErrorFactory {
    * @param cause - Original error
    */
   static externalService(serviceName: string, cause?: Error): AppError {
+    const definition = getErrorDefinition(ERROR_CODES.EXT.SERVICE_ERROR.code);
     return new AppError({
-      code: ERROR_CODES.EXT.SERVICE_ERROR,
+      code: ERROR_CODES.EXT.SERVICE_ERROR.code,
       message: `External service '${serviceName}' returned an error`,
-      statusCode: 502,
+      statusCode: definition?.httpStatus || 502,
       cause,
       context: { metadata: { service: serviceName } },
     });
@@ -290,10 +308,11 @@ export class ErrorFactory {
       ? `External service '${serviceName}' timed out after ${timeoutMs}ms`
       : `External service '${serviceName}' timed out`;
 
+    const definition = getErrorDefinition(ERROR_CODES.EXT.SERVICE_TIMEOUT.code);
     return new AppError({
-      code: ERROR_CODES.EXT.SERVICE_TIMEOUT,
+      code: ERROR_CODES.EXT.SERVICE_TIMEOUT.code,
       message,
-      statusCode: 504,
+      statusCode: definition?.httpStatus || 504,
       context: { metadata: { service: serviceName, timeoutMs } },
     });
   }
@@ -305,10 +324,11 @@ export class ErrorFactory {
   static timeout(operation?: string): AppError {
     const message = operation ? `Operation '${operation}' timed out` : undefined;
 
+    const definition = getErrorDefinition(ERROR_CODES.GEN.TIMEOUT.code);
     return new AppError({
-      code: ERROR_CODES.GEN.TIMEOUT,
-      message,
-      statusCode: 504,
+      code: ERROR_CODES.GEN.TIMEOUT.code,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 504,
     });
   }
 
@@ -319,13 +339,15 @@ export class ErrorFactory {
    * @param cause - Original error
    */
   static database(
-    code: ErrorCode = ERROR_CODES.DAT.QUERY_FAILED,
+    code: ErrorCode = ERROR_CODES.DAT.QUERY_FAILED.code,
     message?: string,
     cause?: Error,
   ): AppError {
+    const definition = getErrorDefinition(code);
     return new AppError({
       code,
-      message,
+      message: message || definition?.message,
+      statusCode: definition?.httpStatus || 500,
       cause,
       isOperational: false,
     });
@@ -337,11 +359,12 @@ export class ErrorFactory {
    * @param cause - Original error
    */
   static queue(message?: string, cause?: Error): AppError {
+    const definition = getErrorDefinition(ERROR_CODES.SRV.QUEUE_ERROR.code);
     return new AppError({
-      code: ERROR_CODES.SRV.QUEUE_ERROR,
-      message,
+      code: ERROR_CODES.SRV.QUEUE_ERROR.code,
+      message: message || definition?.message,
       cause,
-      statusCode: 500,
+      statusCode: definition?.httpStatus || 500,
       isOperational: false,
     });
   }
@@ -352,11 +375,12 @@ export class ErrorFactory {
    * @param cause - Original error
    */
   static cache(message?: string, cause?: Error): AppError {
+    const definition = getErrorDefinition(ERROR_CODES.SRV.CACHE_ERROR.code);
     return new AppError({
-      code: ERROR_CODES.SRV.CACHE_ERROR,
-      message,
+      code: ERROR_CODES.SRV.CACHE_ERROR.code,
+      message: message || definition?.message,
       cause,
-      statusCode: 500,
+      statusCode: definition?.httpStatus || 500,
       isOperational: false,
     });
   }
@@ -375,8 +399,11 @@ export class ErrorFactory {
       context?: ErrorContext;
     },
   ): AppError {
+    const definition = getErrorDefinition(code);
     return new AppError({
       code,
+      message: overrides?.message || definition?.message,
+      statusCode: definition?.httpStatus || 500,
       ...overrides,
     });
   }

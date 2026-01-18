@@ -57,21 +57,21 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       // Handle specific JWT errors
       if (info?.name === 'TokenExpiredError') {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.TOKEN_EXPIRED,
+          ERROR_CODES.AUT.TOKEN_EXPIRED.code,
           'Access token has expired',
         );
       }
 
       if (info?.name === 'JsonWebTokenError') {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.TOKEN_INVALID,
+          ERROR_CODES.AUT.TOKEN_INVALID.code,
           'Invalid access token',
         );
       }
 
       if (info?.name === 'NotBeforeError') {
         throw ErrorFactory.authentication(
-          ERROR_CODES.AUT.TOKEN_INVALID,
+          ERROR_CODES.AUT.TOKEN_INVALID.code,
           'Token not yet active',
         );
       }
@@ -81,7 +81,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       }
 
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.UNAUTHENTICATED,
+        ERROR_CODES.AUT.UNAUTHENTICATED.code,
         'Authentication required',
       );
     }

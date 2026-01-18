@@ -40,7 +40,7 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
 
     if (!apiKeyHeader) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.API_KEY_INVALID,
+        ERROR_CODES.AUT.API_KEY_INVALID.code,
         'API key is required',
       );
     }
@@ -48,7 +48,7 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
     // Validate API key format
     if (!apiKeyHeader.startsWith(AUTH.API_KEY_PREFIX)) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.API_KEY_INVALID,
+        ERROR_CODES.AUT.API_KEY_INVALID.code,
         'Invalid API key format',
       );
     }
@@ -61,7 +61,7 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
 
     if (!apiKeyRecord) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.API_KEY_INVALID,
+        ERROR_CODES.AUT.API_KEY_INVALID.code,
         'Invalid API key',
       );
     }
@@ -69,7 +69,7 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
     // Check if expired
     if (apiKeyRecord.expiresAt && apiKeyRecord.expiresAt < new Date()) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.API_KEY_EXPIRED,
+        ERROR_CODES.AUT.API_KEY_EXPIRED.code,
         'API key has expired',
       );
     }
@@ -77,7 +77,7 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
     // Check API key status
     if (apiKeyRecord.status === ApiKeyStatus.REVOKED) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.API_KEY_REVOKED,
+        ERROR_CODES.AUT.API_KEY_REVOKED.code,
         'API key has been revoked',
       );
     }
@@ -85,7 +85,7 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
     // Check user status
     if (apiKeyRecord.user.status !== UserStatus.ACTIVE) {
       throw ErrorFactory.authentication(
-        ERROR_CODES.AUT.ACCOUNT_SUSPENDED,
+        ERROR_CODES.AUT.ACCOUNT_SUSPENDED.code,
         'Associated account is not active',
       );
     }
