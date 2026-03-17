@@ -1,12 +1,20 @@
-export default function Page() {
+/**
+ * Drive page — lists connected Google Drive sources and allows connecting new ones.
+ *
+ * This is a Server Component shell. All interactive content is delegated to
+ * DriveSourcesClient (a Client Component) so that hooks and mutations work.
+ */
+import { DriveSourcesClient } from '@/components/features/sources/DriveSourcesClient';
+
+export const metadata = {
+  title: 'Google Drive — KMS',
+  description: 'Manage your connected Google Drive knowledge sources',
+};
+
+export default function DrivePage() {
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="mb-2 text-h2 text-text-primary">drive</h1>
-        <p className="text-body-lg text-text-secondary">
-          Coming soon
-        </p>
-      </div>
+    <div className="p-6 md:p-8">
+      <DriveSourcesClient />
     </div>
   );
 }
