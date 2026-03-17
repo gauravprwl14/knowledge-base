@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { User, UserStatus, UserRole, ApiKey } from '@prisma/client';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AppConfigService } from '../../config/config.service';
 import { UserRepository } from '../../database/repositories/user.repository';
 import { ApiKeyRepository } from '../../database/repositories/api-key.repository';
@@ -45,7 +46,6 @@ import { PrismaService } from '../../database/prisma/prisma.service';
  */
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
   private readonly SALT_ROUNDS = 12;
 
   constructor(
@@ -54,6 +54,8 @@ export class AuthService {
     private readonly userRepository: UserRepository,
     private readonly apiKeyRepository: ApiKeyRepository,
     private readonly prisma: PrismaService,
+    @InjectPinoLogger(AuthService.name)
+    private readonly logger: PinoLogger,
   ) {}
 
   /**
@@ -82,7 +84,7 @@ export class AuthService {
       status: UserStatus.PENDING_VERIFICATION,
     });
 
-    this.logger.log(`User registered: ${user.email}`);
+    this.logger.info(`User registered: ${user.email}`);
 
     // Remove password hash from response
     const { passwordHash: _, ...userWithoutPassword } = user;
@@ -95,7 +97,7 @@ export class AuthService {
    * @returns Auth tokens and user info
    */
   @Trace({ name: 'auth.login' })
-  async login(dto: LoginDto): Promise<{ tokens: AuthTokens; user: any }> {
+  async login(dto: LoginDto): Promise<{ tokens: AuthTokens; user: { id: string; email: string; firstName: string | null; lastName: string | null; role: string } }> {
     const user = await this.userRepository.findByEmail(dto.email);
 
     if (!user || !user.passwordHash) {
@@ -168,7 +170,7 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(user);
 
-    this.logger.log(`User logged in: ${user.email}`);
+    this.logger.info(`User logged in: ${user.email}`);
 
     return {
       tokens,
@@ -260,7 +262,7 @@ export class AuthService {
     // Update password
     await this.userRepository.update({ id: userId }, { passwordHash });
 
-    this.logger.log(`Password changed for user: ${user.email}`);
+    this.logger.info(`Password changed for user: ${user.email}`);
   }
 
   /**
@@ -285,7 +287,7 @@ export class AuthService {
       });
     }
 
-    this.logger.log(`User logged out: ${userId}`);
+    this.logger.info(`User logged out: ${userId}`);
   }
 
   /**
@@ -295,7 +297,7 @@ export class AuthService {
    * @returns Auth tokens and user info (same shape as login)
    */
   @Trace({ name: 'auth.googleLogin' })
-  async googleLogin(user: User): Promise<{ tokens: AuthTokens; user: any }> {
+  async googleLogin(user: User): Promise<{ tokens: AuthTokens; user: { id: string; email: string; firstName: string | null; lastName: string | null; role: string } }> {
     if (user.status !== UserStatus.ACTIVE) {
       throw ErrorFactory.authentication(
         ERROR_CODES.AUT.OAUTH_FAILED.code,
@@ -306,7 +308,7 @@ export class AuthService {
     await this.userRepository.updateLastLogin(user.id);
     const tokens = await this.generateTokens(user);
 
-    this.logger.log(`User logged in via Google OAuth: ${user.email}`);
+    this.logger.info(`User logged in via Google OAuth: ${user.email}`);
 
     return {
       tokens,
@@ -359,7 +361,7 @@ export class AuthService {
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
     });
 
-    this.logger.log(`API key created for user: ${userId}, key: ${keyPrefix}...`);
+    this.logger.info(`API key created for user: ${userId}, key: ${keyPrefix}...`);
 
     return {
       key: plaintext,
@@ -394,7 +396,7 @@ export class AuthService {
 
     await this.apiKeyRepository.revoke(keyId);
 
-    this.logger.log(`API key revoked: ${keyId} for user: ${userId}`);
+    this.logger.info(`API key revoked: ${keyId} for user: ${userId}`);
   }
 
   /**
@@ -444,6 +446,19 @@ export class AuthService {
         },
       ),
     ]);
+
+    // Persist refresh token hash to DB
+    const refreshTokenHash = this.hash(refreshToken);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7-day refresh token
+
+    await this.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: refreshTokenHash,
+        expiresAt,
+      },
+    });
 
     // Parse expiration time
     const expiresIn = this.parseExpirationTime(this.config.auth.jwtAccessExpiration);

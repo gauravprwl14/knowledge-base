@@ -1,7 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { User } from '@prisma/client';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { UserRepository } from '../../database/repositories/user.repository';
 import { ErrorFactory } from '../../errors/types/error-factory';
+import { Trace } from '../../telemetry/decorators/trace.decorator';
 
 /**
  * UsersService provides user profile operations.
@@ -21,9 +23,11 @@ import { ErrorFactory } from '../../errors/types/error-factory';
  */
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
-
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    @InjectPinoLogger(UsersService.name)
+    private readonly logger: PinoLogger,
+  ) {}
 
   /**
    * Returns the public profile for the given user.
@@ -31,6 +35,7 @@ export class UsersService {
    * @returns User profile (without password hash)
    * @throws AppError (404) if the user is not found
    */
+  @Trace({ name: 'users.getProfile' })
   async getProfile(userId: string): Promise<{
     id: string;
     email: string;

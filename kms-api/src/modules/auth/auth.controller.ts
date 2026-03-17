@@ -178,7 +178,7 @@ export class AuthController {
       { status: HttpStatus.UNAUTHORIZED, description: 'OAuth authentication failed' },
     ],
   })
-  async googleCallback(@Req() req: any): Promise<{ tokens: any; user: any }> {
+  async googleCallback(@Req() req: { user: import('@prisma/client').User }): Promise<{ tokens: import('./dto/auth.dto').AuthTokens; user: { id: string; email: string; firstName: string | null; lastName: string | null; role: string } }> {
     // req.user is set by GoogleAuthGuard → GoogleStrategy.validate()
     return this.authService.googleLogin(req.user);
   }
