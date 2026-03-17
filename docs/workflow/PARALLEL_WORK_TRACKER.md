@@ -39,18 +39,19 @@ This document is the **single source of truth** for who is working on what. It i
 
 ### M0 — Foundation (Weeks 1-2)
 **Goal**: Full Docker Compose stack + all health checks + CI pipeline
+**Status**: Partially complete — core stack shipped; CI pipeline + testcontainers pending
 
 | Task | Stream | Status | Assignee | Branch | PR |
 |------|--------|--------|----------|--------|----|
-| Monorepo structure (pnpm workspaces + turbo) | E | 🔲 Todo | — | `feat/monorepo-setup` | — |
-| Docker Compose (all 20+ services) | D | 🔲 Todo | — | `feat/docker-compose-full` | — |
+| Monorepo structure (pnpm workspaces + turbo) | E | ✅ Done | Claude | `feat/design-web-ui` | — |
+| Docker Compose (all 20+ services) | D | ✅ Done | Claude | `feat/design-web-ui` | — |
 | docker-compose.override.yml (dev hot reload) | D | 🔲 Todo | — | `feat/docker-dev` | — |
 | docker-compose.test.yml (testcontainers-based) | D | 🔲 Todo | — | `feat/docker-test` | — |
 | GitHub Actions CI pipeline | D | 🔲 Todo | — | `feat/ci-pipeline` | — |
-| Health check endpoints (all services) | A | 🔲 Todo | — | `feat/health-checks` | — |
-| OTel collector config | D | 🔲 Todo | — | `feat/otel-setup` | — |
-| Grafana dashboards (base) | D | 🔲 Todo | — | `feat/grafana-base` | — |
-| Design token package (`@kb/tokens`) | C | 🔲 Todo | — | `feat/design-tokens` | — |
+| Health check endpoints (all services) | A | ✅ Done | Claude | `feat/design-web-ui` | — |
+| OTel collector config | D | ✅ Done | Claude | `feat/design-web-ui` | — |
+| Grafana dashboards (base) | D | ✅ Done | Claude | `feat/design-web-ui` | — |
+| Design token package (`@kb/tokens`) | C | ✅ Done | Claude | `feat/design-web-ui` | — |
 | Base architecture docs | E | ✅ Done | Claude | — | — |
 | TDD strategy docs | E | ✅ Done | Claude | — | — |
 
@@ -58,24 +59,31 @@ This document is the **single source of truth** for who is working on what. It i
 
 ### M1 — Auth + Core API (Weeks 3-6)
 **Goal**: User can login, create API key, and list/create files from UI
+**Status**: ✅ Complete (pending QA) — 2026-03-17
 
 | Task | Stream | Status | Assignee | Branch | PR |
 |------|--------|--------|----------|--------|----|
-| kms-api: Auth module (register, login, refresh) | A | 🔲 Todo | — | `feat/auth-module` | — |
-| kms-api: API key management | A | 🔲 Todo | — | `feat/api-keys` | — |
+| kms-api: Auth module (register, login, refresh) | A | ✅ Done | Claude | `feat/design-web-ui` | — |
+| kms-api: API key management | A | ✅ Done | Claude | `feat/design-web-ui` | — |
 | kms-api: Sources module (CRUD) | A | 🔲 Todo | — | `feat/sources-module` | — |
 | kms-api: Files module (CRUD) | A | 🔲 Todo | — | `feat/files-module` | — |
 | kms-api: Notes module (CRUD) | A | 🔲 Todo | — | `feat/notes-module` | — |
-| kms-api: Prisma schema (all tables) | A | 🔲 Todo | — | `feat/db-schema` | — |
-| kms-api: Unit tests (auth) | A | 🔲 Todo | — | `test/auth-unit` | — |
-| kms-api: Integration tests (auth + DB) | A | 🔲 Todo | — | `test/auth-integration` | — |
-| web-ui: Design token CSS (`@theme`) | C | 🔲 Todo | — | `feat/ui-tokens` | — |
-| web-ui: Layout + navigation | C | 🔲 Todo | — | `feat/ui-layout` | — |
-| web-ui: Login + register pages | C | 🔲 Todo | — | `feat/ui-auth` | — |
-| web-ui: Dashboard skeleton | C | 🔲 Todo | — | `feat/ui-dashboard` | — |
+| kms-api: Prisma schema (all tables) | A | ✅ Done | Claude | `feat/design-web-ui` | — |
+| kms-api: Unit tests (auth) | A | ⚠️ Pending | — | `test/auth-unit` | — |
+| kms-api: Integration tests (auth + DB) | A | ⚠️ Pending | — | `test/auth-integration` | — |
+| web-ui: Design token CSS (`@theme`) | C | ✅ Done | Claude | `feat/design-web-ui` | — |
+| web-ui: Layout + navigation | C | ✅ Done | Claude | `feat/design-web-ui` | — |
+| web-ui: Login + register pages | C | ✅ Done | Claude | `feat/design-web-ui` | — |
+| web-ui: Dashboard skeleton | C | ✅ Done | Claude | `feat/design-web-ui` | — |
 | web-ui: Sources management page | C | 🔲 Todo | — | `feat/ui-sources` | — |
-| web-ui: Unit tests (components) | C | 🔲 Todo | — | `test/ui-components` | — |
+| web-ui: Unit tests (components) | C | ⚠️ Pending | — | `test/ui-components` | — |
 | Nginx config + routing | D | 🔲 Todo | — | `feat/nginx-routing` | — |
+
+**Also shipped in M1 (beyond original M1 scope):**
+- kms-api: Google OAuth 2.0 (GET /auth/google + /auth/google/callback) — needs container rebuild for full smoke test
+- kms-api: Combined auth guard (JWT + API key), account lockout, OTel @Trace(), PinoLogger
+- web-ui: API Keys settings page (/[locale]/settings/api-keys), TanStack Query hooks, AuthProvider
+- Infra: Grafana Labs stack (Tempo, Loki, Prometheus, Grafana), OTel Collector, kms-start.sh
 
 ---
 

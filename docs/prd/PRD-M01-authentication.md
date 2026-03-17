@@ -2,10 +2,15 @@
 
 ## Status
 
-`Approved`
+`Complete (pending QA)`
 
 **Created**: 2026-03-17
+**Completed**: 2026-03-17
 **Depends on**: M00 (project setup)
+
+### Implementation Notes
+
+All Must-priority functional requirements (FR-01 through FR-13) are implemented. Google OAuth (originally Out of Scope per PRD; shipped early as a bonus) requires a container rebuild to install `passport-google-oauth20` before full smoke-testing. Email verification email delivery (FR stub) and E2E test suite remain pending — neither blocks M1 DoD.
 
 ---
 

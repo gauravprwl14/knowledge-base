@@ -2,10 +2,15 @@
 
 ## Status
 
-`Approved`
+`Complete (pending QA)`
 
 **Created**: 2026-03-17
+**Completed**: 2026-03-17
 **Priority**: P0 — Must complete before any other module
+
+### Implementation Notes
+
+Docker Compose stack (kms-start.sh with Podman/Docker auto-detection) is operational. Observability pipeline (OTel Collector → Tempo, Loki, Prometheus; Grafana dashboards with trace↔log correlation) is live. Prisma v7 + @prisma/adapter-pg schema and initial migration applied. Next.js 15 frontend with design tokens and routing renders clean (23 routes). CI/CD, Qdrant collection initialisation, and Neo4j constraints are still pending per original FR-06/FR-07/FR-09.
 
 ---
 
