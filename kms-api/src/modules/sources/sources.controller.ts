@@ -17,6 +17,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ApiEndpoint } from '../../common/decorators/swagger.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RequireFeature } from '../feature-flags/decorators/require-feature.decorator';
+import { FeatureFlagGuard } from '../feature-flags/guards/feature-flag.guard';
 
 /**
  * SourcesController — REST endpoints for managing knowledge source connections.
@@ -73,6 +75,8 @@ export class SourcesController {
    * Redirects the browser to the Google consent screen.
    */
   @Public()
+  @RequireFeature('googleDrive')
+  @UseGuards(FeatureFlagGuard)
   @Get('google-drive/oauth')
   @ApiEndpoint({
     summary: 'Initiate Google Drive OAuth',
@@ -105,6 +109,8 @@ export class SourcesController {
    * the userId from `state`.
    */
   @Public()
+  @RequireFeature('googleDrive')
+  @UseGuards(FeatureFlagGuard)
   @Get('google-drive/callback')
   @HttpCode(HttpStatus.CREATED)
   @ApiEndpoint({

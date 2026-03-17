@@ -10,6 +10,7 @@ import { TelemetryModule } from './telemetry/telemetry.module';
 import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
 
 // Feature modules
+import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { HealthModule } from './modules/health/health.module';
@@ -65,6 +66,9 @@ import { RolesGuard } from './common/guards/roles.guard';
     // Infrastructure — global Redis cache and BullMQ queues
     CacheModule,
     QueueModule,
+
+    // Feature flags — global, must be registered before feature modules
+    FeatureFlagsModule,
 
     // Feature modules
     AuthModule,
