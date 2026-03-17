@@ -19,7 +19,7 @@ import React from 'react';
 // Types
 // ---------------------------------------------------------------------------
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'prefix'> {
   /** When true, applies error ring styling */
   error?: boolean;
   /** Rendered before the input (icon or text) */

@@ -72,7 +72,8 @@ export class JobService {
    * Get list of jobs
    */
   static async listJobs(params?: JobsQueryParams): Promise<JobListResponse> {
-    return apiClient.get<JobListResponse>('/v1/jobs', { params });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return apiClient.get<JobListResponse>('/v1/jobs', { params: params as any });
   }
 
   /**

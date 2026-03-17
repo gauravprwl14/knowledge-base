@@ -89,9 +89,10 @@ export const Text = React.forwardRef<HTMLElement, TextProps>(
     },
     ref
   ) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AnyTag = Tag as any;
     return (
-      // @ts-expect-error — polymorphic ref typing; safe at runtime
-      <Tag
+      <AnyTag
         ref={ref}
         className={[
           'leading-normal',
@@ -106,7 +107,7 @@ export const Text = React.forwardRef<HTMLElement, TextProps>(
         {...rest}
       >
         {children}
-      </Tag>
+      </AnyTag>
     );
   }
 );

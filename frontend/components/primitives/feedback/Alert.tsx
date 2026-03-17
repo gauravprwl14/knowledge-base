@@ -19,8 +19,6 @@ import {
   Info,
   X,
 } from 'lucide-react';
-import { alertVariantClasses } from '../../../lib/design-system/tokens';
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -39,6 +37,29 @@ export interface AlertProps {
   /** Additional className */
   className?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Variant map
+// ---------------------------------------------------------------------------
+
+const alertVariantClasses: Record<AlertVariant, { container: string; icon: string }> = {
+  info: {
+    container: 'bg-[var(--color-accent-muted)] border border-[var(--color-accent)]',
+    icon: 'text-[var(--color-accent)]',
+  },
+  success: {
+    container: 'bg-[var(--color-status-success-bg)] border border-[var(--color-status-success)]',
+    icon: 'text-[var(--color-status-success)]',
+  },
+  warning: {
+    container: 'bg-[var(--color-status-warning-bg)] border border-[var(--color-status-warning)]',
+    icon: 'text-[var(--color-status-warning)]',
+  },
+  error: {
+    container: 'bg-[var(--color-status-error-bg)] border border-[var(--color-status-error)]',
+    icon: 'text-[var(--color-status-error)]',
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Icon map

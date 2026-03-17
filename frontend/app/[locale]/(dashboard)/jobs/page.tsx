@@ -321,8 +321,7 @@ export default function JobsPage() {
         result.failed_jobs.forEach((failure: any) => {
           logError(
             `Bulk delete failure - ${failure.errorCode}: ${failure.message}`,
-            'handleBulkDelete',
-            failure.data
+            'handleBulkDelete'
           );
         });
       } else {

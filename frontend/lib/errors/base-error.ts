@@ -1,5 +1,5 @@
-import { ErrorType } from './error-types';
-import { ErrorCategory } from './error-categories';
+import { ErrorType } from './types';
+import { ErrorCategory } from './types';
 
 /**
  * Error Definition Interface

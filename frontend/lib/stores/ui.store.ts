@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * UI Store — TanStack Store
  *
@@ -71,7 +73,7 @@ export function setTheme(theme: Theme): void {
 
 /** Returns the full UI state. */
 export function useUiState(): UiState {
-  return useStore(uiStore);
+  return useStore(uiStore, (s) => s);
 }
 
 /** Returns whether the sidebar is open (mobile overlay). */

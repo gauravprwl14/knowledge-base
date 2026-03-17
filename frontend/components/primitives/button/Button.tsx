@@ -11,7 +11,6 @@
  */
 
 import React from 'react';
-import { buttonVariantClasses, buttonSizeClasses } from '../../../lib/design-system/tokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,6 +29,29 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   /** Content rendered inside the button */
   children: React.ReactNode;
 }
+
+// ---------------------------------------------------------------------------
+// Variant + size maps
+// ---------------------------------------------------------------------------
+
+const buttonVariantClasses: Record<ButtonVariant, string> = {
+  primary:
+    'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] focus-visible:ring-[var(--color-accent)]',
+  secondary:
+    'bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] border border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] focus-visible:ring-[var(--color-accent)]',
+  ghost:
+    'bg-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-primary)] focus-visible:ring-[var(--color-accent)]',
+  danger:
+    'bg-[var(--color-status-error)] text-white hover:opacity-90 focus-visible:ring-[var(--color-status-error)]',
+  outline:
+    'bg-transparent border border-[var(--color-accent)] text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] focus-visible:ring-[var(--color-accent)]',
+};
+
+const buttonSizeClasses: Record<ButtonSize, string> = {
+  sm: 'h-8 px-3 text-sm gap-1.5',
+  md: 'h-10 px-4 text-sm gap-2',
+  lg: 'h-12 px-6 text-base gap-2',
+};
 
 // ---------------------------------------------------------------------------
 // Component

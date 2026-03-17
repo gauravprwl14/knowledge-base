@@ -23,9 +23,11 @@ export interface ApiClientConfig {
 }
 
 export interface RequestOptions {
-  params?: Record<string, string | number | boolean>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  params?: Record<string, any>;
   timeout?: number;
   headers?: Record<string, string>;
+  data?: unknown;
 }
 
 export class ApiClient {
@@ -203,6 +205,7 @@ export class ApiClient {
       params: options.params,
       timeout: options.timeout,
       headers: options.headers,
+      data: options.data,
     };
 
     const response = await this.axiosInstance.delete<T>(endpoint, config);

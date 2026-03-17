@@ -1,6 +1,6 @@
 import { BaseError, ErrorDefinition } from './base-error';
-import { ErrorType } from './error-types';
-import { ErrorCategory } from './error-categories';
+import { ErrorType } from './types';
+import { ErrorCategory } from './types';
 
 /**
  * Base Abstract Error Factory

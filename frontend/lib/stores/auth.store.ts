@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Auth Store — TanStack Store
  *
@@ -72,7 +74,7 @@ export function setAccessToken(token: string): void {
 
 /** Returns the full auth state. Re-renders on any state change. */
 export function useAuthState(): AuthState {
-  return useStore(authStore);
+  return useStore(authStore, (s) => s);
 }
 
 /** Returns the current user. Re-renders only when the user object changes. */

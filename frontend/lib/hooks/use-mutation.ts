@@ -10,8 +10,19 @@
  */
 
 import { useCallback, useReducer } from 'react';
-import { normaliseError } from '../api/client';
 import type { ApiError } from '../types/common.types';
+
+function normaliseError(err: unknown): ApiError {
+  if (err && typeof err === 'object' && 'message' in err) {
+    const e = err as Record<string, unknown>;
+    return {
+      message: String(e.message ?? 'Unknown error'),
+      code: String(e.code ?? 'UNKNOWN'),
+      statusCode: typeof e.statusCode === 'number' ? e.statusCode : 0,
+    };
+  }
+  return { message: 'Unknown error', code: 'UNKNOWN', statusCode: 0 };
+}
 
 // ---------------------------------------------------------------------------
 // State

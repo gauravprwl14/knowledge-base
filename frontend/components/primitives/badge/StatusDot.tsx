@@ -12,7 +12,6 @@
  */
 
 import React from 'react';
-import { statusDotClasses } from '../../../lib/design-system/tokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,8 +30,15 @@ export interface StatusDotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Size map
+// Variant + size maps
 // ---------------------------------------------------------------------------
+
+const statusDotClasses: Record<StatusDotStatus, string> = {
+  active: 'bg-[var(--color-status-success)]',
+  inactive: 'bg-[var(--color-text-muted)]',
+  pending: 'bg-[var(--color-status-warning)]',
+  error: 'bg-[var(--color-status-error)]',
+};
 
 const dotSizeClasses: Record<StatusDotSize, string> = {
   sm: 'w-1.5 h-1.5',

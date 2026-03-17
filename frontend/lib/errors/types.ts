@@ -22,6 +22,8 @@ export enum ErrorType {
   DATA_INTEGRITY = 'DATA_INTEGRITY',
   RATE_LIMITING = 'RATE_LIMITING',
   RETRYABLE = 'RETRYABLE',
+  NOT_FOUND = 'NOT_FOUND',
+  NETWORK = 'NETWORK',
 }
 
 export enum ErrorCategory {

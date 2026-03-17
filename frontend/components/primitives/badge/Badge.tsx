@@ -10,7 +10,6 @@
  */
 
 import React from 'react';
-import { badgeVariantClasses } from '../../../lib/design-system/tokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,8 +27,16 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 // ---------------------------------------------------------------------------
-// Size map
+// Variant + size maps
 // ---------------------------------------------------------------------------
+
+const badgeVariantClasses: Record<BadgeVariant, string> = {
+  default: 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]',
+  active: 'bg-[var(--color-status-success-bg)] text-[var(--color-status-success)]',
+  inactive: 'bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)]',
+  pending: 'bg-[var(--color-status-warning-bg)] text-[var(--color-status-warning)]',
+  error: 'bg-[var(--color-status-error-bg)] text-[var(--color-status-error)]',
+};
 
 const sizeClasses: Record<BadgeSize, string> = {
   sm: 'text-xs px-2 py-0.5',

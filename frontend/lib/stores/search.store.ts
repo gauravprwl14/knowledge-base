@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Search Store — TanStack Store (UI state only)
  *
@@ -108,7 +110,7 @@ export function clearSearch(): void {
 
 /** Returns all search params. Re-renders on any change. */
 export function useSearchParams(): SearchParams {
-  return useStore(searchStore);
+  return useStore(searchStore, (s) => s);
 }
 
 /** Returns just the query string. Re-renders only when query changes. */
@@ -128,6 +130,6 @@ export function useSearchPagination(): { page: number; pageSize: number } {
 
 /** Returns the TanStack Query key for the current search params — use as queryKey. */
 export function useSearchQueryKey(): ['search', SearchParams] {
-  const params = useStore(searchStore);
+  const params = useStore(searchStore, (s) => s);
   return ['search', params];
 }

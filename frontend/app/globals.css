@@ -116,7 +116,8 @@
    * Base element styles
    * ---------------------------------------------------------------------- */
   body {
-    @apply bg-dark-bg text-text-primary;
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 

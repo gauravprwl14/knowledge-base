@@ -172,8 +172,8 @@ export class KmsApiClient {
 
       if (this.isRefreshing) {
         // Another refresh already in flight — queue this request
-        return new Promise<never>((resolve, reject) => {
-          this.refreshQueue.push({ resolve: resolve as (t: string) => void, reject });
+        return new Promise<string>((resolve, reject) => {
+          this.refreshQueue.push({ resolve, reject });
         }).then((token) => {
           originalRequest.headers = originalRequest.headers ?? {};
           originalRequest.headers.Authorization = `Bearer ${token}`;

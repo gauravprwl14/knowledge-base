@@ -11,7 +11,6 @@
  */
 
 import React from 'react';
-import { buttonVariantClasses } from '../../../lib/design-system/tokens';
 import type { ButtonVariant, ButtonSize } from './Button';
 
 // ---------------------------------------------------------------------------
@@ -30,8 +29,21 @@ export interface IconButtonProps
 }
 
 // ---------------------------------------------------------------------------
-// Size map for icon-only buttons (square aspect ratio)
+// Variant + size maps for icon-only buttons
 // ---------------------------------------------------------------------------
+
+const buttonVariantClasses: Record<ButtonVariant, string> = {
+  primary:
+    'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] focus-visible:ring-[var(--color-accent)]',
+  secondary:
+    'bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] border border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] focus-visible:ring-[var(--color-accent)]',
+  ghost:
+    'bg-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-primary)] focus-visible:ring-[var(--color-accent)]',
+  danger:
+    'bg-[var(--color-status-error)] text-white hover:opacity-90 focus-visible:ring-[var(--color-status-error)]',
+  outline:
+    'bg-transparent border border-[var(--color-accent)] text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] focus-visible:ring-[var(--color-accent)]',
+};
 
 const iconSizeClasses: Record<ButtonSize, string> = {
   sm: 'h-8 w-8',

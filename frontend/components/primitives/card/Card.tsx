@@ -14,13 +14,22 @@
  */
 
 import React from 'react';
-import { cardVariantClasses } from '../../../lib/design-system/tokens';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export type CardVariant = 'default' | 'outlined' | 'elevated';
+
+// ---------------------------------------------------------------------------
+// Variant map
+// ---------------------------------------------------------------------------
+
+const cardVariantClasses: Record<CardVariant, string> = {
+  default: 'bg-[var(--color-surface)] shadow-sm',
+  outlined: 'bg-[var(--color-surface)] border border-[var(--color-border)]',
+  elevated: 'bg-[var(--color-surface)] shadow-md',
+};
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Visual style of the card */
