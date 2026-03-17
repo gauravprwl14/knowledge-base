@@ -2,9 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
-import { User, UserStatus, UserRole } from '@prisma/client';
+import { User, UserStatus, UserRole, ApiKey } from '@prisma/client';
 import { AppConfigService } from '../../config/config.service';
 import { UserRepository } from '../../database/repositories/user.repository';
+import { ApiKeyRepository } from '../../database/repositories/api-key.repository';
 import { ErrorFactory } from '../../errors/types/error-factory';
 import { ERROR_CODES } from '../../errors/error-codes';
 import { AUTH } from '../../config/constants/app.constants';
@@ -15,6 +16,9 @@ import {
   RefreshTokenDto,
   ChangePasswordDto,
   AuthTokens,
+  CreateApiKeyDto,
+  CreateApiKeyResponseDto,
+  ApiKeyResponseDto,
 } from './dto/auth.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { PrismaService } from '../../database/prisma/prisma.service';
@@ -48,6 +52,7 @@ export class AuthService {
     private readonly config: AppConfigService,
     private readonly jwtService: JwtService,
     private readonly userRepository: UserRepository,
+    private readonly apiKeyRepository: ApiKeyRepository,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -259,6 +264,158 @@ export class AuthService {
   }
 
   /**
+   * Invalidates a user's current session by revoking all refresh tokens.
+   * Optionally revokes a specific refresh token if supplied.
+   * @param userId - Authenticated user ID
+   * @param refreshToken - Optional refresh token to invalidate
+   */
+  @Trace({ name: 'auth.logout' })
+  async logout(userId: string, refreshToken?: string): Promise<void> {
+    if (refreshToken) {
+      const tokenHash = this.hash(refreshToken);
+      await this.prisma.refreshToken.updateMany({
+        where: { userId, tokenHash },
+        data: { revokedAt: new Date() },
+      });
+    } else {
+      // Revoke all refresh tokens for the user
+      await this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+
+    this.logger.log(`User logged out: ${userId}`);
+  }
+
+  /**
+   * Finds or creates a user from a Google OAuth profile.
+   * Called internally by GoogleStrategy after successful OAuth validation.
+   * @param user - Validated user returned by GoogleStrategy
+   * @returns Auth tokens and user info (same shape as login)
+   */
+  @Trace({ name: 'auth.googleLogin' })
+  async googleLogin(user: User): Promise<{ tokens: AuthTokens; user: any }> {
+    if (user.status !== UserStatus.ACTIVE) {
+      throw ErrorFactory.authentication(
+        ERROR_CODES.AUT.OAUTH_FAILED.code,
+        'Account is not active',
+      );
+    }
+
+    await this.userRepository.updateLastLogin(user.id);
+    const tokens = await this.generateTokens(user);
+
+    this.logger.log(`User logged in via Google OAuth: ${user.email}`);
+
+    return {
+      tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+      },
+    };
+  }
+
+  /**
+   * Generates a new API key for a user.
+   * The plaintext key is returned only once and never stored.
+   * @param userId - Owner user ID
+   * @param dto - API key creation parameters
+   * @returns Plaintext key and metadata record
+   */
+  @Trace({ name: 'auth.createApiKey' })
+  async createApiKey(userId: string, dto: CreateApiKeyDto): Promise<CreateApiKeyResponseDto> {
+    // Enforce per-user key limit
+    const hasReachedLimit = await this.apiKeyRepository.hasReachedKeyLimit(
+      userId,
+      AUTH.MAX_API_KEYS_PER_USER,
+    );
+
+    if (hasReachedLimit) {
+      throw ErrorFactory.validation(
+        ERROR_CODES.VAL.INVALID_INPUT.code,
+        `API key limit reached. Maximum ${AUTH.MAX_API_KEYS_PER_USER} active keys allowed.`,
+      );
+    }
+
+    // Generate random key: kms_ prefix + 40 random hex chars
+    const rawSecret = randomBytes(20).toString('hex'); // 40 chars
+    const plaintext = `${AUTH.API_KEY_PREFIX}${rawSecret}`;
+
+    // Store hash only
+    const keyHash = this.hash(plaintext);
+    const keyPrefix = plaintext.substring(0, 12); // e.g. "kms_12ab34cd"
+
+    const apiKey = await this.apiKeyRepository.create({
+      user: { connect: { id: userId } },
+      name: dto.name,
+      keyHash,
+      keyPrefix,
+      scopes: dto.scopes ?? [],
+      expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+    });
+
+    this.logger.log(`API key created for user: ${userId}, key: ${keyPrefix}...`);
+
+    return {
+      key: plaintext,
+      apiKey: this.mapApiKeyToResponseDto(apiKey),
+    };
+  }
+
+  /**
+   * Returns the list of API keys owned by a user (metadata only, no key values).
+   * @param userId - Owner user ID
+   * @returns Array of API key metadata
+   */
+  @Trace({ name: 'auth.listApiKeys' })
+  async listApiKeys(userId: string): Promise<ApiKeyResponseDto[]> {
+    const keys = await this.apiKeyRepository.findByUserId(userId);
+    return keys.map((k) => this.mapApiKeyToResponseDto(k));
+  }
+
+  /**
+   * Revokes an API key by ID.
+   * Verifies the key belongs to the requesting user before revoking.
+   * @param userId - Authenticated user ID
+   * @param keyId - API key ID to revoke
+   */
+  @Trace({ name: 'auth.revokeApiKey' })
+  async revokeApiKey(userId: string, keyId: string): Promise<void> {
+    const apiKey = await this.apiKeyRepository.findUnique({ id: keyId });
+
+    if (!apiKey || apiKey.userId !== userId) {
+      throw ErrorFactory.notFound('API key', keyId);
+    }
+
+    await this.apiKeyRepository.revoke(keyId);
+
+    this.logger.log(`API key revoked: ${keyId} for user: ${userId}`);
+  }
+
+  /**
+   * Maps a Prisma ApiKey entity to ApiKeyResponseDto.
+   * @param apiKey - Prisma ApiKey entity
+   * @returns API key response DTO
+   */
+  private mapApiKeyToResponseDto(apiKey: ApiKey): ApiKeyResponseDto {
+    return {
+      id: apiKey.id,
+      name: apiKey.name,
+      keyPrefix: apiKey.keyPrefix,
+      status: apiKey.status,
+      scopes: apiKey.scopes,
+      expiresAt: apiKey.expiresAt ?? undefined,
+      lastUsedAt: apiKey.lastUsedAt ?? undefined,
+      createdAt: apiKey.createdAt,
+    };
+  }
+
+  /**
    * Generates JWT access and refresh tokens
    * @param user - User entity
    * @returns Auth tokens
@@ -276,14 +433,14 @@ export class AuthService {
         { ...payload, type: 'access' },
         {
           secret: this.config.auth.jwtAccessSecret,
-          expiresIn: this.config.auth.jwtAccessExpiration,
+          expiresIn: this.config.auth.jwtAccessExpiration as any,
         },
       ),
       this.jwtService.signAsync(
         { ...payload, type: 'refresh' },
         {
           secret: this.config.auth.jwtRefreshSecret,
-          expiresIn: this.config.auth.jwtRefreshExpiration,
+          expiresIn: this.config.auth.jwtRefreshExpiration as any,
         },
       ),
     ]);

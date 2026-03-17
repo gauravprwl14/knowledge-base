@@ -10,9 +10,20 @@ import { TelemetryModule } from './telemetry/telemetry.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 import { HealthModule } from './modules/health/health.module';
+import { SourcesModule } from './modules/sources/sources.module';
+import { FilesModule } from './modules/files/files.module';
+import { SearchModule } from './modules/search/search.module';
+import { AgentsModule } from './modules/agents/agents.module';
+import { CollectionsModule } from './modules/collections/collections.module';
+
+// Infrastructure modules
+import { QueueModule } from './queue/queue.module';
+import { CacheModule } from './cache/cache.module';
 
 // Common
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -28,8 +39,8 @@ import { RolesGuard } from './common/guards/roles.guard';
  * AppModule - Root application module
  *
  * Configures:
- * - Global modules (Config, Database, Logger, Telemetry)
- * - Feature modules (Auth, Health)
+ * - Global modules (Config, Database, Logger, Telemetry, Queue, Cache)
+ * - Feature modules (Auth, Health, Sources, Files, Search, Agents)
  * - Global filters, interceptors, guards, and middleware
  * - Rate limiting with Throttler
  */
@@ -49,15 +60,30 @@ import { RolesGuard } from './common/guards/roles.guard';
       },
     ]),
 
+    // Infrastructure — global Redis cache and BullMQ queues
+    CacheModule,
+    QueueModule,
+
     // Feature modules
     AuthModule,
+    UsersModule,
     HealthModule,
+    SourcesModule,
+    FilesModule,
+    SearchModule,
+    AgentsModule,
+    CollectionsModule,
   ],
   providers: [
-    // Global exception filter
+    // Global exception filters — order matters: registered last = runs first.
+    // PrismaExceptionFilter intercepts Prisma errors before AllExceptionsFilter.
     {
       provide: APP_FILTER,
       useClass: AllExceptionsFilter,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: PrismaExceptionFilter,
     },
 
     // Global interceptors (order matters - executed in reverse)

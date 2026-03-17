@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { ConfigService } from '@nestjs/config';
 
 /**
@@ -34,8 +35,13 @@ export class PrismaService
   constructor(private readonly configService: ConfigService) {
     const logLevel = configService.get<string>('LOG_LEVEL', 'info');
     const isDevelopment = configService.get<string>('NODE_ENV') === 'development';
+    const connectionString = configService.get<string>('DATABASE_URL')!;
+
+    // Prisma v7: driver adapter must be passed to PrismaClient constructor
+    const adapter = new PrismaPg({ connectionString });
 
     super({
+      adapter,
       log: isDevelopment
         ? [
             { emit: 'event', level: 'query' },

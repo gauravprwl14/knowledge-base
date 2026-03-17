@@ -5,6 +5,9 @@ import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { locales } from '@/lib/i18n/config';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { QueryProvider } from '@/lib/providers/query-provider';
+import { ThemeSyncer } from '@/lib/stores';
+import { AuthProvider } from '@/components/features/auth/AuthProvider';
 import '../globals.css';
 
 const inter = Inter({ 
@@ -13,8 +16,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Voice App - Speech to Text & Knowledge Management',
-  description: 'Transcribe audio and video files, manage knowledge base, and more',
+  title: 'KMS — Knowledge Base',
+  description: 'Manage your knowledge base: sources, files, search, chat, and more.',
 };
 
 export function generateStaticParams() {
@@ -43,9 +46,14 @@ export default async function LocaleLayout({
     <html lang={locale} className="dark">
       <body className={`${inter.variable} font-sans antialiased`}>
         <ErrorBoundary>
-          <NextIntlClientProvider messages={messages}>
-            {children}
-          </NextIntlClientProvider>
+          <QueryProvider>
+            <ThemeSyncer />
+            <NextIntlClientProvider messages={messages}>
+              <AuthProvider>
+                {children}
+              </AuthProvider>
+            </NextIntlClientProvider>
+          </QueryProvider>
         </ErrorBoundary>
       </body>
     </html>

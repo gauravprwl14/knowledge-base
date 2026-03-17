@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/swcrc",
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "decorators": true,
+      "dynamicImport": true
+    },
+    "transform": {
+      "legacyDecorator": true,
+      "decoratorMetadata": true
+    },
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@config/*": ["src/config/*"],
+      "@common/*": ["src/common/*"],
+      "@database/*": ["src/database/*"],
+      "@errors/*": ["src/errors/*"],
+      "@modules/*": ["src/modules/*"],
+      "@telemetry/*": ["src/telemetry/*"],
+      "@logger/*": ["src/logger/*"],
+      "@queue/*": ["src/queue/*"],
+      "@cache/*": ["src/cache/*"],
+      "@lib/*": ["src/lib/*"],
+      "@test/*": ["test/*"]
+    },
+    "target": "es2022",
+    "keepClassNames": true
+  },
+  "module": {
+    "type": "commonjs",
+    "strict": false,
+    "noInterop": false
+  },
+  "sourceMaps": true,
+  "inlineSourcesContent": true
+}

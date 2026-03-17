@@ -34,7 +34,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install production dependencies
-RUN npm ci --only=production && \
+RUN npm ci --only=production --legacy-peer-deps && \
     npm cache clean --force
 
 # Generate Prisma client
@@ -46,8 +46,9 @@ RUN npx prisma generate
 FROM base AS development
 
 # Install all dependencies including devDependencies
+# Use npm install (not ci) to allow lock file regeneration when package.json changes
 COPY package*.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 # Copy Prisma schema and generate client
 COPY prisma ./prisma/
@@ -72,7 +73,7 @@ RUN apk add --no-cache postgresql-client
 
 # Install all dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy Prisma schema and generate client
 COPY prisma ./prisma/
@@ -91,7 +92,7 @@ FROM base AS builder
 
 # Install all dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy Prisma schema and generate client
 COPY prisma ./prisma/

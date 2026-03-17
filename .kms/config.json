@@ -1,0 +1,177 @@
+{
+  "$schema": "./config.schema.json",
+  "version": "1.0.0",
+
+  "app": {
+    "name": "Knowledge Base System",
+    "port": 8000,
+    "logLevel": "info",
+    "environment": "development"
+  },
+
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "kms",
+    "poolMin": 2,
+    "poolMax": 20
+  },
+
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "defaultTtlSeconds": 300
+  },
+
+  "queue": {
+    "host": "localhost",
+    "port": 5672,
+    "exchange": "kms.direct",
+    "deadLetterExchange": "kms.dlx",
+    "prefetchCount": 1,
+    "maxRetries": 3
+  },
+
+  "auth": {
+    "jwtExpiresIn": "15m",
+    "refreshTokenExpiresIn": "7d",
+    "bcryptRounds": 12,
+    "maxFailedLogins": 5,
+    "lockoutDurationMinutes": 15
+  },
+
+  "features": {
+    "embedding": {
+      "enabled": false,
+      "provider": "bge",
+      "bgeModel": "BAAI/bge-m3",
+      "ollamaModel": "nomic-embed-text",
+      "openaiModel": "text-embedding-3-small",
+      "dimensions": 1024,
+      "chunkSize": 512,
+      "chunkOverlap": 64
+    },
+    "semanticSearch": {
+      "enabled": false,
+      "comment": "Auto-disabled when embedding.enabled=false"
+    },
+    "hybridSearch": {
+      "enabled": false,
+      "rrfK": 60,
+      "comment": "Requires semanticSearch.enabled=true"
+    },
+    "rag": {
+      "enabled": false,
+      "streamingEnabled": true,
+      "maxContextChunks": 10,
+      "comment": "Requires embedding.enabled=true + llm.enabled=true"
+    },
+    "graph": {
+      "enabled": false,
+      "maxTraversalDepth": 6,
+      "communityDetection": true,
+      "comment": "Requires Neo4j. Auto-disables if neo4j unreachable."
+    },
+    "voiceTranscription": {
+      "enabled": true,
+      "defaultProvider": "whisper",
+      "maxFileSizeMb": 500,
+      "supportedFormats": ["mp3", "wav", "mp4", "mov", "m4a", "ogg", "webm"]
+    },
+    "googleDrive": {
+      "enabled": false,
+      "syncIntervalMinutes": 60,
+      "maxFileSizeMb": 100,
+      "comment": "Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars"
+    },
+    "obsidian": {
+      "enabled": false,
+      "syncIntervalSeconds": 30,
+      "comment": "Requires obsidian plugin installed in vault"
+    },
+    "deduplication": {
+      "enabled": true,
+      "exactMatchEnabled": true,
+      "semanticMatchEnabled": false,
+      "semanticThreshold": 0.95,
+      "comment": "semanticMatchEnabled requires embedding.enabled=true"
+    },
+    "objectStorage": {
+      "enabled": false,
+      "provider": "minio",
+      "comment": "If disabled, files stored on local filesystem"
+    }
+  },
+
+  "llm": {
+    "enabled": false,
+    "provider": "ollama",
+    "ollamaBaseUrl": "http://localhost:11434",
+    "ollamaModel": "llama3.2:3b",
+    "openrouterBaseUrl": "https://openrouter.ai/api/v1",
+    "openrouterModel": "anthropic/claude-3-haiku",
+    "maxTokens": 2048,
+    "temperature": 0.1
+  },
+
+  "workers": {
+    "scanWorker": {
+      "enabled": true,
+      "concurrency": 4,
+      "batchSize": 50
+    },
+    "embedWorker": {
+      "enabled": false,
+      "concurrency": 2,
+      "batchSize": 20,
+      "comment": "Auto-disabled when embedding.enabled=false"
+    },
+    "graphWorker": {
+      "enabled": false,
+      "concurrency": 1,
+      "comment": "Auto-disabled when graph.enabled=false"
+    },
+    "dedupWorker": {
+      "enabled": true,
+      "concurrency": 2
+    },
+    "voiceWorker": {
+      "enabled": true,
+      "concurrency": 2,
+      "jobTimeoutMinutes": 60
+    }
+  },
+
+  "agents": {
+    "orchestrator": {
+      "enabled": false,
+      "comment": "Requires at least one sub-agent enabled"
+    },
+    "searchAgent": {
+      "enabled": true,
+      "comment": "Always available for keyword search"
+    },
+    "graphAgent": {
+      "enabled": false,
+      "comment": "Auto-disabled when graph.enabled=false"
+    },
+    "ragAgent": {
+      "enabled": false,
+      "comment": "Auto-disabled when rag.enabled=false"
+    }
+  },
+
+  "observability": {
+    "otlpEndpoint": "http://localhost:4317",
+    "tracingEnabled": true,
+    "metricsEnabled": true,
+    "loggingEnabled": true,
+    "samplingRatio": 1.0
+  },
+
+  "cors": {
+    "allowedOrigins": ["http://localhost:3000"],
+    "allowedMethods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    "allowedHeaders": ["Content-Type", "Authorization", "X-API-Key", "X-Request-Id"]
+  }
+}

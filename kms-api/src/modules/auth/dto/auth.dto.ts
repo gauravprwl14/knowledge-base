@@ -157,6 +157,80 @@ export class AuthTokensResponseDto {
 }
 
 /**
+ * Logout request schema
+ */
+export const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required').optional(),
+});
+
+export type LogoutDto = z.infer<typeof logoutSchema>;
+
+/**
+ * Create API key request schema
+ */
+export const createApiKeySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name must be at most 100 characters'),
+  expiresAt: z.string().datetime().optional(),
+  scopes: z.array(z.string()).optional(),
+});
+
+export type CreateApiKeyDto = z.infer<typeof createApiKeySchema>;
+
+/**
+ * Create API key request DTO for Swagger
+ */
+export class CreateApiKeyRequestDto {
+  @ApiProperty({ example: 'My API Key', description: 'Human-readable name for the API key' })
+  name: string;
+
+  @ApiPropertyOptional({ example: '2026-12-31T23:59:59Z', description: 'Optional expiration date (ISO 8601)' })
+  expiresAt?: string;
+
+  @ApiPropertyOptional({ example: ['read:files', 'read:search'], description: 'Optional list of scopes' })
+  scopes?: string[];
+}
+
+/**
+ * API key response DTO (metadata only — the plaintext key is returned only on creation)
+ */
+export class ApiKeyResponseDto {
+  @ApiProperty({ description: 'API key ID (UUID)' })
+  id: string;
+
+  @ApiProperty({ description: 'Human-readable name' })
+  name: string;
+
+  @ApiProperty({ description: 'Key prefix (first 12 chars, safe to display)' })
+  keyPrefix: string;
+
+  @ApiProperty({ description: 'Key status', enum: ['ACTIVE', 'REVOKED', 'EXPIRED'] })
+  status: string;
+
+  @ApiProperty({ description: 'Assigned scopes' })
+  scopes: string[];
+
+  @ApiPropertyOptional({ description: 'Expiration date' })
+  expiresAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Last used timestamp' })
+  lastUsedAt?: Date;
+
+  @ApiProperty({ description: 'Creation timestamp' })
+  createdAt: Date;
+}
+
+/**
+ * API key creation response — includes the plaintext key ONCE
+ */
+export class CreateApiKeyResponseDto {
+  @ApiProperty({ description: 'The plaintext API key — store it now, it will not be shown again' })
+  key: string;
+
+  @ApiProperty({ type: ApiKeyResponseDto, description: 'API key metadata' })
+  apiKey: ApiKeyResponseDto;
+}
+
+/**
  * Login response with user and tokens
  */
 export class LoginResponseDto {

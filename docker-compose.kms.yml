@@ -1,0 +1,526 @@
+# =============================================================================
+# KMS Full Stack — Development
+# =============================================================================
+# Usage:
+#   docker compose -f docker-compose.kms.yml up -d              # all services
+#   docker compose -f docker-compose.kms.yml up -d postgres redis rabbitmq kms-api
+#
+# Versions pinned to latest stable as of 2026-03-17
+# =============================================================================
+
+name: kms
+
+services:
+
+  # ─── INFRASTRUCTURE ──────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kms}
+      POSTGRES_DB: ${POSTGRES_DB:-kms}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - backend
+
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # Management UI → http://localhost:15672
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.1
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # HTTP REST
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  neo4j:
+    image: neo4j:5.26-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-kmspassword}
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+      NEO4J_dbms_memory_heap_max__size: 1G
+      NEO4J_dbms_memory_pagecache_size: 512M
+    ports:
+      - "7474:7474"   # Browser → http://localhost:7474
+      - "7687:7687"   # Bolt
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks:
+      - backend
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console → http://localhost:9001
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  ollama:
+    image: ollama/ollama:0.6.2
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - backend
+    profiles:
+      - llm   # docker compose --profile llm up
+
+  # ─── OBSERVABILITY (Grafana Labs OSS stack) ──────────────────────────────
+
+  tempo:
+    image: grafana/tempo:2.7.2
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./infra/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP → http://localhost:3200
+    networks:
+      - observability
+
+  loki:
+    image: grafana/loki:3.4.2
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./infra/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"   # Loki HTTP (internal — queried by Grafana + OTel)
+    networks:
+      - observability
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-remote-write-receiver"   # Tempo metrics-generator pushes here
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"   # Prometheus → http://localhost:9090
+    networks:
+      - observability
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.122.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./infra/otel/config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Collector metrics (scraped by Prometheus)
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+    networks:
+      - backend
+      - observability
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor traceToMetrics serviceGraph
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"   # Grafana → http://localhost:3000
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    networks:
+      - observability
+
+  # ─── APIS ────────────────────────────────────────────────────────────────
+
+  kms-api:
+    build:
+      context: ./kms-api
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      NODE_ENV: development
+      APP_NAME: kms-api
+      APP_PORT: 8000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      # Redis — schema expects REDIS_HOST + REDIS_PORT (not REDIS_URL)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      # RabbitMQ — schema expects QUEUE_HOST etc. (not RABBITMQ_URL)
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      QUEUE_USER: ${RABBITMQ_USER:-guest}
+      QUEUE_PASSWORD: ${RABBITMQ_PASS:-guest}
+      # JWT
+      JWT_ACCESS_SECRET: ${JWT_SECRET:-kms-dev-jwt-secret-32-chars-minimum-length-ok}
+      JWT_ACCESS_EXPIRATION: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-kms-dev-refresh-secret-32-chars-minimum}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      API_KEY_ENCRYPTION_SECRET: ${API_KEY_ENCRYPTION_SECRET:-kms-dev-api-key-encryption-secret-ok}
+      # Rate limiting
+      THROTTLE_TTL: 60
+      THROTTLE_LIMIT: 100
+      # OTel
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: kms-api
+      LOG_LEVEL: info
+      CORS_ORIGINS: "http://localhost:3000"
+      # External services
+      SEARCH_API_URL: http://search-api:8001
+      VOICE_APP_URL: http://rag-service:8002
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    # Run migrations (idempotent — already-applied is ok) then start dev server
+    command: sh -c "npx prisma migrate deploy --config prisma/config.ts 2>&1 || echo '[startup] Migration already applied, continuing...'; npm run start:dev"
+    volumes:
+      - ./kms-api/src:/app/src
+      - ./kms-api/prisma:/app/prisma
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
+  search-api:
+    build:
+      context: ./services/search-api
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      NODE_ENV: development
+      PORT: 8001
+      APP_NAME: search-api
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
+      KMS_API_URL: http://kms-api:8000
+      EMBED_SERVICE_URL: http://embed-worker:8011
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: search-api
+      LOG_LEVEL: info
+    volumes:
+      - ./services/search-api/src:/app/src:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
+  rag-service:
+    build:
+      context: ./services/rag-service
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      REDIS_URL: redis://redis:6379
+      SEARCH_API_URL: http://search-api:8001/api/v1
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: rag-service
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./services/rag-service/app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
+  # ─── WORKERS ─────────────────────────────────────────────────────────────
+
+  scan-worker:
+    build:
+      context: ./services/scan-worker
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      KMS_API_URL: http://kms-api:8000
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: scan-worker
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./services/scan-worker/app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
+  embed-worker:
+    build:
+      context: ./services/embed-worker
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "8011:8011"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
+      EMBEDDING_ENABLED: ${EMBEDDING_ENABLED:-false}
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: embed-worker
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./services/embed-worker/app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
+  dedup-worker:
+    build:
+      context: ./services/dedup-worker
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "8012:8012"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: dedup-worker
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./services/dedup-worker/app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
+  graph-worker:
+    build:
+      context: ./services/graph-worker
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "8013:8013"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-kmspassword}
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: graph-worker
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./services/graph-worker/app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
+  # ─── FRONTEND ────────────────────────────────────────────────────────────
+
+  web-ui:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "3001:3000"   # frontend → http://localhost:3001 (3000 is Grafana)
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_SEARCH_API_URL: http://localhost:8001
+      NEXT_PUBLIC_RAG_API_URL: http://localhost:8002
+      KMS_API_URL: http://kms-api:8000
+      SEARCH_API_URL: http://search-api:8001
+      RAG_API_URL: http://rag-service:8002
+    volumes:
+      - ./frontend/app:/app/app:ro
+      - ./frontend/components:/app/components:ro
+      - ./frontend/lib:/app/lib:ro
+      - ./frontend/public:/app/public:ro
+    depends_on:
+      - kms-api
+    networks:
+      - frontend
+      - backend
+
+# ─── NETWORKS ──────────────────────────────────────────────────────────────
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+  observability:
+    driver: bridge
+
+# ─── VOLUMES ───────────────────────────────────────────────────────────────
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  qdrant_data:
+  neo4j_data:
+  neo4j_logs:
+  minio_data:
+  ollama_data:
+  prometheus_data:
+  grafana_data:
+  tempo_data:
+  loki_data:

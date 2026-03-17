@@ -22,9 +22,8 @@ const sdk = initOtelSdk({
 
 // Now import everything else
 import { NestFactory, Reflector } from '@nestjs/core';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import helmet from 'helmet';
-import compression from 'compression';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/config.service';
 import { globalLogger } from './logger/logger.service';
@@ -39,11 +38,15 @@ async function bootstrap() {
   try {
     logger.info('Starting KMS API...');
 
-    // Create NestJS application
-    const app = await NestFactory.create(AppModule, {
-      logger: globalLogger,
-      bufferLogs: true,
-    });
+    // Create NestJS application with Fastify adapter
+    const app = await NestFactory.create<NestFastifyApplication>(
+      AppModule,
+      new FastifyAdapter({ logger: false }),
+      {
+        logger: globalLogger,
+        bufferLogs: true,
+      },
+    );
 
     // Get config service
     const config = app.get(AppConfigService);
@@ -52,12 +55,12 @@ async function bootstrap() {
     const apiPrefix = `${config.app.apiPrefix}/${config.app.apiVersion}`;
     app.setGlobalPrefix(apiPrefix);
 
-    // Security middleware
-    app.use(helmet());
-    app.use(compression());
+    // Security and compression plugins (Fastify)
+    await app.register(require('@fastify/helmet'));
+    await app.register(require('@fastify/compress'));
 
     // CORS configuration
-    app.enableCors({
+    await app.register(require('@fastify/cors'), {
       origin: config.cors.origins,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

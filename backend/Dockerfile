@@ -38,6 +38,10 @@ COPY requirements-test.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements-test.txt
 
+# Copy Alembic config and migrations (source code bind-mounted at runtime)
+COPY alembic.ini .
+COPY alembic ./alembic/
+
 # Create directories
 RUN mkdir -p /app/temp/uploads /app/temp/processed /app/models
 
@@ -46,7 +50,7 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-# Note: Source code is mounted as volume in docker-compose.override.yml
+# Note: Source code is mounted as volume in docker-compose.kms.yml
 # This enables hot reload without rebuilding the image
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
@@ -76,6 +80,8 @@ WORKDIR /app
 
 # Copy only application code (not tests, docs, etc.)
 COPY app /app/app
+COPY alembic.ini .
+COPY alembic ./alembic/
 
 # Create directories
 RUN mkdir -p /app/temp/uploads /app/temp/processed /app/models

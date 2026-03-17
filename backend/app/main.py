@@ -8,9 +8,12 @@ import asyncio
 import logging
 from datetime import datetime
 
+from alembic.config import Config as AlembicConfig
+from alembic import command as alembic_command
+
 from app.config import get_settings
 from app.api.v1.router import api_router
-from app.db.session import engine, Base
+from app.db.session import engine
 from app.services.job_monitor import JobMonitor
 from app.utils.errors import AppException, ErrorType, ErrorCategory
 
@@ -27,11 +30,14 @@ monitor_task = None
 async def lifespan(app: FastAPI):
     global job_monitor, monitor_task
     
-    # Startup: Create database tables
-    logger.info("Creating database tables...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created")
+    # Startup: Run Alembic migrations (production-safe, idempotent)
+    logger.info("Running database migrations...")
+    alembic_cfg = AlembicConfig("/app/alembic.ini")
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url.replace(
+        "postgresql://", "postgresql+asyncpg://", 1
+    ) if settings.database_url.startswith("postgresql://") else settings.database_url)
+    await asyncio.to_thread(alembic_command.upgrade, alembic_cfg, "head")
+    logger.info("Database migrations complete")
 
     # Start job monitor if enabled
     if settings.enable_job_scheduler:

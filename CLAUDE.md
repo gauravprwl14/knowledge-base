@@ -1,436 +1,110 @@
-# CLAUDE.md
+# Knowledge Base System (KMS) — Workspace Router
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+NestJS 11 (Fastify) + Python 3.11 (FastAPI) + PostgreSQL 16 + Qdrant + Neo4j + Redis + RabbitMQ.
+Monorepo: 2 NestJS services + 6 Python services. Feature-flag-driven. OTel-instrumented end-to-end.
 
-## Project Overview
+## Folder Map
 
-Voice App is a speech-to-text microservice with video support, bulk processing, and queue-based architecture. It supports multiple transcription providers (local Whisper, Groq, Deepgram) and translation services (OpenAI, Google Gemini).
+| Folder | Purpose |
+|--------|---------|
+| `kms-api/` | NestJS 11 — core REST API: auth, files, sources, users, collections, agent orchestrator |
+| `search-api/` | NestJS 11 — read-only hybrid search service (port 8001) |
+| `services/voice-app/` | FastAPI — transcription microservice (port 8003) |
+| `services/rag-service/` | FastAPI — RAG pipeline, SSE streaming chat (port 8002) |
+| `services/scan-worker/` | Python — AMQP consumer, file discovery |
+| `services/embed-worker/` | Python — AMQP consumer, BGE-M3 embedding generation |
+| `services/dedup-worker/` | Python — AMQP consumer, deduplication |
+| `services/graph-worker/` | Python — AMQP consumer, Neo4j relationship builder |
+| `packages/` | Shared TS: `@kb/errors`, `@kb/logger`, `@kb/tracing`, `@kb/contracts` |
+| `contracts/openapi.yaml` | OpenAPI 3.1 — single source of truth for all API contracts |
+| `docs/` | All documentation — see `docs/CONTEXT.md` to navigate |
+| `infra/` | OTel collector, Prometheus, Grafana configs |
+| `scripts/` | kms-start.sh and utility scripts |
+| `.kms/config.json` | Runtime feature flags (embedding, graph, RAG, etc.) |
 
-**Stack:**
-- Backend: FastAPI (Python 3.x) with async/await
-- Frontend: Next.js 14 (App Router) with TypeScript
-- Database: PostgreSQL with SQLAlchemy (async)
-- Queue: RabbitMQ with aio-pika
-- Worker: Background consumer for transcription jobs
-- Audio Processing: FFmpeg, faster-whisper
+## Naming Conventions
 
-## Architecture
+- **NestJS files**: `kebab-case` with suffix — `files.service.ts`, `create-file.dto.ts`, `files.controller.spec.ts`
+- **Python files**: `snake_case` — `scan_handler.py`, `embed_service.py`
+- **NestJS classes**: `PascalCase` — `FilesService`, `CreateFileDto`, `JwtAuthGuard`
+- **Python classes**: `PascalCase` — `LocalFileConnector`, `ScanJobMessage`
+- **Error codes**: `KB` + domain + 4-digit — `KBGEN0001`, `KBAUT0001`, `KBFIL0001`, `KBSRC0001`, `KBSCH0001`, `KBWRK0001`, `KBRAG0001`
+- **DB tables**: domain prefix + snake_case plural — `kms_files`, `auth_users`, `voice_jobs`
+- **RabbitMQ queues**: `kms.{domain}` — `kms.scan`, `kms.embed`, `kms.dedup`
+- **PRDs**: `docs/prd/PRD-{feature-name}.md` (kebab-case after PRD-)
+- **ADRs**: `docs/architecture/decisions/NNNN-{title}.md` (zero-padded 4-digit)
+- **Feature guides**: `FOR-{feature}.md` inside relevant `docs/` subfolder
 
-The system follows an event-driven, queue-based architecture:
+## Routing Table — What to Load
 
-```
-Frontend → Backend API → RabbitMQ → Worker Pool → Database
-                ↓           ↓           ↓
-            PostgreSQL   Job Queues   Transcription
-```
+| Task | Load | Skip |
+|------|------|------|
+| Plan or design a new feature | `docs/workflow/ENGINEERING_WORKFLOW.md` | everything else |
+| Understand an existing feature | `docs/prd/CONTEXT.md` → relevant `PRD-*.md` | `development/` |
+| Add NestJS endpoint or module | `docs/development/CONTEXT.md` → `FOR-nestjs-patterns.md`, `FOR-error-handling.md` | `architecture/` |
+| Add FastAPI endpoint or Python worker | `docs/development/CONTEXT.md` → `FOR-python-patterns.md`, `FOR-error-handling.md` | `architecture/` |
+| Add structured logging | `docs/development/CONTEXT.md` → `FOR-logging.md` | `architecture/` |
+| Add tracing / OTel span | `docs/development/CONTEXT.md` → `FOR-observability.md` | `guides/` |
+| Write or fix tests | `docs/development/CONTEXT.md` → `FOR-testing.md` | `architecture/` |
+| DB schema or Prisma migration | `docs/development/CONTEXT.md` → `FOR-database.md` | `agents/` |
+| API contract / endpoint design | `docs/development/CONTEXT.md` → `FOR-api-design.md` | `architecture/` |
+| Architecture Decision Record | `docs/architecture/CONTEXT.md` → ADR template in decisions/ | `development/` |
+| Docker / infra / start the stack | `docs/guides/CONTEXT.md` → `FOR-docker.md` | `development/` |
+| Agent or skill question | `docs/agents/CONTEXT.md` | `development/` |
+| Full coding standards reference | `docs/architecture/ENGINEERING_STANDARDS.md` | everything else |
 
-**Key Components:**
+## Agent Quick Reference
 
-1. **Backend (FastAPI)**: RESTful API with API key authentication
-   - API endpoints in `backend/app/api/v1/endpoints/`
-   - Business logic in `backend/app/services/`
-   - Database models in `backend/app/db/models/`
+| Need | Command |
+|------|---------|
+| Classify + route to right agent | `/coordinate` |
+| Plan multi-step work | `/plan` |
+| Sync docs after code change | `/sync-docs` |
+| Create a new feature guide | `/new-feature-guide` |
+| Lint documentation quality | `/lint-docs` |
+| Onboard new developer | `/onboard` |
 
-2. **Worker System** (`backend/app/workers/`):
-   - `consumer.py`: Processes transcription jobs from RabbitMQ queues
-   - `job_dispatcher.py`: Auto-publishes pending jobs to queue
-   - Handles job timeouts, stale job recovery, and webhook notifications
+## Mandatory Patterns
 
-3. **Job Monitor** (`backend/app/services/job_monitor.py`): Background service that marks timed-out jobs as failed
+Full details in `docs/architecture/ENGINEERING_STANDARDS.md`. Summary only:
 
-4. **Transcription Providers** (`backend/app/services/transcription/`):
-   - Provider pattern with factory (`factory.py`)
-   - Base class: `base.py` (TranscriptionProvider interface)
-   - Implementations: `whisper.py`, `groq.py`, `deepgram.py`
-   - Each provider implements `transcribe()` and `is_available()`
+- **Errors NestJS**: `AppException` from `@kb/errors` — never raw `HttpException`. Include KB error code.
+- **Errors Python**: typed subclass of `KMSWorkerError` with `.code` and `.retryable`.
+- **Logging NestJS**: `@InjectPinoLogger(ClassName.name)` — never `new Logger()`.
+- **Logging Python**: `structlog.get_logger(__name__).bind(...)` — never `logging.getLogger()`.
+- **DB NestJS**: `PrismaService` injected — never call Prisma client directly in service methods.
+- **DB Python API**: SQLAlchemy async. **DB Python worker**: raw `asyncpg`.
+- **AMQP**: `aio-pika connect_robust()`. `nack(requeue=True)` for retryable, `reject()` for terminal errors.
+- **Docs NestJS**: TSDoc on all exports + `@ApiOperation`/`@ApiResponse` on all endpoints.
+- **Docs Python**: Google-style docstrings on all `def` and classes.
+- **OTel NestJS**: `import './instrumentation'` must be line 1 of `main.ts`.
+- **OTel Python**: `configure_telemetry(app)` before any route imports inside lifespan.
+- **Embedding model**: `BAAI/bge-m3` at 1024 dimensions — NOT nomic-embed-text or all-MiniLM.
 
-5. **Frontend (Next.js)**:
-   - Server-side API client in `frontend/lib/api.ts`
-   - Pages in `frontend/app/` (App Router structure)
-   - Minimal UI components in `frontend/components/`
+## Engineering Workflow
 
-## Common Commands
+For any non-trivial feature — in this order, no skipping:
 
-### Docker Compose (Primary Development Method)
+1. **PRD** — `docs/prd/PRD-{feature}.md` (use template at `docs/workflow/PRD-TEMPLATE.md`)
+2. **ADR** — `docs/architecture/decisions/` for each non-obvious technology choice
+3. **Sequence diagram** — `docs/architecture/sequence-diagrams/` for each new data flow
+4. **Feature guide** — `FOR-{feature}.md` in relevant `docs/development/` or `docs/prd/` subfolder
+5. **Implementation** — follow mandatory patterns above
+6. **Tests** — 80% minimum coverage; run `/sync-docs` when done
 
-**Development with Hot Reload** (no rebuild needed for code changes):
+See `docs/workflow/ENGINEERING_WORKFLOW.md` for the full process with gate criteria.
 
-```bash
-# Start all services with hot reload enabled
-docker-compose up -d
-
-# View logs with live reload feedback
-docker-compose logs -f backend
-docker-compose logs -f worker
-docker-compose logs -f frontend
-
-# Restart specific service
-docker-compose restart worker
-
-# Stop all services
-docker-compose down
-
-# Rebuild ONLY when dependencies change (requirements.txt, package.json)
-docker-compose up -d --build backend
-```
-
-**Note**: The `docker-compose.override.yml` file is automatically loaded and provides:
-- Hot reload via bind mounts (code changes reflect in 1-2 seconds)
-- Source code mounted as read-only (`:ro`)
-- No rebuild required for code changes
-- Postgres exposed on localhost:5432 for GUI tools
-
-**Testing with Docker**:
-
-```bash
-# Run all tests in parallel
-docker-compose -f docker-compose.test.yml up --abort-on-container-exit
-
-# Run specific test suites
-docker-compose -f docker-compose.test.yml run --rm backend_unit_tests
-docker-compose -f docker-compose.test.yml run --rm backend_integration_tests
-docker-compose -f docker-compose.test.yml run --rm frontend_unit_tests
-docker-compose -f docker-compose.test.yml up --abort-on-container-exit frontend_e2e_tests
-
-# Run specific test file
-docker-compose -f docker-compose.test.yml run --rm backend_unit_tests \
-  pytest tests/unit/test_whisper_caching.py -v
-```
-
-**Production Deployment** (VPS/EC2):
+## Quick Commands
 
 ```bash
-# Build production images
-docker-compose -f docker-compose.prod.yml build
+./scripts/kms-start.sh               # Start full KMS stack (Docker)
+./scripts/kms-start.sh --stop        # Stop all services
+./scripts/kms-start.sh --llm         # Start with Ollama LLM
+docker compose -f docker-compose.kms.yml logs -f [service-name]
 
-# Start production services
-docker-compose -f docker-compose.prod.yml up -d
-
-# View production logs
-docker-compose -f docker-compose.prod.yml logs -f
+# kms-api development
+cd kms-api && npm run start:dev       # Hot reload dev server
+cd kms-api && npm run test            # Run tests
+cd kms-api && npm run prisma:migrate:dev  # Create/apply migration
+cd kms-api && npm run lint            # Lint + fix
 ```
-
-### Backend Development
-
-```bash
-cd backend
-
-# Create virtual environment (first time)
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-test.txt  # For testing
-
-# Run backend server (manual mode)
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Run worker (manual mode, in separate terminal)
-python -m app.workers.consumer
-
-# Run dispatcher (manual mode, in separate terminal)
-python -m app.workers.job_dispatcher
-
-# Run tests
-pytest                          # All tests
-pytest tests/unit/              # Unit tests only
-pytest tests/integration/       # Integration tests only
-pytest -v -s                    # Verbose with print output
-pytest --cov=app --cov-report=html  # With coverage report
-
-# Run specific test file
-pytest tests/unit/test_whisper_caching.py -v
-```
-
-### Frontend Development
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Run tests
-npm test                        # Unit tests (Jest)
-npm run test:watch              # Watch mode
-npm run test:coverage           # With coverage
-npm run test:e2e                # End-to-end tests (Playwright)
-npm run test:e2e:ui             # E2E tests with UI
-npm run test:e2e:report         # Show E2E test report
-
-# Lint
-npm run lint
-```
-
-### Testing (All)
-
-```bash
-# Run all tests (backend + frontend) from root
-./run-all-tests.sh
-```
-
-### Database Management
-
-```bash
-# Enter backend container to create API key
-docker-compose exec backend bash
-
-# Create API key (inside container)
-python3 << 'EOF'
-import asyncio
-import hashlib
-import secrets
-from app.db.session import AsyncSessionLocal
-from app.db.models import APIKey
-
-async def create_key():
-    key = secrets.token_urlsafe(32)
-    key_hash = hashlib.sha256(key.encode()).hexdigest()
-    async with AsyncSessionLocal() as db:
-        api_key = APIKey(key_hash=key_hash, name="Default Key", is_active=True)
-        db.add(api_key)
-        await db.commit()
-    print(f"API Key: {key}")
-
-asyncio.run(create_key())
-EOF
-```
-
-## Key Implementation Patterns
-
-### Job Lifecycle
-
-Jobs transition through states: `PENDING → QUEUED → PROCESSING → COMPLETED/FAILED/CANCELLED`
-
-- **PENDING**: Job created, not yet published to queue
-- **QUEUED**: Published to RabbitMQ, waiting for worker
-- **PROCESSING**: Worker actively processing
-- **COMPLETED**: Successfully transcribed
-- **FAILED**: Error occurred (see `error_message` field)
-- **CANCELLED**: User cancelled
-
-The dispatcher (`job_dispatcher.py`) automatically publishes PENDING jobs to RabbitMQ. Workers pick up jobs from queues and process them.
-
-### Adding New Transcription Provider
-
-1. Create new file in `backend/app/services/transcription/`
-2. Inherit from `TranscriptionProvider` (from `base.py`)
-3. Implement `async def transcribe()` and `async def is_available()`
-4. Return `TranscriptionResult` object
-5. Register in `factory.py` using `TranscriptionFactory.register_provider()`
-
-### Authentication
-
-All API requests require `X-API-Key` header. Authentication handled by `get_current_api_key()` dependency in `backend/app/dependencies.py`.
-
-### RabbitMQ Queue Structure
-
-- **Exchange**: `voice_app.direct` (direct exchange)
-- **Queues**:
-  - `transcription.queue` (routing key: "transcription")
-  - `priority.queue` (routing key: "priority")
-  - `failed.queue` (dead letter queue)
-- **Dead Letter Exchange**: `voice_app.dlx`
-
-Priority jobs use `priority` routing key. All queues support priority 0-10.
-
-### Audio Processing Pipeline
-
-1. File uploaded to backend (`/api/v1/upload`)
-2. Job created in database with PENDING status
-3. Dispatcher publishes to RabbitMQ (status → QUEUED)
-4. Worker consumes message:
-   - Updates status to PROCESSING
-   - Converts to 16kHz mono WAV using FFmpeg (`AudioProcessor`)
-   - Runs transcription with timeout protection
-   - Saves `Transcription` record
-   - Updates job to COMPLETED/FAILED
-   - Sends webhook if configured
-
-### Worker Concurrency & Resource Limits
-
-- Worker uses `ThreadPoolExecutor` with max 2 workers for CPU-intensive Whisper tasks
-- RabbitMQ `prefetch_count=1` prevents worker overload with large models
-- Docker resource limits: 4 CPU cores, 8GB RAM (for large-v3 model)
-- Job timeout: 60 minutes (configurable via `JOB_TIMEOUT_MINUTES`)
-
-### Stale Job Recovery
-
-On worker startup, `reset_stale_jobs()` resets any jobs stuck in PROCESSING (from crashed workers) back to QUEUED.
-
-### Model Caching
-
-Whisper models are downloaded to `./models/` and cached. First use of a model triggers download from HuggingFace.
-
-### Environment Configuration
-
-Key settings in `.env` (see `.env.example`):
-- API keys for providers (GROQ_API_KEY, DEEPGRAM_API_KEY, etc.)
-- Database URL, RabbitMQ URL
-- File size limits, allowed extensions
-- Worker concurrency, job timeout
-- Temp file directories
-
-Settings loaded via Pydantic `BaseSettings` in `backend/app/config.py`.
-
-## Database Models
-
-Key models in `backend/app/db/models/`:
-
-- **Job**: Main job record with status, provider, model settings, file info, timestamps
-- **Transcription**: Result text, segments, confidence, processing time
-- **APIKey**: Authentication keys (hashed with SHA256)
-
-Relationships:
-- Job (1) → Transcription (1) with cascade delete
-- APIKey (1) → Jobs (many)
-
-## Frontend API Client
-
-Centralized in `frontend/lib/api.ts` as `VoiceAppApi` class:
-- Upload, job management, transcription operations
-- Automatic API key header injection
-- Type-safe methods
-
-## Testing Strategy
-
-- **Backend**: pytest with async support (`pytest-asyncio`)
-  - Unit tests: Individual service/provider tests
-  - Integration tests: Database, RabbitMQ, full workflow
-- **Frontend**: Jest (unit/component) + Playwright (E2E)
-- Test configuration: `backend/pytest.ini`, `frontend/jest.config.js`, `frontend/playwright.config.ts`
-
-## Important Notes
-
-- **Database migrations**: Auto-created on startup via `Base.metadata.create_all()` in `main.py` lifespan
-- **CORS**: Only allows `http://localhost:3000` in development
-- **File cleanup**: Temp files have 24-hour TTL (configurable)
-- **Webhook support**: Jobs can specify `webhook_url` for completion notifications
-- **Translation**: Separate flow via `/transcriptions/{id}/translate` endpoint
-- **Download formats**: TXT, JSON, SRT (subtitles) via `/transcriptions/{id}/download?format=`
-
-## Docker Infrastructure
-
-### Multi-Stage Dockerfiles
-
-Both backend and frontend Dockerfiles use multi-stage builds:
-
-**Backend** (`backend/Dockerfile`):
-- `base`: OS dependencies, system packages
-- `dependencies`: Production Python packages
-- `development`: Test dependencies + hot reload setup (target for dev)
-- `test`: Test dependencies + postgres client (target for testing)
-- `production`: Optimized runtime, non-root user (default target)
-
-**Frontend** (`frontend/Dockerfile`):
-- `base`: Node 20 Alpine base
-- `deps`: npm dependencies cached
-- `development`: Hot reload setup (target for dev)
-- `test`: Playwright browsers included (target for testing)
-- `builder`: Build Next.js application
-- `runner`: Production-optimized runtime (default target)
-
-### .dockerignore Files
-
-**Backend** (`backend/.dockerignore`):
-- Excludes: Python cache, venv, tests artifacts, IDE files, docs, git
-- Reduces build context from ~10MB to ~500KB (95% reduction)
-
-**Frontend** (`frontend/.dockerignore`):
-- Excludes: node_modules, .next, build outputs, test artifacts, IDE files
-- Reduces build context from ~375MB to ~2MB (99% reduction)
-
-### Hot Reload Configuration
-
-**Development** (`docker-compose.override.yml`):
-- Automatically loaded by `docker-compose up`
-- Source code bind-mounted as read-only (`:ro`)
-- Backend: Python auto-reload via uvicorn `--reload`
-- Frontend: Next.js Fast Refresh via `npm run dev`
-- Code changes reflect in 1-2 seconds without rebuild
-- Postgres exposed on localhost:5432 for GUI tools
-
-**Testing** (`docker-compose.test.yml`):
-- Isolated test environment with tmpfs database (10x faster)
-- Separate postgres_test and rabbitmq_test services
-- Run all tests: `docker-compose -f docker-compose.test.yml up --abort-on-container-exit`
-- Run individual suites: `docker-compose -f docker-compose.test.yml run --rm backend_unit_tests`
-- Health checks ensure dependencies ready before tests run
-- Coverage reports stored in named volumes
-
-**Production** (`docker-compose.prod.yml`):
-- Production-optimized images with security hardening
-- Network isolation (backend_network, frontend_network)
-- Required environment variables enforced with `:?` syntax
-- Restart policies: `unless-stopped`
-- Resource limits for worker and dispatcher
-- Optional Nginx reverse proxy included
-
-### Documentation
-
-Comprehensive guides available in `docs/`:
-- **DOCKER_DEVELOPMENT.md**: Hot reload setup, debugging, macOS optimization
-- **DOCKER_TESTING.md**: Test infrastructure, running tests, coverage reports
-- **DEPLOYMENT.md**: VPS/EC2 deployment, SSL setup, monitoring, backups
-
-## Service URLs (Docker)
-
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-- RabbitMQ Management: http://localhost:15672 (guest/guest)
-- PostgreSQL: localhost:5432
-
-## Common Troubleshooting
-
-- **Worker not processing**: Check `docker-compose logs worker` and RabbitMQ queue status
-- **Database connection errors**: Verify postgres container is healthy
-- **Model download fails**: Check internet connection and HuggingFace availability
-- **Jobs stuck in PROCESSING**: Restart worker (triggers stale job recovery)
-
-## Session Changelog
-
-At the end of each significant development session, create a session summary in `docs/session-summary/` with the following:
-
-### File Naming Convention
-
-```
-docs/session-summary/YYYY-MM-DD_HH-MM-SS_<short-description>.md
-```
-
-Example: `2026-01-08_04-45-02_kms-architecture-docs.md`
-
-### Session Summary Template
-
-Each session summary should include:
-
-1. **Header**: Date, Session ID, Duration
-2. **Objective**: What was the goal of this session
-3. **Changes Made**: Directory structure, files created/modified
-4. **Key Technical Decisions**: Important choices made and rationale
-5. **Architecture Highlights**: Summary of architectural changes
-6. **Files Modified**: List of changed files
-7. **Next Steps**: Suggested follow-up tasks
-8. **Context at Session End**: Token usage, active plans, branch
-
-### When to Create a Summary
-
-Create a session summary when:
-- Completing a major feature or documentation effort
-- Making significant architectural changes
-- Before context window approaches limits (>70% usage)
-- At natural stopping points in multi-session work
-
-### Recent Sessions
-
-| Date | Session | Description |
-|------|---------|-------------|
-| 2026-01-08 | observability-stack | Added OTel, Jaeger, Prometheus, Grafana to architecture docs |
-| 2026-01-08 | kms-architecture-docs | Created comprehensive KMS architecture documentation (35 files) |

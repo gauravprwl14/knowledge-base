@@ -6,6 +6,7 @@ const config: Config = {
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
     './features/**/*.{ts,tsx}',
+    './lib/**/*.{ts,tsx}',
   ],
   theme: {
     screens: {
@@ -18,7 +19,12 @@ const config: Config = {
       '3xl': '1920px',
     },
     extend: {
+      // -----------------------------------------------------------------------
+      // KMS semantic color tokens — all reference CSS variables so they switch
+      // between light/dark mode via :root / .dark selectors in globals.css.
+      // -----------------------------------------------------------------------
       colors: {
+        // Legacy tokens (keep for backward-compat with existing components)
         primary: {
           50: '#ecfeff',
           100: '#cffafe',
@@ -65,7 +71,80 @@ const config: Config = {
           light: '#60a5fa',
           dark: '#2563eb',
         },
+
+        // KMS design-system tokens — CSS variable driven (light/dark aware)
+        kms: {
+          // Background layers
+          'bg-primary': 'var(--color-bg-primary)',
+          'bg-secondary': 'var(--color-bg-secondary)',
+          'bg-elevated': 'var(--color-bg-elevated)',
+          // Surfaces
+          surface: 'var(--color-surface)',
+          'surface-raised': 'var(--color-surface-raised)',
+          'surface-overlay': 'var(--color-surface-overlay)',
+          // Borders
+          border: 'var(--color-border)',
+          'border-subtle': 'var(--color-border-subtle)',
+          'border-strong': 'var(--color-border-strong)',
+          // Text
+          'text-primary': 'var(--color-text-primary)',
+          'text-secondary': 'var(--color-text-secondary)',
+          'text-muted': 'var(--color-text-muted)',
+          'text-inverse': 'var(--color-text-inverse)',
+          // Accent / brand
+          accent: 'var(--color-accent)',
+          'accent-hover': 'var(--color-accent-hover)',
+          'accent-muted': 'var(--color-accent-muted)',
+          // Status
+          success: 'var(--color-status-success)',
+          'success-bg': 'var(--color-status-success-bg)',
+          warning: 'var(--color-status-warning)',
+          'warning-bg': 'var(--color-status-warning-bg)',
+          error: 'var(--color-status-error)',
+          'error-bg': 'var(--color-status-error-bg)',
+        },
+
+        // Brand primitives (indigo-based) — for direct use when needed
+        brand: {
+          50: '#eef2ff',
+          100: '#e0e7ff',
+          200: '#c7d2fe',
+          300: '#a5b4fc',
+          400: '#818cf8',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca',
+          800: '#3730a3',
+          900: '#312e81',
+        },
       },
+
+      // -----------------------------------------------------------------------
+      // Layout helpers
+      // -----------------------------------------------------------------------
+      spacing: {
+        'sidebar': 'var(--sidebar-width)',
+        'topbar': 'var(--topbar-height)',
+      },
+      width: {
+        'sidebar': 'var(--sidebar-width)',
+      },
+      height: {
+        'topbar': 'var(--topbar-height)',
+      },
+      paddingLeft: {
+        'sidebar': 'var(--sidebar-width)',
+      },
+      paddingTop: {
+        'topbar': 'var(--topbar-height)',
+      },
+      marginLeft: {
+        'sidebar': 'var(--sidebar-width)',
+      },
+
+      // -----------------------------------------------------------------------
+      // Typography — unchanged from previous config
+      // -----------------------------------------------------------------------
       fontFamily: {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'monospace'],
@@ -82,11 +161,17 @@ const config: Config = {
         'body-sm': ['0.875rem', { lineHeight: '1.5', fontWeight: '400' }],
         'body-xs': ['0.75rem', { lineHeight: '1.5', fontWeight: '400' }],
       },
+
+      // -----------------------------------------------------------------------
+      // Animations — unchanged from previous config
+      // -----------------------------------------------------------------------
       animation: {
-        'pulse': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'shimmer': 'shimmer 2s linear infinite',
-        'spin': 'spin 1s linear infinite',
-        'bounce': 'bounce 1s ease-in-out infinite',
+        pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        shimmer: 'shimmer 2s linear infinite',
+        spin: 'spin 1s linear infinite',
+        bounce: 'bounce 1s ease-in-out infinite',
+        'slide-in': 'slideIn 0.3s ease-out',
+        'fade-in': 'fadeIn 0.2s ease-out',
       },
       keyframes: {
         pulse: {
@@ -104,6 +189,14 @@ const config: Config = {
         bounce: {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-10px)' },
+        },
+        slideIn: {
+          from: { transform: 'translateX(100%)', opacity: '0' },
+          to: { transform: 'translateX(0)', opacity: '1' },
+        },
+        fadeIn: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
         },
       },
     },

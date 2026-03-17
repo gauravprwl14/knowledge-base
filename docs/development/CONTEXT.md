@@ -1,0 +1,37 @@
+# development/ — Layer 2 Router
+
+How-to feature guides for building, modifying, and understanding KMS service code.
+Each guide has exactly 6 sections: Business Use Case, Flow Diagram, Code Structure, Key Methods, Error Cases, Configuration.
+
+---
+
+## Routing Table
+
+| Question / Task | Load This File |
+|-----------------|----------------|
+| JWT auth, login, register, refresh tokens, API keys, RBAC | `FOR-authentication.md` |
+| NestJS controllers, DTOs, Zod validation, Fastify, response format | `FOR-nestjs-patterns.md` |
+| FastAPI endpoints, Pydantic, Depends(), lifespan, domain structure | `FOR-python-patterns.md` |
+| Prisma schema, BaseRepository, pagination, soft delete, migrations | `FOR-database.md` |
+| AppException, error codes (KB*), exception filters, Prisma error mapping | `FOR-error-handling.md` |
+| nestjs-pino InjectPinoLogger, structlog, mandatory log fields | `FOR-logging.md` |
+| OTel, custom spans (kb.*), W3C traceparent, health checks, Prometheus | `FOR-observability.md` |
+| AMQP aio-pika, connect_robust, quorum queues, DLX, RabbitMQ patterns | `FOR-queue-system.md` |
+| OpenAPI 3.1, endpoint design, versioning, Swagger decorators, TSDoc | `FOR-api-design.md` |
+| Jest unit tests, pytest, asyncio_mode, integration tests, coverage | `FOR-testing.md` |
+| BGE-M3 embedding, Qdrant upsert, chunking, FlagEmbedding | `FOR-embedding.md` |
+| Neo4j driver, graph traversal, Leiden community detection | `FOR-graph.md` |
+| ACP protocol, agent orchestrator, LangGraph inside rag-service | `FOR-agent-patterns.md` |
+
+---
+
+## Naming Conventions
+
+- Feature guides: `FOR-{feature-name}.md` (kebab-case after `FOR-`)
+- Each guide has exactly 6 mandatory sections in this order:
+  1. **Business Use Case** — 2-4 sentences: why this exists, what problem it solves
+  2. **Flow Diagram** — Mermaid `sequenceDiagram` or `flowchart`
+  3. **Code Structure** — table: file → responsibility
+  4. **Key Methods** — table: method → description → signature
+  5. **Error Cases** — table: error code → HTTP status → description → handling
+  6. **Configuration** — table: env var / constant → description → default

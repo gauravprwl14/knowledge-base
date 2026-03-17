@@ -1,0 +1,76 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 15s
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # Trace → Logs: click a span → jump to Loki for that trace
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: false
+      # Trace → Metrics: correlate spans with Prometheus metrics
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
+        tags:
+          - key: service.name
+            value: job
+        queries:
+          - name: Request rate
+            query: rate(calls_total{$$__tags}[5m])
+          - name: Error rate
+            query: rate(calls_total{$$__tags, status_code="STATUS_CODE_ERROR"}[5m])
+          - name: P95 latency
+            query: histogram_quantile(0.95, sum(rate(duration_milliseconds_bucket{$$__tags}[5m])) by (le))
+      # Service map via Tempo metrics-generator → Prometheus
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
+      traceQuery:
+        timeShiftEnabled: true
+        spanStartTimeShift: "1h"
+        spanEndTimeShift: "-1h"
+
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      # Log → Trace: click traceId in logs → opens Tempo trace
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: '"traceId":"([a-f0-9]{32})"'
+          name: TraceID
+          url: "$${__value.raw}"
+          urlDisplayLabel: View trace in Tempo
+        - datasourceUid: tempo
+          matcherRegex: 'trace_id=([a-f0-9]{32})'
+          name: TraceID
+          url: "$${__value.raw}"
+          urlDisplayLabel: View trace in Tempo

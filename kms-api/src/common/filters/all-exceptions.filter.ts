@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { FastifyReply, FastifyRequest } from 'fastify';
 import { AppError } from '../../errors/types/app-error';
 import { ERROR_CODES, ErrorCode } from '../../errors/error-codes';
 import { handlePrismaError, isPrismaError } from '../../errors/handlers/prisma-error.handler';
@@ -39,8 +39,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const response = ctx.getResponse<FastifyReply>();
+    const request = ctx.getRequest<FastifyRequest>();
 
     const traceContext = getTraceContext();
     const requestId = (request.headers['x-request-id'] as string) || undefined;
@@ -74,8 +74,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       recordSpanException(exception);
     }
 
-    // Send response
-    response.status(appError.statusCode).json(responseBody);
+    // Send response (Fastify uses .send() not .json())
+    response.status(appError.statusCode).send(responseBody);
   }
 
   /**
@@ -159,7 +159,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   /**
    * Logs exception with appropriate level
    */
-  private logException(exception: unknown, appError: AppError, request: Request): void {
+  private logException(exception: unknown, appError: AppError, request: FastifyRequest): void {
     const logContext = {
       code: appError.code,
       statusCode: appError.statusCode,
