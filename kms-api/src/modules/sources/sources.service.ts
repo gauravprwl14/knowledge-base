@@ -269,4 +269,129 @@ export class SourcesService {
     await this.sourceRepository.update({ id: sourceId }, { encryptedTokens });
     return credentials;
   }
+
+  /**
+   * Registers a local filesystem folder as a knowledge source.
+   *
+   * If the user already has an active LOCAL source pointing to the same path,
+   * the existing record is reconnected (status set to CONNECTED). Otherwise a
+   * new source record is created with the path stored in `metadata.path`.
+   *
+   * The path must be accessible to the scan-worker container. For Docker
+   * deployments use the mounted path (e.g. /data/documents).
+   *
+   * @param userId - Authenticated user UUID
+   * @param path - Absolute filesystem path to the local folder
+   * @param displayName - Optional human-readable label (defaults to folder name)
+   * @returns SourceResponseDto for the newly created or reconnected source
+   */
+  @Trace({ name: 'sources.registerLocalSource' })
+  async registerLocalSource(
+    userId: string,
+    path: string,
+    displayName?: string,
+  ): Promise<SourceResponseDto> {
+    this.logger.info({ userId, path }, 'Registering local source');
+
+    // Find any active LOCAL source for this user (not DISCONNECTED)
+    const existing = await this.sourceRepository.findFirst({
+      userId,
+      type: SourceType.LOCAL,
+      status: { not: SourceStatus.DISCONNECTED } as never,
+    });
+
+    // Only reconnect if the existing active source points to the same path
+    const existingWithSamePath =
+      existing && (existing.metadata as Record<string, unknown>)?.path === path ? existing : null;
+
+    if (existingWithSamePath) {
+      const updated = await this.sourceRepository.update(
+        { id: existingWithSamePath.id },
+        {
+          status: SourceStatus.CONNECTED,
+          displayName: displayName ?? existingWithSamePath.displayName,
+        },
+      );
+      this.logger.info({ userId, path, sourceId: updated.id }, 'Local source reconnected');
+      return this.toResponseDto(updated);
+    }
+
+    const resolvedName = displayName ?? path.split('/').pop() ?? 'Local Folder';
+
+    const source = await this.sourceRepository.create({
+      userId,
+      type: SourceType.LOCAL,
+      name: resolvedName,
+      displayName: resolvedName,
+      status: SourceStatus.CONNECTED,
+      metadata: { path },
+    });
+
+    this.logger.info({ userId, path, sourceId: source.id }, 'Local source registered');
+    return this.toResponseDto(source);
+  }
+
+  /**
+   * Registers an Obsidian vault directory as a knowledge source.
+   *
+   * OBSIDIAN is a specialised LOCAL source — the vault path is stored in both
+   * `metadata.path` and `metadata.vaultPath` for compatibility with the
+   * scan-worker Obsidian connector. If the user already has an active OBSIDIAN
+   * source at the same path, the existing record is reconnected.
+   *
+   * In Docker: mount the vault as a volume and pass the container path.
+   * In local dev: pass the absolute path on the host.
+   *
+   * @param userId - Authenticated user UUID
+   * @param vaultPath - Absolute filesystem path to the Obsidian vault
+   * @param displayName - Optional human-readable label (defaults to vault folder name)
+   * @returns SourceResponseDto for the newly created or reconnected source
+   */
+  @Trace({ name: 'sources.registerObsidianVault' })
+  async registerObsidianVault(
+    userId: string,
+    vaultPath: string,
+    displayName?: string,
+  ): Promise<SourceResponseDto> {
+    this.logger.info({ userId, vaultPath }, 'Registering Obsidian vault');
+
+    // Find any active OBSIDIAN source for this user (not DISCONNECTED)
+    const existing = await this.sourceRepository.findFirst({
+      userId,
+      type: SourceType.OBSIDIAN,
+      status: { not: SourceStatus.DISCONNECTED } as never,
+    });
+
+    // Only reconnect if the existing active source points to the same vault path
+    const existingWithSamePath =
+      existing && (existing.metadata as Record<string, unknown>)?.path === vaultPath
+        ? existing
+        : null;
+
+    if (existingWithSamePath) {
+      const updated = await this.sourceRepository.update(
+        { id: existingWithSamePath.id },
+        {
+          status: SourceStatus.CONNECTED,
+          displayName: displayName ?? existingWithSamePath.displayName,
+        },
+      );
+      this.logger.info({ userId, vaultPath, sourceId: updated.id }, 'Obsidian vault reconnected');
+      return this.toResponseDto(updated);
+    }
+
+    const vaultName = displayName ?? vaultPath.split('/').pop() ?? 'Obsidian Vault';
+
+    const source = await this.sourceRepository.create({
+      userId,
+      type: SourceType.OBSIDIAN,
+      name: vaultName,
+      displayName: vaultName,
+      status: SourceStatus.CONNECTED,
+      metadata: { path: vaultPath, vaultPath },
+    });
+
+    this.logger.info({ userId, vaultPath, sourceId: source.id }, 'Obsidian vault registered');
+    return this.toResponseDto(source);
+  }
 }

@@ -1,7 +1,9 @@
 import {
   Controller,
   Get,
+  Post,
   Delete,
+  Body,
   Param,
   Query,
   HttpCode,
@@ -9,10 +11,17 @@ import {
   UseGuards,
   Res,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
 import type { FastifyReply } from 'fastify';
 import { SourcesService } from './sources.service';
-import { SourceResponseDto, OAuthInitiateResponseDto } from './dto/sources.dto';
+import {
+  SourceResponseDto,
+  OAuthInitiateResponseDto,
+  RegisterLocalSourceRequestDto,
+  RegisterObsidianVaultRequestDto,
+  registerLocalSourceSchema,
+  registerObsidianVaultSchema,
+} from './dto/sources.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ApiEndpoint } from '../../common/decorators/swagger.decorator';
@@ -24,11 +33,13 @@ import { FeatureFlagGuard } from '../feature-flags/guards/feature-flag.guard';
  * SourcesController — REST endpoints for managing knowledge source connections.
  *
  * Routes:
- * - GET  /sources                       List connected sources (JWT)
- * - GET  /sources/google-drive/oauth    Initiate Google Drive OAuth (@Public)
- * - GET  /sources/google-drive/callback Handle Google OAuth callback (@Public)
- * - GET  /sources/:id                   Get a single source (JWT)
- * - DELETE /sources/:id                 Disconnect a source (JWT)
+ * - GET    /sources                       List connected sources (JWT)
+ * - GET    /sources/google-drive/oauth    Initiate Google Drive OAuth (@Public)
+ * - GET    /sources/google-drive/callback Handle Google OAuth callback (@Public)
+ * - GET    /sources/:id                   Get a single source (JWT)
+ * - DELETE /sources/:id                   Disconnect a source (JWT)
+ * - POST   /sources/local                 Register a local filesystem folder (JWT)
+ * - POST   /sources/obsidian              Register an Obsidian vault (JWT)
  *
  * IMPORTANT: The two static sub-routes (`google-drive/oauth`,
  * `google-drive/callback`) are declared BEFORE the dynamic `:id` route so that
@@ -178,5 +189,60 @@ export class SourcesController {
     @CurrentUser('id') userId: string,
   ): Promise<void> {
     return this.sourcesService.disconnectSource(id, userId);
+  }
+
+  /**
+   * Register a local filesystem folder as a source.
+   * The path must be accessible to the scan-worker container.
+   * For Docker deployments, use the mounted path (e.g. /vault).
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Post('local')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiEndpoint({
+    summary: 'Register local folder as source',
+    description:
+      'Registers a local filesystem path. The scan-worker must have read access to this path.',
+    responseType: SourceResponseDto,
+    successStatus: HttpStatus.CREATED,
+  })
+  async registerLocalSource(
+    @Body() body: RegisterLocalSourceRequestDto,
+    @CurrentUser('id') userId: string,
+  ): Promise<SourceResponseDto> {
+    const dto = registerLocalSourceSchema.parse(body);
+    return this.sourcesService.registerLocalSource(userId, dto.path, dto.displayName);
+  }
+
+  /**
+   * Register an Obsidian vault as a source.
+   * In Docker: mount the vault as a volume and pass the container path.
+   * In local dev: pass the absolute path on the host.
+   *
+   * @example POST /sources/obsidian { "vaultPath": "/vault", "displayName": "My Notes" }
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Post('obsidian')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiEndpoint({
+    summary: 'Register Obsidian vault as source',
+    description:
+      'Registers an Obsidian vault directory. Use /vault if using the Docker test-vault mount.',
+    responseType: SourceResponseDto,
+    successStatus: HttpStatus.CREATED,
+  })
+  @ApiBody({
+    schema: {
+      example: { vaultPath: '/vault', displayName: 'My Knowledge Base' },
+    },
+  })
+  async registerObsidianVault(
+    @Body() body: RegisterObsidianVaultRequestDto,
+    @CurrentUser('id') userId: string,
+  ): Promise<SourceResponseDto> {
+    const dto = registerObsidianVaultSchema.parse(body);
+    return this.sourcesService.registerObsidianVault(userId, dto.vaultPath, dto.displayName);
   }
 }

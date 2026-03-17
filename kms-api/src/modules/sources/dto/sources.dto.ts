@@ -25,6 +25,27 @@ export const listSourcesQuerySchema = z.object({
 
 export type ListSourcesQueryDto = z.infer<typeof listSourcesQuerySchema>;
 
+/**
+ * Schema for registering a local filesystem folder as a source.
+ */
+export const registerLocalSourceSchema = z.object({
+  path: z.string().min(1, 'Path is required'),
+  displayName: z.string().min(1).max(255).optional(),
+});
+
+export type RegisterLocalSourceDto = z.infer<typeof registerLocalSourceSchema>;
+
+/**
+ * Schema for registering an Obsidian vault as a source.
+ * OBSIDIAN is a subtype of LOCAL — same filesystem access.
+ */
+export const registerObsidianVaultSchema = z.object({
+  vaultPath: z.string().min(1, 'Vault path is required'),
+  displayName: z.string().min(1).max(255).optional(),
+});
+
+export type RegisterObsidianVaultDto = z.infer<typeof registerObsidianVaultSchema>;
+
 // ---------------------------------------------------------------------------
 // Swagger request DTOs
 // ---------------------------------------------------------------------------
@@ -36,6 +57,40 @@ export class CreateSourceRequestDto {
   @ApiPropertyOptional({
     example: 'My Google Drive',
     description: 'Human-readable label for the source',
+  })
+  displayName?: string;
+}
+
+/**
+ * Request body DTO for local filesystem source registration (Swagger documentation only).
+ */
+export class RegisterLocalSourceRequestDto {
+  @ApiProperty({
+    example: '/data/documents',
+    description: 'Absolute path to the local folder. Must be accessible to the scan-worker container.',
+  })
+  path: string;
+
+  @ApiPropertyOptional({
+    example: 'My Documents',
+    description: 'Human-readable label for the source',
+  })
+  displayName?: string;
+}
+
+/**
+ * Request body DTO for Obsidian vault registration (Swagger documentation only).
+ */
+export class RegisterObsidianVaultRequestDto {
+  @ApiProperty({
+    example: '/vault',
+    description: 'Absolute path to the Obsidian vault. Use /vault if using the Docker test-vault mount.',
+  })
+  vaultPath: string;
+
+  @ApiPropertyOptional({
+    example: 'My Knowledge Base',
+    description: 'Human-readable label for the vault',
   })
   displayName?: string;
 }
