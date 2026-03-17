@@ -1,27 +1,7 @@
-/**
- * Alert — inline feedback banner
- *
- * Four semantic variants: info, success, warning, error.
- * Includes a matching icon, title (optional), and body text.
- * Optionally dismissible via the `onDismiss` prop.
- *
- * @example
- * <Alert variant="error" title="Login failed">
- *   Invalid email or password.
- * </Alert>
- */
-
-import React from 'react';
-import {
-  AlertCircle,
-  CheckCircle2,
-  AlertTriangle,
-  Info,
-  X,
-} from 'lucide-react';
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import * as React from 'react';
+import { AlertCircle, CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
+import { Alert as ShadcnAlert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 export type AlertVariant = 'info' | 'success' | 'warning' | 'error';
 
@@ -38,95 +18,41 @@ export interface AlertProps {
   className?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Variant map
-// ---------------------------------------------------------------------------
-
-const alertVariantClasses: Record<AlertVariant, { container: string; icon: string }> = {
-  info: {
-    container: 'bg-[var(--color-accent-muted)] border border-[var(--color-accent)]',
-    icon: 'text-[var(--color-accent)]',
-  },
-  success: {
-    container: 'bg-[var(--color-status-success-bg)] border border-[var(--color-status-success)]',
-    icon: 'text-[var(--color-status-success)]',
-  },
-  warning: {
-    container: 'bg-[var(--color-status-warning-bg)] border border-[var(--color-status-warning)]',
-    icon: 'text-[var(--color-status-warning)]',
-  },
-  error: {
-    container: 'bg-[var(--color-status-error-bg)] border border-[var(--color-status-error)]',
-    icon: 'text-[var(--color-status-error)]',
-  },
+const iconMap: Record<AlertVariant, React.ComponentType<{ className?: string }>> = {
+  info: Info,
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  error: AlertCircle,
 };
 
-// ---------------------------------------------------------------------------
-// Icon map
-// ---------------------------------------------------------------------------
-
-const icons: Record<AlertVariant, React.ComponentType<{ className?: string }>> =
-  {
-    info: Info,
-    success: CheckCircle2,
-    warning: AlertTriangle,
-    error: AlertCircle,
-  };
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+const shadcnVariantMap: Record<AlertVariant, 'info' | 'success' | 'warning' | 'destructive'> = {
+  info: 'info',
+  success: 'success',
+  warning: 'warning',
+  error: 'destructive',
+};
 
 /**
  * Inline alert / notification banner. Pure UI — no side effects.
  */
-export function Alert({
-  variant = 'info',
-  title,
-  children,
-  onDismiss,
-  className = '',
-}: AlertProps) {
-  const { container: containerCls, icon: iconCls } = alertVariantClasses[variant];
-  const Icon = icons[variant];
-
+export function Alert({ variant = 'info', title, children, onDismiss, className = '' }: AlertProps) {
+  const Icon = iconMap[variant];
   return (
-    <div
-      role="alert"
-      className={[
-        'flex gap-3 rounded-lg p-4',
-        containerCls,
-        className,
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      {/* Icon */}
-      <Icon className={['h-5 w-5 shrink-0 mt-0.5', iconCls].join(' ')} aria-hidden="true" />
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        {title && (
-          <p className="text-sm font-semibold mb-1">{title}</p>
-        )}
-        {children && (
-          <div className="text-sm">{children}</div>
-        )}
-      </div>
-
-      {/* Dismiss button */}
+    <ShadcnAlert variant={shadcnVariantMap[variant]} className={cn('relative', className)}>
+      <Icon className="h-4 w-4" />
+      {title && <AlertTitle>{title}</AlertTitle>}
+      {children && <AlertDescription>{children}</AlertDescription>}
       {onDismiss && (
         <button
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="shrink-0 opacity-60 hover:opacity-100 transition-opacity duration-150"
+          className="absolute right-3 top-3 opacity-60 hover:opacity-100 transition-opacity"
         >
-          <X className="h-4 w-4" aria-hidden="true" />
+          <X className="h-4 w-4" />
         </button>
       )}
-    </div>
+    </ShadcnAlert>
   );
 }
-
 Alert.displayName = 'Alert';

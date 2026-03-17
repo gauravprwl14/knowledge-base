@@ -1,143 +1,71 @@
-/**
- * Card — surface container primitive
- *
- * Three visual variants: default (light shadow), outlined (2px border), and
- * elevated (stronger shadow). Includes a rounded corner and consistent padding.
- *
- * @example
- * <Card variant="elevated" className="p-6">
- *   <CardHeader>
- *     <Heading as="h3" size="lg">API Keys</Heading>
- *   </CardHeader>
- *   <CardContent>...</CardContent>
- * </Card>
- */
-
-import React from 'react';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import * as React from 'react';
+import {
+  Card as ShadcnCard,
+  CardHeader as ShadcnCardHeader,
+  CardContent as ShadcnCardContent,
+  CardFooter as ShadcnCardFooter,
+} from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 export type CardVariant = 'default' | 'outlined' | 'elevated';
-
-// ---------------------------------------------------------------------------
-// Variant map
-// ---------------------------------------------------------------------------
-
-const cardVariantClasses: Record<CardVariant, string> = {
-  default: 'bg-[var(--color-surface)] shadow-sm',
-  outlined: 'bg-[var(--color-surface)] border border-[var(--color-border)]',
-  elevated: 'bg-[var(--color-surface)] shadow-md',
-};
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Visual style of the card */
   variant?: CardVariant;
-  children: React.ReactNode;
 }
 
-// ---------------------------------------------------------------------------
-// Card
-// ---------------------------------------------------------------------------
+export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
+export interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {}
+export interface CardFooterProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+const variantClasses: Record<CardVariant, string> = {
+  default: '',
+  outlined: 'shadow-none',
+  elevated: 'shadow-md',
+};
 
 /**
  * Base card container. Add padding via `className` or a `<CardContent>` child.
  */
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
-  ({ variant = 'default', className = '', children, ...rest }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={[
-          'rounded-lg overflow-hidden',
-          cardVariantClasses[variant],
-          className,
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        {...rest}
-      >
-        {children}
-      </div>
-    );
-  }
+  ({ variant = 'default', className, ...props }, ref) => (
+    <ShadcnCard ref={ref} className={cn('overflow-hidden', variantClasses[variant], className)} {...props} />
+  )
 );
-
 Card.displayName = 'Card';
-
-// ---------------------------------------------------------------------------
-// CardHeader
-// ---------------------------------------------------------------------------
-
-export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-}
 
 /** Card header — applies consistent horizontal padding and a bottom border. */
 export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(
-  ({ className = '', children, ...rest }, ref) => (
-    <div
+  ({ className, ...props }, ref) => (
+    <ShadcnCardHeader
       ref={ref}
-      className={['px-6 py-4 border-b border-neutral-100', className]
-        .filter(Boolean)
-        .join(' ')}
-      {...rest}
-    >
-      {children}
-    </div>
+      className={cn('px-6 py-4 border-b border-[var(--color-border)]', className)}
+      {...props}
+    />
   )
 );
-
 CardHeader.displayName = 'CardHeader';
-
-// ---------------------------------------------------------------------------
-// CardContent
-// ---------------------------------------------------------------------------
-
-export interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-}
 
 /** Card body — applies consistent padding. */
 export const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(
-  ({ className = '', children, ...rest }, ref) => (
-    <div
+  ({ className, ...props }, ref) => (
+    <ShadcnCardContent
       ref={ref}
-      className={['px-6 py-5', className].filter(Boolean).join(' ')}
-      {...rest}
-    >
-      {children}
-    </div>
+      className={cn('px-6 py-5 pt-5', className)}
+      {...props}
+    />
   )
 );
-
 CardContent.displayName = 'CardContent';
-
-// ---------------------------------------------------------------------------
-// CardFooter
-// ---------------------------------------------------------------------------
-
-export interface CardFooterProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-}
 
 /** Card footer — applies consistent padding and a top border. */
 export const CardFooter = React.forwardRef<HTMLDivElement, CardFooterProps>(
-  ({ className = '', children, ...rest }, ref) => (
-    <div
+  ({ className, ...props }, ref) => (
+    <ShadcnCardFooter
       ref={ref}
-      className={[
-        'px-6 py-4 border-t border-neutral-100 bg-neutral-50',
-        className,
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      {...rest}
-    >
-      {children}
-    </div>
+      className={cn('px-6 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]', className)}
+      {...props}
+    />
   )
 );
-
 CardFooter.displayName = 'CardFooter';
