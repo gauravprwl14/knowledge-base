@@ -23,6 +23,8 @@ user stories, scope, task breakdown per layer (NestJS / Python / Frontend / DB /
 | RAG chat, agent orchestration, SSE streaming | `PRD-M10-rag-chat.md` |
 | Web UI, design system, all 14 pages | `PRD-M11-web-ui.md` |
 | Obsidian plugin integration | `PRD-M12-obsidian.md` |
+| **Document Intelligence — master cross-pillar PRD (ingestion, discovery, search, ranking)** | `PRD-document-intelligence.md` |
+| **Content Processing Pipeline — engineering spec (extractors, chunking, embedding, error handling)** | `PRD-content-processing-pipeline.md` |
 | I need to write a new PRD | `../workflow/PRD-TEMPLATE.md` |
 
 ---
