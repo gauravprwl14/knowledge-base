@@ -262,9 +262,13 @@ model KmsFile {
   junkReason      String?     @map("junk_reason") @db.VarChar(50)
   junkConfidence  Float?      @map("junk_confidence")
   junkReviewedAt  DateTime?   @map("junk_reviewed_at")
-  indexedAt       DateTime?   @map("indexed_at")
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  externalId         String?     @map("external_id") @db.VarChar(255)
+  webViewLink        String?     @map("web_view_link") @db.Text
+  externalModifiedAt DateTime?   @map("external_modified_at")
+  metadata           Json?
+  indexedAt          DateTime?   @map("indexed_at")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
 
   source               KmsSource              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   chunks               KmsChunk[]
@@ -276,6 +280,7 @@ model KmsFile {
   @@index([userId, status])
   @@index([sourceId])
   @@index([checksumSha256])
+  @@unique([sourceId, externalId])
   @@map("kms_files")
 }
 
