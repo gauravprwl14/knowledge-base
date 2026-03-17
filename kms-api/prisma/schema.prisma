@@ -157,10 +157,14 @@ enum SourceType {
 }
 
 enum SourceStatus {
+  PENDING
   IDLE
+  CONNECTED
   SCANNING
   COMPLETED
+  EXPIRED
   ERROR
+  DISCONNECTED
   PAUSED
 }
 
@@ -169,6 +173,12 @@ enum ScanJobStatus {
   RUNNING
   COMPLETED
   FAILED
+  CANCELLED
+}
+
+enum ScanJobType {
+  FULL
+  INCREMENTAL
 }
 
 enum FileStatus {
@@ -186,16 +196,21 @@ enum JunkStatus {
 
 /// File source connected by a user (local folder, Google Drive, Obsidian vault)
 model KmsSource {
-  id            String       @id @default(uuid()) @db.Uuid
-  userId        String       @map("user_id") @db.Uuid
-  type          SourceType
-  name          String       @db.VarChar(255)
-  configJson    Json         @default("{}") @map("config_json")
-  status        SourceStatus @default(IDLE)
-  lastScannedAt DateTime?    @map("last_scanned_at")
-  fileCount     Int          @default(0) @map("file_count")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  type            SourceType   @default(GOOGLE_DRIVE)
+  name            String       @db.VarChar(255)
+  displayName     String?      @map("display_name") @db.VarChar(255)
+  configJson      Json         @default("{}") @map("config_json")
+  encryptedTokens String?      @map("encrypted_tokens") @db.Text
+  externalId      String?      @map("external_id") @db.VarChar(255)
+  metadata        Json?
+  status          SourceStatus @default(PENDING)
+  lastScannedAt   DateTime?    @map("last_scanned_at")
+  lastSyncedAt    DateTime?    @map("last_synced_at")
+  fileCount       Int          @default(0) @map("file_count")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
   scanJobs KmsScanJob[]
   files    KmsFile[]
@@ -209,17 +224,25 @@ model KmsSource {
 model KmsScanJob {
   id              String        @id @default(uuid()) @db.Uuid
   sourceId        String        @map("source_id") @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
   status          ScanJobStatus @default(QUEUED)
+  type            ScanJobType   @default(FULL)
   startedAt       DateTime?     @map("started_at")
+  finishedAt      DateTime?     @map("finished_at")
   completedAt     DateTime?     @map("completed_at")
   filesDiscovered Int           @default(0) @map("files_discovered")
+  filesFound      Int           @default(0) @map("files_found")
+  filesAdded      Int           @default(0) @map("files_added")
   filesFailed     Int           @default(0) @map("files_failed")
   errorMessage    String?       @map("error_message") @db.Text
+  errorMsg        String?       @map("error_msg") @db.Text
   createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
   source KmsSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@index([sourceId])
+  @@index([userId])
   @@index([status])
   @@map("kms_scan_jobs")
 }
