@@ -108,6 +108,25 @@ Add these before M2 kickoff:
 
 ---
 
+## Skipped / Deferred QA Items
+
+### Google OAuth — SKIPPED (backlog)
+
+**Decision (2026-03-17)**: Email/password sign-up and login are fully functional and cover the primary auth path. Google OAuth QA is deferred — requires real `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` credentials and a registered OAuth redirect URI in Google Cloud Console.
+
+**What works today (verified)**:
+- `GET /sources/google-drive/oauth` builds and returns the Google consent URL (302 redirect)
+- Token encryption (`TokenEncryptionService`) — AES-256-GCM logic is unit-testable independently
+
+**Backlog item**: `TEST-001 — Google OAuth E2E Integration Test`
+- Set up a Google Cloud project with OAuth credentials
+- Register `http://localhost:8000/api/v1/sources/google-drive/callback` as an authorized redirect URI
+- Replace stub token exchange in `SourcesService.handleGoogleCallback` with real `googleapis` SDK call
+- Add integration test: initiate OAuth → mock Google callback → verify source persisted with encrypted tokens
+- **Target milestone**: M2 Sprint 3 completion gate
+
+---
+
 ## Verdict
 
 **M1 QA Status**: CONDITIONAL PASS
