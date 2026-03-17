@@ -7,6 +7,7 @@ import { ConfigurationModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { LoggerModule } from './logger/logger.module';
 import { TelemetryModule } from './telemetry/telemetry.module';
+import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -50,6 +51,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     ConfigurationModule,
     DatabaseModule,
     LoggerModule,
+    PinoLoggerModule.forRoot({ pinoHttp: { level: process.env.LOG_LEVEL || 'info' } }),
     TelemetryModule.forRoot(),
 
     // Rate limiting

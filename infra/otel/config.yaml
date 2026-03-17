@@ -25,13 +25,11 @@ exporters:
     tls:
       insecure: true
 
-  # Logs → Grafana Loki
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
-    default_labels_enabled:
-      exporter: false
-      job: true
-      level: true
+  # Logs → Grafana Loki (via OTLP HTTP — loki native exporter removed in collector-contrib v0.97+)
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
 
   # Metrics → Prometheus (scraped via /metrics endpoint)
   prometheus:
@@ -58,4 +56,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [loki, debug]
+      exporters: [otlphttp/loki, debug]
