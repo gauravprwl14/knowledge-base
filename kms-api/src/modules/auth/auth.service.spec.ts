@@ -1,13 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
 import { UserStatus, UserRole } from '@prisma/client';
+import { getLoggerToken } from 'nestjs-pino';
 import { AuthService } from './auth.service';
 import { AppConfigService } from '../../config/config.service';
 import { UserRepository } from '../../database/repositories/user.repository';
 import { ApiKeyRepository } from '../../database/repositories/api-key.repository';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { ErrorFactory } from '../../errors/types/error-factory';
+
+// ---------------------------------------------------------------------------
+// Module-level bcrypt mock (ensures the same reference used by auth.service)
+// ---------------------------------------------------------------------------
+jest.mock('bcrypt', () => ({
+  compare: jest.fn(),
+  hash: jest.fn(),
+  genSalt: jest.fn(),
+}));
+import * as bcrypt from 'bcrypt';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -71,8 +81,18 @@ const mockConfig = {
 
 const mockPrismaService = {
   refreshToken: {
+    create: jest.fn().mockResolvedValue({}),
     updateMany: jest.fn(),
   },
+};
+
+const mockLogger = {
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+  trace: jest.fn(),
+  fatal: jest.fn(),
 };
 
 // ---------------------------------------------------------------------------
@@ -91,6 +111,7 @@ describe('AuthService', () => {
         { provide: UserRepository, useValue: mockUserRepository },
         { provide: ApiKeyRepository, useValue: mockApiKeyRepository },
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: getLoggerToken(AuthService.name), useValue: mockLogger },
       ],
     }).compile();
 
@@ -100,6 +121,13 @@ describe('AuthService', () => {
 
     // Default mock for signAsync
     mockJwtService.signAsync.mockResolvedValue('mock-jwt-token');
+
+    // Default bcrypt mocks
+    (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$12$hashedpassword');
+    (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+    // Default prisma.refreshToken.create mock
+    mockPrismaService.refreshToken.create.mockResolvedValue({});
   });
 
   // -------------------------------------------------------------------------
@@ -163,7 +191,7 @@ describe('AuthService', () => {
       const user = makeUser();
 
       mockUserRepository.findByEmail.mockResolvedValue(user);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockUserRepository.updateLastLogin.mockResolvedValue(user);
 
       const result = await service.login(dto);
@@ -190,7 +218,7 @@ describe('AuthService', () => {
       const user = makeUser();
 
       mockUserRepository.findByEmail.mockResolvedValue(user);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
       mockUserRepository.incrementFailedLogin.mockResolvedValue(user);
 
       await expect(service.login(dto)).rejects.toMatchObject({
@@ -203,7 +231,7 @@ describe('AuthService', () => {
       const user = makeUser({ status: UserStatus.PENDING_VERIFICATION });
 
       mockUserRepository.findByEmail.mockResolvedValue(user);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       await expect(service.login(dto)).rejects.toMatchObject({
         statusCode: 403,
@@ -227,7 +255,7 @@ describe('AuthService', () => {
       const user = makeUser({ status: UserStatus.SUSPENDED });
 
       mockUserRepository.findByEmail.mockResolvedValue(user);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       await expect(service.login(dto)).rejects.toMatchObject({
         statusCode: 403,
