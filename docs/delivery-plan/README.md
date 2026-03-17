@@ -16,6 +16,9 @@ This folder contains the delivery plan and task tracking for the Knowledge Manag
 |----------|-------------|
 | [MILESTONE_TRACKER.md](./MILESTONE_TRACKER.md) | High-level milestone progress tracking |
 | [TASK_BREAKDOWN.md](./TASK_BREAKDOWN.md) | Detailed task list organized by milestone, feature, and sub-feature |
+| [SPRINT_4_BOARD.md](./SPRINT_4_BOARD.md) | Sprint 4 — File Scanning (M2, Weeks 7-8) |
+| [SPRINT_5_BOARD.md](./SPRINT_5_BOARD.md) | Sprint 5 — Content Extraction Pipeline (M3, Weeks 9-10) |
+| [SPRINT_6_BOARD.md](./SPRINT_6_BOARD.md) | Sprint 6 — Embedding & Search Foundation (M3-M4 overlap, Weeks 11-12) |
 
 ### How to Use
 

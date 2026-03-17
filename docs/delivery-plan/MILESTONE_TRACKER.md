@@ -83,25 +83,36 @@ TOTAL                 [█░░░░░░░░░] ~17% (25/125 tasks)
 
 ### M3: Content Processing (Weeks 9-12)
 - **Status**: Not Started
-- **Sprint 5 (Week 9-10)**: Content Extraction
-- **Sprint 6 (Week 11-12)**: Embeddings & Indexing
+- **Sprint 5 (Week 9-10)**: Content Extraction Pipeline
+- **Sprint 6 (Week 11-12)**: Embeddings & Search Foundation
 - **Key Deliverables**:
-  - [ ] PDF/DOCX text extraction works
-  - [ ] Google Docs exported as text
-  - [ ] Embeddings generated with sentence-transformers
-  - [ ] Qdrant collection populated
-  - [ ] Neo4j graph contains file hierarchy
+  - [ ] PDF text extraction (pdfminer/pdfplumber)
+  - [ ] DOCX/PPTX extraction (python-docx, python-pptx)
+  - [ ] XLSX/CSV extraction + schema inference
+  - [ ] ZIP recursive extraction
+  - [ ] Image OCR (Tesseract)
+  - [ ] Google Workspace export (Docs→PDF, Sheets→XLSX)
+  - [ ] Text chunking: 512 tokens, 64 overlap
+  - [ ] File status state machine: PENDING→PROCESSING→INDEXED|FAILED|UNSUPPORTED
+  - [ ] Files list UI with filters + sorting
+  - [ ] Intelligence Score computed + displayed
+  - [ ] Document preview side panel
 
 ### M4: Search & Discovery (Weeks 13-16)
 - **Status**: Not Started
 - **Sprint 7 (Week 13-14)**: Search API
 - **Sprint 8 (Week 15-16)**: Hybrid Search & UI
 - **Key Deliverables**:
-  - [ ] Keyword search returns results <500ms
-  - [ ] Semantic search finds related content
-  - [ ] Hybrid search combines both methods
-  - [ ] Search UI with filters functional
-  - [ ] Results paginated correctly
+  - [ ] BGE-M3 embedding generation (1024 dimensions)
+  - [ ] Qdrant collection populated with chunk vectors
+  - [ ] Keyword search: PostgreSQL tsvector < 200ms p95
+  - [ ] Semantic search: Qdrant cosine similarity < 500ms p95
+  - [ ] Hybrid search: RRF fusion < 800ms p95
+  - [ ] "Top Pick" badge on top 3 results (score > 0.85)
+  - [ ] Search result card: type icon, name, source, snippet, score bar, quick actions
+  - [ ] Filter sidebar: file type facets, source facets, date histogram
+  - [ ] Autocomplete suggestions (file names + frequent queries)
+  - [ ] Zero results / error states
 
 ### M5: Deduplication & Cleanup (Weeks 17-20)
 - **Status**: Not Started
@@ -124,6 +135,28 @@ TOTAL                 [█░░░░░░░░░] ~17% (25/125 tasks)
   - [ ] Performance targets met
   - [ ] Documentation complete
   - [ ] MVP RELEASED
+
+---
+
+## Product Vision — Three Pillars
+
+### Pillar 1: Document Ingestion & Processing (M3-M4)
+- Any file type supported: PDF, DOCX, XLSX/CSV, PPTX, TXT/MD, ZIP, Images, Audio/Video, Google Workspace
+- Processing pipeline: Detect → Extract → Chunk → Embed → Index → Graph
+- File status machine: PENDING → PROCESSING → INDEXED | FAILED | UNSUPPORTED
+- Target: 10,000 files/user, < 5min processing per file
+
+### Pillar 2: Document Discovery (M3-M4)
+- Files list with filters (type, source, date, status, tags, collection)
+- Intelligence Score (0-100): content richness + recency + access frequency + link density
+- Quick preview side panel: summary, key entities, top concepts
+- Duplicate & junk detection badges
+
+### Pillar 3: Search & Ranking (M2-M4-M5)
+- Tier 1 — Keyword: PostgreSQL tsvector, < 200ms p95
+- Tier 2 — Semantic: Qdrant BGE-M3 cosine similarity, < 500ms p95
+- Tier 3 — Hybrid: RRF fusion, "Top Pick" badge on top 3 results, < 800ms p95
+- Answer card for authoritative queries (M5)
 
 ---
 
