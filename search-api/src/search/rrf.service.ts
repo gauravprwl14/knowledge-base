@@ -1,27 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { SearchResultItemDto } from './dto/search-result.dto';
+import { SearchResult } from './dto/search-response.dto';
 
 /**
- * RrfService — Reciprocal Rank Fusion (RRF) for combining keyword and
- * semantic search result lists.
+ * RRF smoothing constant — k=60 is the value recommended in the original
+ * Cormack et al. (2009) paper and confirmed in KMS ADR-0005.
+ * A higher k reduces the penalty gap between adjacent ranks.
+ */
+const RRF_K = 60;
+
+/**
+ * Internal structure that accumulates per-result fusion data during RRF.
+ * Keyed by a composite `{fileId}:{chunkIndex}` deduplication key.
+ */
+interface FusionEntry {
+  result: SearchResult;
+  /** Running sum of 1/(k + rank) contributions from all result lists. */
+  rrfScore: number;
+}
+
+/**
+ * RrfService implements Reciprocal Rank Fusion over multiple ranked result lists.
  *
- * ### Algorithm
- * For each document `d` in either list:
+ * Algorithm (per Cormack, Clarke & Buettcher 2009):
  * ```
- * rrf_score(d) = Σ  1 / (k + rank(d, list_i))
+ * For each result list L and each result r at 1-based rank i in L:
+ *   rrfScore(r) += 1 / (k + i)
  * ```
- * where `k = 60` (standard RRF constant) and `rank` is the 1-based position.
- *
- * Documents that appear in **both** lists receive contributions from both,
- * so shared results naturally bubble to the top.
- *
- * @see https://dl.acm.org/doi/10.1145/1571941.1572114 (Cormack et al., 2009)
- *
- * @example
- * ```typescript
- * const merged = rrfService.merge(keywordResults, semanticResults);
- * ```
+ * Results that appear in multiple lists accumulate higher combined scores.
+ * The final list is sorted descending by rrfScore and the scores are
+ * normalised to the [0, 1] range so consumers get a consistent scale.
  */
 @Injectable()
 export class RrfService {
@@ -31,64 +39,69 @@ export class RrfService {
   ) {}
 
   /**
-   * Merges two ranked result lists using Reciprocal Rank Fusion.
+   * Fuses multiple ranked result lists using Reciprocal Rank Fusion.
    *
-   * @param keywordResults - Results ordered by keyword relevance.
-   * @param semanticResults - Results ordered by vector similarity.
-   * @param k - RRF constant (default 60).
-   * @returns Deduplicated results ordered by combined RRF score descending.
+   * @param lists - Two or more ranked arrays of SearchResult (e.g., [bm25Results, semanticResults])
+   * @param limit - Maximum number of merged results to return
+   * @returns Deduplicated, merged, and normalised SearchResult array sorted by descending score
+   *
+   * @example
+   * ```typescript
+   * const merged = this.rrfService.fuse([keywordResults, semanticResults], 10);
+   * ```
    */
-  merge(
-    keywordResults: SearchResultItemDto[],
-    semanticResults: SearchResultItemDto[],
-    k = 60,
-  ): SearchResultItemDto[] {
-    /** Map of fileId → accumulated RRF score. */
-    const scoreMap = new Map<string, number>();
-    /** Map of fileId → best SearchResultItemDto for metadata. */
-    const itemMap = new Map<string, SearchResultItemDto>();
+  fuse(lists: SearchResult[][], limit: number): SearchResult[] {
+    // Map used to accumulate RRF scores and avoid duplicates.
+    // Key: "{fileId}:{chunkIndex}" — ensures the same chunk from different sources merges.
+    const fusionMap = new Map<string, FusionEntry>();
 
-    const contribute = (
-      list: SearchResultItemDto[],
-      label: 'keyword' | 'semantic',
-    ): void => {
-      list.forEach((item, index) => {
-        const rank = index + 1; // 1-based
-        const contribution = 1 / (k + rank);
-        const current = scoreMap.get(item.fileId) ?? 0;
-        scoreMap.set(item.fileId, current + contribution);
+    // Iterate over each result list and compute rank contributions
+    for (const list of lists) {
+      list.forEach((result, index) => {
+        // RRF rank is 1-based, so add 1 to the zero-based array index
+        const rank = index + 1;
 
-        // Keep the item with the highest original score for metadata
-        if (!itemMap.has(item.fileId)) {
-          itemMap.set(item.fileId, item);
+        // RRF: compute rank score for each result using k=60 constant
+        // rank_score = 1 / (k + rank) where rank is 1-based position
+        const rankScore = 1 / (RRF_K + rank);
+
+        // Deduplication key: same chunk from different lists should merge, not duplicate
+        const key = `${result.fileId}:${result.chunkIndex}`;
+
+        if (fusionMap.has(key)) {
+          // Chunk already seen from another list — accumulate the rank contribution
+          const existing = fusionMap.get(key)!;
+          existing.rrfScore += rankScore;
         } else {
-          const existing = itemMap.get(item.fileId)!;
-          // Prefer keyword snippet (has <mark> highlights) when available
-          if (label === 'keyword') {
-            itemMap.set(item.fileId, { ...existing, snippet: item.snippet });
-          }
+          // First time we see this chunk — initialise its fusion entry
+          fusionMap.set(key, { result, rrfScore: rankScore });
         }
       });
-    };
+    }
 
-    contribute(keywordResults, 'keyword');
-    contribute(semanticResults, 'semantic');
+    // Convert the fusion map values to an array sorted by descending RRF score
+    const sorted = Array.from(fusionMap.values()).sort((a, b) => b.rrfScore - a.rrfScore);
+
+    // Normalise scores to [0, 1] so the API returns a consistent range.
+    // maxScore guard: if all scores are zero (empty lists), avoid division by zero.
+    const maxScore = sorted[0]?.rrfScore ?? 1;
+
+    const normalised = sorted.slice(0, limit).map((entry) => ({
+      ...entry.result,
+      // Normalised score: entry score / max score — top result always scores 1.0
+      score: parseFloat((entry.rrfScore / maxScore).toFixed(6)),
+    }));
 
     this.logger.debug(
       {
-        keywordCount: keywordResults.length,
-        semanticCount: semanticResults.length,
-        mergedCount: scoreMap.size,
+        inputLists: lists.length,
+        totalUnique: fusionMap.size,
+        returned: normalised.length,
+        topScore: normalised[0]?.score ?? 0,
       },
-      'RRF merge complete',
+      'rrf: fusion complete',
     );
 
-    // Sort by combined RRF score, highest first
-    return Array.from(scoreMap.entries())
-      .sort(([, a], [, b]) => b - a)
-      .map(([fileId, rrfScore]) => ({
-        ...itemMap.get(fileId)!,
-        score: rrfScore,
-      }));
+    return normalised;
   }
 }
