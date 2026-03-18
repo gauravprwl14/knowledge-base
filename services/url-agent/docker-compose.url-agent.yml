@@ -1,0 +1,40 @@
+# =============================================================================
+# url-agent service — included via docker compose -f docker-compose.kms.yml
+#                                               -f services/url-agent/docker-compose.url-agent.yml
+# Or merge the `url-agent` block below into docker-compose.kms.yml directly.
+# =============================================================================
+
+services:
+
+  url-agent:
+    build:
+      context: ./services/url-agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      EMBED_QUEUE: kms.embed
+      MOCK_YOUTUBE: ${MOCK_YOUTUBE:-true}
+      MOCK_WEB: ${MOCK_WEB:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: url-agent
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./services/url-agent/app:/app/app:ro   # hot-reload in dev
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
