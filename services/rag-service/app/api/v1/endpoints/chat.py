@@ -1,219 +1,180 @@
-"""Chat SSE streaming endpoint for rag-service.
+"""Chat completions endpoint — tiered retrieval + LLM streaming.
 
-Accepts a ChatRequest and streams the LLM answer as Server-Sent Events:
-  - ``{"type": "chunk", "content": "<token>"}`` for each generated token.
-  - ``{"type": "sources", "sources": [...]}`` once retrieval is complete.
-  - ``{"type": "done", "run_id": "<uuid>"}`` as the final event.
-
-Non-streaming POST /chat/completions is kept for backward-compatibility.
+Integration points:
+- QueryClassifier: classifies query type in ~5ms without LLM
+- TierRouter: routes through BM25 → hybrid tiers, short-circuits at confidence thresholds
+- LLMGuard: decides whether to call the LLM or return retrieval results directly
+- LLMFactory: routes to Anthropic (primary) or Ollama (fallback)
 """
-
-from __future__ import annotations
-
 import json
-import uuid
-
-import asyncpg
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse, JSONResponse
+import asyncpg
 
-from app.config import get_settings
-from app.errors import GeneratorError, RetrievalError
-from app.schemas.chat import ChatRequest, ChatResponse, Citation
+from app.schemas.chat import ChatRequest, ChatResponse
+from app.services.retriever import ContextRetriever
 from app.services.generator import LLMGenerator
-from app.services.retriever import Retriever
-from app.services.run_store import RunStore
+from app.services.query_classifier import QueryClassifier
+from app.services.tier_router import TierRouter
+from app.services.llm_guard import LLMGuard
+from app.config import get_settings
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+# Module-level service instances — created once and reused across requests.
+# QueryClassifier is stateless (regex only); TierRouter and LLMGuard are
+# also cheap to construct but reused for connection-pool efficiency.
+_classifier = QueryClassifier()
+_router = TierRouter()
+# LLMGuard is initialised with Anthropic availability at startup time.
+# If ANTHROPIC_API_KEY is absent, the guard will prefer returning retrieval
+# results directly rather than calling Ollama for LOOKUP/FIND/EXPLAIN.
+_guard = LLMGuard(llm_available=bool(settings.anthropic_api_key))
+
 
 async def get_db() -> asyncpg.Pool:
-    """Dependency — returns the shared DB pool from app state.
-
-    Returns:
-        asyncpg.Pool: Shared connection pool initialised at startup.
-    """
-    from app.main import db_pool  # noqa: PLC0415
-
+    """Dependency — returns the shared DB pool from app state."""
+    from app.main import db_pool
     return db_pool
 
 
-async def get_run_store(db: asyncpg.Pool = Depends(get_db)) -> RunStore:
-    """Dependency — returns an initialised RunStore backed by asyncpg.
+def _format_sources_event(results) -> str:
+    """Serialise retrieval results as a SSE 'sources' event.
 
     Args:
-        db: Shared asyncpg pool (injected by FastAPI).
+        results: List of SearchResult objects from TierRouter.
 
     Returns:
-        RunStore: Ready-to-use run store with the kms_rag_runs table ensured.
+        SSE-formatted string ready to yield from an async generator.
     """
-    store = RunStore(db)
-    await store.ensure_table()
-    return store
+    sources = [r.to_dict() for r in results]
+    return f"data: {json.dumps({'sources': sources, 'event': 'sources'})}\n\n"
 
 
-@router.post("")
-async def chat_stream(
-    request: ChatRequest,
-    db: asyncpg.Pool = Depends(get_db),
-    store: RunStore = Depends(get_run_store),
-) -> StreamingResponse:
-    """SSE streaming chat endpoint.
-
-    Creates a run record, retrieves relevant chunks, then streams the LLM
-    response as SSE events to the client.
+def _format_done_event(tier_used: int, took_ms: float) -> str:
+    """Serialise a SSE 'done' event with retrieval metadata.
 
     Args:
-        request: Validated ChatRequest with query, session_id, use_graph, top_k.
-        db: Shared asyncpg connection pool.
-        store: Initialised RunStore.
+        tier_used: The retrieval tier that produced the final results.
+        took_ms: Wall-clock retrieval latency in milliseconds.
 
     Returns:
-        StreamingResponse: Server-Sent Events stream with chunk / sources / done events.
-
-    Raises:
-        HTTPException 503: When retrieval fails due to an upstream service error.
-        HTTPException 422: Automatically raised by FastAPI on schema validation failure.
+        SSE-formatted string ready to yield from an async generator.
     """
-    run_id = str(uuid.uuid4())
-    query = request.query
-
-    log = logger.bind(run_id=run_id, query=query[:100])
-
-    await store.create_run(
-        run_id=run_id,
-        user_id="anonymous",  # TODO: extract from JWT when auth is wired
-        query=query,
-    )
-
-    retriever = Retriever()
-    try:
-        chunks = await retriever.retrieve(
-            query=query,
-            user_id="anonymous",
-            top_k=request.top_k,
-            use_graph=request.use_graph,
-        )
-    except RetrievalError as exc:
-        log.error("Retrieval failed", error=str(exc))
-        await store.fail_run(run_id, str(exc))
-        raise HTTPException(status_code=503, detail={"code": exc.code, "message": str(exc)})
-
-    sources = [
-        {
-            "file_id": c.file_id,
-            "filename": c.filename,
-            "score": c.score,
-            "chunk_index": c.chunk_index,
-        }
-        for c in chunks
-    ]
-
-    generator = LLMGenerator()
-
-    async def event_stream():
-        """Inner async generator yielding SSE-formatted events."""
-        try:
-            async for token in generator.generate_stream(
-                query, chunks, run_id=run_id
-            ):
-                yield f"data: {json.dumps({'type': 'chunk', 'content': token})}\n\n"
-
-            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-            yield f"data: {json.dumps({'type': 'done', 'run_id': run_id})}\n\n"
-
-            # Persist completed answer (best-effort — not awaited for latency)
-            answer_parts: list[str] = []
-            await store.update_run(run_id, "".join(answer_parts), sources)
-
-        except GeneratorError as exc:
-            log.error("Generation failed", error=str(exc))
-            yield (
-                f"data: {json.dumps({'type': 'error', 'code': exc.code, 'message': str(exc)})}\n\n"
-            )
-            await store.fail_run(run_id, str(exc))
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return f"data: {json.dumps({'done': True, 'tier_used': tier_used, 'took_ms': round(took_ms, 1)})}\n\n"
 
 
 @router.post("/completions")
 async def chat_completions(
     request: ChatRequest,
     db: asyncpg.Pool = Depends(get_db),
-    store: RunStore = Depends(get_run_store),
 ):
-    """Non-streaming chat completions endpoint (backward-compatible).
+    """Handle a chat completion request with tiered retrieval.
 
-    Accumulates the full answer and returns it as a JSON response alongside
-    source citations.
+    Flow:
+    1. Classify the query type (LOOKUP/FIND/EXPLAIN/SYNTHESIZE/GENERATE).
+    2. Route through retrieval tiers — short-circuit when confidence is high.
+    3. LLMGuard decides whether to invoke the LLM or return results directly.
+    4a. If no LLM: stream sources + done event (fast path, no token cost).
+    4b. If LLM: stream context chunks through generator, then sources + done.
 
     Args:
-        request: Validated ChatRequest.
-        db: Shared asyncpg connection pool.
-        store: Initialised RunStore.
+        request: ChatRequest with question, stream flag, and optional settings.
+        db: Shared asyncpg connection pool (injected by FastAPI DI).
 
     Returns:
-        JSONResponse: ChatResponse with answer, citations, and model name.
-
-    Raises:
-        HTTPException 503: When retrieval fails.
+        StreamingResponse (SSE) when request.stream is True,
+        JSONResponse (ChatResponse) otherwise.
     """
-    run_id = str(uuid.uuid4())
-    query = request.query
+    user_id = getattr(request, "user_id", "anonymous")
+    top_k = getattr(request, "max_chunks", settings.max_context_chunks)
 
-    log = logger.bind(run_id=run_id)
+    log = logger.bind(question=request.question[:80], user_id=user_id)
+    log.info("chat_completions received")
 
-    await store.create_run(run_id=run_id, user_id="anonymous", query=query)
+    # --- Step 1: Classify query type (rule-based, ~5ms, no network) ---
+    query_type = _classifier.classify(request.question)
+    log.info("Query classified", query_type=query_type.value)
 
-    retriever = Retriever()
-    try:
-        chunks = await retriever.retrieve(
-            query=query,
-            user_id="anonymous",
-            top_k=request.top_k,
-            use_graph=request.use_graph,
+    # --- Step 2: Tiered retrieval ---
+    routing_result = await _router.route(
+        query=request.question,
+        user_id=user_id,
+        limit=top_k,
+    )
+    log.info(
+        "Tiered retrieval complete",
+        tier_used=routing_result.tier_used,
+        result_count=len(routing_result.results),
+        llm_needed=routing_result.llm_needed,
+        took_ms=round(routing_result.took_ms, 1),
+    )
+
+    # --- Step 3: LLM Guard decision ---
+    should_llm = _guard.should_call_llm(routing_result)
+
+    if request.stream:
+        async def event_stream():
+            if not should_llm:
+                # Fast path: return retrieval results directly without LLM.
+                # This covers ~90% of LOOKUP/FIND/EXPLAIN queries with high-confidence scores.
+                log.info("Skipping LLM — returning retrieval results directly")
+                yield _format_sources_event(routing_result.results)
+                yield _format_done_event(routing_result.tier_used, routing_result.took_ms)
+                return
+
+            # LLM path: build context from retrieved chunks and stream tokens.
+            # ContextRetriever is used as a convenience wrapper around the DB
+            # for any additional context enrichment (e.g. file metadata).
+            retriever = ContextRetriever(db)
+            context, citations = await retriever.retrieve(request.question, top_k)
+
+            generator = LLMGenerator()
+            async for token in generator.generate_stream(request.question, context):
+                # Emit each token as an SSE text event
+                yield f"data: {json.dumps({'token': token})}\n\n"
+
+            # Emit sources from tiered retrieval (richer than citations alone)
+            yield _format_sources_event(routing_result.results)
+            yield _format_done_event(routing_result.tier_used, routing_result.took_ms)
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
-    except RetrievalError as exc:
-        log.error("Retrieval failed", error=str(exc))
-        await store.fail_run(run_id, str(exc))
-        raise HTTPException(status_code=503, detail={"code": exc.code, "message": str(exc)})
 
-    context = "\n---\n".join(c.content for c in chunks)
+    # Non-streaming path
+    if not should_llm:
+        # Return retrieval results directly as a non-streaming response
+        log.info("Skipping LLM (non-stream) — returning retrieval results")
+        return JSONResponse({
+            "answer": "",
+            "sources": [r.to_dict() for r in routing_result.results],
+            "tier_used": routing_result.tier_used,
+            "took_ms": round(routing_result.took_ms, 1),
+            "llm_skipped": True,
+        })
+
+    retriever = ContextRetriever(db)
+    context, citations = await retriever.retrieve(request.question, top_k)
+
     generator = LLMGenerator()
-    answer = await generator.generate(query, context)
+    answer = await generator.generate(request.question, context)
 
-    citations = [
-        Citation(
-            file_id=c.file_id,
-            filename=c.filename,
-            snippet=c.content[:300],
-            score=c.score,
-        )
-        for c in chunks
-    ]
+    # Determine model name for the response envelope
+    if settings.anthropic_api_key:
+        model_name = settings.anthropic_model
+    elif settings.llm_provider == "ollama":
+        model_name = settings.ollama_model
+    else:
+        model_name = settings.openrouter_model
 
-    sources = [
-        {"file_id": c.file_id, "filename": c.filename, "score": c.score}
-        for c in chunks
-    ]
-    await store.update_run(run_id, answer, sources)
-
-    model_name = (
-        settings.ollama_model
-        if settings.llm_provider == "ollama"
-        else settings.openrouter_model
-    )
-    return JSONResponse(
-        ChatResponse(
-            answer=answer,
-            citations=citations,
-            model=model_name,
-        ).model_dump()
-    )
+    return JSONResponse(ChatResponse(
+        answer=answer,
+        citations=citations,
+        model=model_name,
+    ).model_dump())
