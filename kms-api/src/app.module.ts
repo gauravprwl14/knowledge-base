@@ -19,6 +19,7 @@ import { FilesModule } from './modules/files/files.module';
 import { SearchModule } from './modules/search/search.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { CollectionsModule } from './modules/collections/collections.module';
+import { AcpModule } from './modules/acp/acp.module';
 
 // Infrastructure modules
 import { QueueModule } from './queue/queue.module';
@@ -79,6 +80,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     SearchModule,
     AgentsModule,
     CollectionsModule,
+    AcpModule,
   ],
   providers: [
     // Global exception filters — order matters: registered last = runs first.

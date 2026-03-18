@@ -69,8 +69,24 @@ async function bootstrap() {
         'Authorization',
         'X-API-Key',
         'X-Request-ID',
+        'Accept',
+        'Cache-Control',
+        'X-Accel-Buffering',
       ],
     });
+
+    // Fastify onSend hook: disable response buffering for SSE endpoints so
+    // events are flushed immediately to the client without waiting for the
+    // full response body.
+    app.getHttpAdapter().getInstance().addHook(
+      'onSend',
+      async (request: { url: string }, reply: { raw: { setHeader: (k: string, v: string) => void } }, payload: unknown) => {
+        if (request.url.includes('/prompt')) {
+          reply.raw.setHeader('X-Accel-Buffering', 'no');
+        }
+        return payload;
+      },
+    );
 
     // Swagger documentation (development/staging only)
     if (!config.isProduction) {
