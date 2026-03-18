@@ -22,6 +22,10 @@ Each guide has exactly 6 sections: Business Use Case, Flow Diagram, Code Structu
 | BGE-M3 embedding, Qdrant upsert, chunking, FlagEmbedding | `FOR-embedding.md` |
 | Neo4j driver, graph traversal, Leiden community detection | `FOR-graph.md` |
 | ACP protocol, agent orchestrator, LangGraph inside rag-service | `FOR-agent-patterns.md` |
+| ACP HTTP gateway, tool registry, session management, permission model | `FOR-acp-integration.md` |
+| Workflow Engine, agent spawning, YouTube URL workflow, how to add a new skill | `FOR-agentic-workflows.md` |
+| External agent adapters (Claude Code, Codex, Gemini), MCP server, RAG context pipeline | `FOR-external-agent-integration.md` |
+| Tiered retrieval, Query Classifier, LLM Guard, when to skip LLM, threshold tuning | `FOR-tiered-retrieval.md` |
 
 ---
 

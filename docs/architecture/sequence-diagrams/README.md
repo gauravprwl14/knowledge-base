@@ -15,6 +15,8 @@ All major system flows are documented here as Mermaid sequence diagrams. GitHub 
 | 07 | RAG Chat Completion | [07-rag-chat.md](./07-rag-chat.md) |
 | 08 | Voice Transcription | [08-voice-transcription.md](./08-voice-transcription.md) |
 | 09 | Deduplication | [09-deduplication.md](./09-deduplication.md) |
+| 10 | ACP Gateway — Session Lifecycle and Prompt Flow | [09-acp-gateway-prompt-flow.md](./09-acp-gateway-prompt-flow.md) |
+| 11 | ACP Tool Dispatch — kms_graph_expand | [10-acp-tool-dispatch.md](./10-acp-tool-dispatch.md) |
 
 ## Standards
 
