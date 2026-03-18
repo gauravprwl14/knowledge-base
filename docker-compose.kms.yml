@@ -289,38 +289,33 @@ services:
 
   search-api:
     build:
-      context: ./services/search-api
+      context: ./search-api
       dockerfile: Dockerfile
-      target: development
+    container_name: kms_search_api
     restart: unless-stopped
     ports:
       - "8001:8001"
     environment:
-      NODE_ENV: development
       PORT: 8001
-      APP_NAME: search-api
-      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
-      REDIS_URL: redis://redis:6379
-      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      MOCK_SEMANTIC: ${MOCK_SEMANTIC:-true}
-      KMS_API_URL: http://kms-api:8000
-      EMBED_SERVICE_URL: http://embed-worker:8011
-      OTEL_ENABLED: "true"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms_user}:${POSTGRES_PASSWORD:-kms_password}@postgres:5432/${POSTGRES_DB:-kms_db}
+      QDRANT_URL: http://qdrant:6333
+      MOCK_BM25: "false"
+      MOCK_SEMANTIC: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: search-api
-      LOG_LEVEL: info
-    volumes:
-      - ./services/search-api/src:/app/src:ro
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       qdrant:
         condition: service_healthy
     networks:
       - backend
       - observability
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   rag-service:
     build:
@@ -475,6 +470,30 @@ services:
     networks:
       - backend
       - observability
+
+  url-agent:
+    build:
+      context: ./services/url-agent
+      dockerfile: Dockerfile
+    container_name: kms_url_agent
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      PORT: 8004
+      MOCK_YOUTUBE: "true"
+      MOCK_WEB: "true"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: url-agent
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+    profiles:
+      - workflows
 
   # ─── FRONTEND ────────────────────────────────────────────────────────────
 

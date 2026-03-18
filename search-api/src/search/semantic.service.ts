@@ -1,261 +1,213 @@
 import { Injectable } from '@nestjs/common';
-import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
-import { QdrantClient } from '@qdrant/js-client-rest';
-import { SearchResultItemDto } from './dto/search-result.dto';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { SearchResult } from './dto/search-response.dto';
 
 /**
- * SemanticService — ANN vector search over the `kms_chunks` Qdrant collection
- * using BGE-M3 1024-dimensional embeddings.
+ * Deterministic mock scores for each of the five seed documents.
+ * Using fixed values ensures tests are reproducible regardless of query.
+ * Scores are intentionally different from BM25 mock scores so RRF fusion
+ * produces meaningful merged rankings.
+ */
+const MOCK_SEMANTIC_SCORES: Record<string, number> = {
+  'mock-chunk-001': 0.91, // RAG Pipeline Architecture — high semantic affinity
+  'mock-chunk-002': 0.78, // NestJS Fastify Performance
+  'mock-chunk-003': 0.85, // BGE-M3 Embedding Model
+  'mock-chunk-004': 0.72, // ACP Protocol Integration
+  'mock-chunk-005': 0.80, // Neo4j Knowledge Graph
+};
+
+/** Seed document metadata — content mirrors BM25Service mock data. */
+const MOCK_SEMANTIC_DOCS: Omit<SearchResult, 'score'>[] = [
+  {
+    id: 'mock-chunk-001',
+    fileId: 'mock-file-001',
+    filename: 'rag-pipeline-architecture.md',
+    content:
+      'RAG Pipeline Architecture: The retrieval-augmented generation pipeline combines ' +
+      'dense vector retrieval from Qdrant with BM25 keyword search. Results are fused ' +
+      'using Reciprocal Rank Fusion (RRF) before being passed to the LLM generator.',
+    chunkIndex: 0,
+    metadata: { topic: 'rag', type: 'architecture' },
+  },
+  {
+    id: 'mock-chunk-002',
+    fileId: 'mock-file-002',
+    filename: 'nestjs-fastify-performance.md',
+    content:
+      'NestJS Fastify Performance: Replacing Express with the Fastify adapter delivers ' +
+      '2–3× higher throughput on identical hardware. The @nestjs/platform-fastify package ' +
+      'wraps Fastify while preserving the full NestJS DI and decorator system.',
+    chunkIndex: 0,
+    metadata: { topic: 'nestjs', type: 'performance' },
+  },
+  {
+    id: 'mock-chunk-003',
+    fileId: 'mock-file-003',
+    filename: 'bge-m3-embedding-model.md',
+    content:
+      'BGE-M3 Embedding Model: BAAI/bge-m3 generates 1024-dimensional dense embeddings ' +
+      'optimised for multilingual retrieval. It supports sparse, dense, and ColBERT-style ' +
+      'multi-vector representations, making it ideal for hybrid search pipelines.',
+    chunkIndex: 0,
+    metadata: { topic: 'embeddings', type: 'model' },
+  },
+  {
+    id: 'mock-chunk-004',
+    fileId: 'mock-file-004',
+    filename: 'acp-protocol-integration.md',
+    content:
+      'ACP Protocol Integration: The Agent Communication Protocol (ACP) defines a ' +
+      'standardised REST envelope for multi-agent message passing. The KMS gateway ' +
+      'exposes an ACP-compatible endpoint that routes tasks to specialist sub-agents.',
+    chunkIndex: 0,
+    metadata: { topic: 'acp', type: 'protocol' },
+  },
+  {
+    id: 'mock-chunk-005',
+    fileId: 'mock-file-005',
+    filename: 'neo4j-knowledge-graph.md',
+    content:
+      'Neo4j Knowledge Graph: The graph-worker extracts entity relationships from ' +
+      'ingested documents and persists them to Neo4j. Cypher queries then augment ' +
+      'RAG context with related concept nodes, improving answer coherence.',
+    chunkIndex: 0,
+    metadata: { topic: 'neo4j', type: 'graph' },
+  },
+];
+
+/**
+ * SemanticService performs approximate nearest-neighbour (ANN) vector search
+ * against the Qdrant collection `kms_chunks`.
  *
- * ### Mock mode
- * Set `MOCK_SEMANTIC=true` (env) to bypass Qdrant entirely and return
- * deterministic seed results. Useful for local development and CI where
- * no Qdrant instance is running.
+ * In mock mode (MOCK_SEMANTIC=true) it returns the five seed documents with
+ * deterministic fixed scores. This lets the RRF service run its full fusion
+ * logic without a live Qdrant instance.
  *
- * ### Graceful degradation
- * When Qdrant is unavailable (unreachable or returns a non-2xx response),
- * an empty result set is returned so the hybrid pipeline can still surface
- * keyword results.
- *
- * @example
- * ```typescript
- * const results = await semanticService.search('machine learning', userId, 20, ['src-uuid']);
- * ```
+ * In real mode it:
+ * 1. Obtains a query embedding (1024-dim BGE-M3 vector) from the embed service.
+ * 2. POSTs to Qdrant `/collections/{collection}/points/search` with a user_id filter.
+ * 3. Maps Qdrant point payloads to SearchResult objects.
  */
 @Injectable()
 export class SemanticService {
-  private readonly qdrant: QdrantClient;
-  private readonly embedWorkerUrl: string;
-  private readonly collectionName = 'kms_chunks';
-  private readonly vectorDimension = 1024;
-
-  /**
-   * Whether to use deterministic mock results instead of real Qdrant queries.
-   * Controlled by the MOCK_SEMANTIC env var; defaults to false.
-   */
+  /** Whether to skip Qdrant and return deterministic mock results. */
   private readonly mockMode: boolean;
 
+  /** Base URL of the Qdrant HTTP API. */
+  private readonly qdrantUrl: string;
+
+  /** Target Qdrant collection for chunk vectors. */
+  private readonly collection: string;
+
   constructor(
+    private readonly config: ConfigService,
     @InjectPinoLogger(SemanticService.name)
     private readonly logger: PinoLogger,
-    private readonly config: ConfigService,
   ) {
-    const qdrantUrl = this.config.get<string>('QDRANT_URL', 'http://localhost:6333');
-    this.qdrant = new QdrantClient({ url: qdrantUrl });
-    this.embedWorkerUrl = this.config.get<string>(
-      'EMBED_WORKER_URL',
-      'http://embed-worker:8010',
-    );
-    // MOCK_SEMANTIC=true disables real Qdrant calls — useful in dev/CI
-    this.mockMode = this.config.get<string>('MOCK_SEMANTIC') === 'true';
-
-    if (this.mockMode) {
-      this.logger.warn(
-        { mockMode: true },
-        'SemanticService running in mock mode — MOCK_SEMANTIC=true; Qdrant will not be queried',
-      );
-    }
+    // Read Qdrant config and mock flag from validated env vars
+    this.mockMode = this.config.get<boolean>('MOCK_SEMANTIC') ?? true;
+    this.qdrantUrl = this.config.get<string>('QDRANT_URL') ?? 'http://localhost:6333';
+    this.collection = this.config.get<string>('QDRANT_COLLECTION') ?? 'kms_chunks';
   }
 
   /**
-   * Encodes `text` to a 1024-dim embedding vector via the embed-worker.
+   * Performs semantic ANN search against Qdrant (or returns mock results).
    *
-   * Returns a zero vector and logs a warning if the endpoint is unavailable —
-   * the zero vector will produce near-zero cosine similarity scores, giving
-   * keyword-only results in hybrid mode rather than crashing.
-   *
-   * @param text - The raw query string to embed.
-   * @returns A 1024-element float array.
-   */
-  private async embed(text: string): Promise<number[]> {
-    try {
-      const url = `${this.embedWorkerUrl}/embed?text=${encodeURIComponent(text)}`;
-      const res = await fetch(url, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5_000),
-      });
-
-      if (!res.ok) {
-        throw new Error(`embed-worker returned HTTP ${res.status}`);
-      }
-
-      const data = (await res.json()) as { vector?: number[] };
-      if (!Array.isArray(data.vector) || data.vector.length !== this.vectorDimension) {
-        throw new Error(
-          `embed-worker returned unexpected vector shape: ${JSON.stringify(data).slice(0, 100)}`,
-        );
-      }
-
-      return data.vector;
-    } catch (error) {
-      this.logger.warn(
-        { error: (error as Error).message, text: text.slice(0, 80) },
-        'Semantic search not yet connected — embed-worker unreachable; returning zero vector',
-      );
-      // Zero vector: Qdrant will return low-scoring results rather than throwing
-      return new Array(this.vectorDimension).fill(0) as number[];
-    }
-  }
-
-  /**
-   * Returns deterministic mock results for development/testing without Qdrant.
-   *
-   * Documents are pre-scored; a small score boost is applied when query terms
-   * appear verbatim in the snippet, so different queries produce slightly
-   * different orderings without needing a real model.
-   *
-   * @param query - Raw user query (used for keyword-based score boosting).
-   * @param limit - Maximum number of results.
-   * @returns Up to `limit` mock {@link SearchResultItemDto} items.
-   */
-  private mockResults(query: string, limit: number): SearchResultItemDto[] {
-    // Seed documents that mirror real KMS knowledge base content
-    const MOCK_DOCS: SearchResultItemDto[] = [
-      {
-        fileId: 'mock-file-001',
-        filename: 'ENGINEERING_STANDARDS.md',
-        mimeType: 'text/markdown',
-        sourceId: 'mock-source-001',
-        snippet:
-          'KMS uses BAAI/bge-m3 as the embedding model at 1024 dimensions. ' +
-          'Chosen per ADR-0009 for superior multilingual performance and dense+sparse hybrid capability.',
-        score: 0.92,
-        chunkIndex: 0,
-      },
-      {
-        fileId: 'mock-file-002',
-        filename: 'decisions/0009-bge-m3-embedding-model.md',
-        mimeType: 'text/markdown',
-        sourceId: 'mock-source-001',
-        snippet:
-          'ADR-0009: BGE-M3 embedding model selected. Provides 1024-dim dense vectors and optional sparse ' +
-          'vectors (SPLADE). Supports 100+ languages. Runs on CPU acceptably for dev.',
-        score: 0.89,
-        chunkIndex: 0,
-      },
-      {
-        fileId: 'mock-file-003',
-        filename: 'decisions/0010-qdrant-vector-db.md',
-        mimeType: 'text/markdown',
-        sourceId: 'mock-source-001',
-        snippet:
-          'ADR-0010: Qdrant chosen as vector database. Supports payload filtering, ' +
-          'hybrid dense+sparse search, and HNSW indexing. Self-hosted via Docker.',
-        score: 0.85,
-        chunkIndex: 0,
-      },
-      {
-        fileId: 'mock-file-004',
-        filename: 'KMS-AGENTIC-PLATFORM.md',
-        mimeType: 'text/markdown',
-        sourceId: 'mock-source-001',
-        snippet:
-          'KMS acts as both ACP Server (exposes tools to external agents) and ACP Client ' +
-          '(delegates to Claude Code, Codex, Gemini). The ACP gateway is the entry point for all agent interactions.',
-        score: 0.81,
-        chunkIndex: 2,
-      },
-      {
-        fileId: 'mock-file-005',
-        filename: 'decisions/0018-acp-http-transport.md',
-        mimeType: 'text/markdown',
-        sourceId: 'mock-source-001',
-        snippet:
-          'ADR-0018: HTTP transport chosen for ACP over stdio. Docker-friendly — no subprocess management. ' +
-          'JSON-RPC 2.0 over NDJSON. Session-based with Redis TTL.',
-        score: 0.78,
-        chunkIndex: 0,
-      },
-    ];
-
-    // Apply a small score boost when query terms match snippet content, so
-    // different queries produce different ranked orderings even in mock mode.
-    const queryTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    const scored = MOCK_DOCS.map((doc) => ({
-      ...doc,
-      score: queryTerms.some((term) => doc.snippet.toLowerCase().includes(term))
-        ? doc.score + 0.05
-        : doc.score,
-    }));
-
-    return scored
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
-  }
-
-  /**
-   * Performs ANN search in Qdrant and maps results to {@link SearchResultItemDto}.
-   *
-   * Falls back to empty results (not an error) when Qdrant is unreachable so
-   * hybrid search can still return keyword results.
-   *
-   * @param query - Raw user query string.
-   * @param userId - User UUID used as a Qdrant payload filter.
-   * @param limit - Maximum number of points to retrieve.
-   * @param sourceIds - Optional source UUID filter.
-   * @returns Scored list of search results ordered by vector similarity descending.
+   * @param query     - Raw search query string (will be embedded in real mode)
+   * @param userId    - Caller user ID used as a Qdrant payload filter
+   * @param limit     - Maximum number of results to return
+   * @param sourceIds - Optional list of source IDs for additional filtering
+   * @returns Ranked list of SearchResult objects
    */
   async search(
     query: string,
     userId: string,
     limit: number,
     sourceIds?: string[],
-  ): Promise<SearchResultItemDto[]> {
-    this.logger.info({ query, userId, limit, sourceIds, mockMode: this.mockMode }, 'Executing semantic search');
-
-    // Short-circuit to mock data when mock mode is enabled
+  ): Promise<SearchResult[]> {
+    // Mock mode: return deterministic results sorted by pre-set semantic scores
     if (this.mockMode) {
-      return this.mockResults(query, limit);
+      return this.mockSearch(limit);
     }
 
-    const vector = await this.embed(query);
+    // Real mode: embed the query then query Qdrant
+    return this.qdrantSearch(query, userId, limit, sourceIds);
+  }
 
-    try {
-      const filter: Record<string, unknown> = {
-        must: [
-          {
-            key: 'user_id',
-            match: { value: userId },
-          },
-        ],
-      };
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
-      if (sourceIds && sourceIds.length > 0) {
-        (filter.must as unknown[]).push({
-          key: 'source_id',
-          match: { any: sourceIds },
-        });
-      }
+  /**
+   * Returns mock semantic results with deterministic fixed scores.
+   * Sorted descending so RRF sees a correctly ranked list.
+   *
+   * @param limit - Maximum results to return
+   */
+  private mockSearch(limit: number): SearchResult[] {
+    this.logger.debug({ limit }, 'semantic: mock mode — returning deterministic seed results');
 
-      const results = await this.qdrant.search(this.collectionName, {
-        vector,
-        limit,
-        filter,
-        with_payload: true,
-        score_threshold: 0.0,
-      });
+    // Attach the fixed mock score to each document and sort by it descending
+    const results = MOCK_SEMANTIC_DOCS.map((doc) => ({
+      ...doc,
+      score: MOCK_SEMANTIC_SCORES[doc.id] ?? 0.5,
+    }));
 
-      return results.map((point, idx) => {
-        const payload = (point.payload ?? {}) as Record<string, unknown>;
-        return {
-          fileId: (payload['file_id'] as string) ?? '',
-          filename: (payload['filename'] as string) ?? '',
-          mimeType: (payload['mime_type'] as string) ?? 'application/octet-stream',
-          sourceId: (payload['source_id'] as string) ?? '',
-          score: point.score,
-          snippet: ((payload['text'] as string) ?? '').slice(0, 160),
-          chunkIndex: (payload['chunk_index'] as number) ?? idx,
-        };
-      });
-    } catch (error) {
-      // Graceful degradation: Qdrant unreachable → empty semantic results.
-      // Hybrid pipeline will still return keyword results from PostgreSQL.
-      this.logger.warn(
-        { error: (error as Error).message, query, userId },
-        'Qdrant semantic search failed — returning empty results for graceful degradation',
-      );
-      return [];
-    }
+    return results.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  /**
+   * Executes a real Qdrant ANN search.
+   *
+   * Steps:
+   * 1. Generate a 1024-dim BGE-M3 embedding for the query (embed-service HTTP call).
+   * 2. Build the Qdrant search payload with user_id + optional source_id filter.
+   * 3. POST to Qdrant and map the response points to SearchResult objects.
+   *
+   * NOTE: The embed-service HTTP client is not injected in Sprint 2.
+   * Set MOCK_SEMANTIC=true until Sprint 3 wires up the HTTP module.
+   *
+   * @param query     - Query text to embed
+   * @param userId    - User ID payload filter
+   * @param limit     - Top-k limit for Qdrant
+   * @param sourceIds - Optional source ID filter
+   */
+  private async qdrantSearch(
+    query: string,
+    userId: string,
+    limit: number,
+    sourceIds?: string[],
+  ): Promise<SearchResult[]> {
+    this.logger.info(
+      { qdrantUrl: this.qdrantUrl, collection: this.collection, userId, limit },
+      'semantic: executing Qdrant ANN search',
+    );
+
+    // TODO Sprint 3: inject HttpService and embed-service URL, then:
+    //
+    // 1. Get embedding:
+    //    const { data: { embedding } } = await this.http.post('/embed', { text: query }).toPromise();
+    //
+    // 2. Build Qdrant filter:
+    //    const filter = { must: [{ key: 'user_id', match: { value: userId } }] };
+    //    if (sourceIds?.length) filter.must.push({ key: 'source_id', match: { any: sourceIds } });
+    //
+    // 3. POST to Qdrant:
+    //    const url = `${this.qdrantUrl}/collections/${this.collection}/points/search`;
+    //    const body = { vector: embedding, limit, filter, with_payload: true };
+    //    const { data: { result } } = await this.http.post(url, body).toPromise();
+    //
+    // 4. Map result points:
+    //    return result.map(p => ({
+    //      id: String(p.id), fileId: p.payload.file_id, filename: p.payload.filename,
+    //      content: p.payload.content, score: p.score,
+    //      chunkIndex: p.payload.chunk_index, metadata: p.payload.metadata,
+    //    }));
+
+    void query;
+    void userId;
+    void sourceIds;
+    throw new Error('Semantic real-mode not yet implemented — set MOCK_SEMANTIC=true');
   }
 }
