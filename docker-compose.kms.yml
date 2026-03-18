@@ -400,7 +400,11 @@ services:
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       REDIS_URL: redis://redis:6379
       QDRANT_URL: http://qdrant:6333
-      EMBEDDING_ENABLED: ${EMBEDDING_ENABLED:-false}
+      EMBEDDING_ENABLED: ${EMBEDDING_ENABLED:-true}
+      # Mock flags: default true so the pipeline works without BGE-M3 or Qdrant.
+      # Override with MOCK_EMBEDDING=false MOCK_QDRANT=false for production.
+      MOCK_EMBEDDING: ${MOCK_EMBEDDING:-true}
+      MOCK_QDRANT: ${MOCK_QDRANT:-true}
       OTEL_ENABLED: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: embed-worker

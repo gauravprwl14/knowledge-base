@@ -76,11 +76,15 @@ class QueuePublishError(KMSWorkerError):
 
 
 class ScanJobFailedError(KMSWorkerError):
-    """Raised when a scan job cannot be executed due to a terminal configuration error.
+    """Raised when a scan job cannot proceed due to a terminal configuration error.
+
+    Typical causes: path does not exist, source config is invalid, or
+    required credentials are missing.
 
     Args:
-        reason: Short description of why the job cannot proceed.
-        retryable: Defaults to False — configuration errors are terminal.
+        reason: Short description of the failure.
+        retryable: Defaults to False — configuration errors are terminal until
+            the source config is corrected and the job is re-submitted.
     """
 
     def __init__(self, reason: str, retryable: bool = False) -> None:

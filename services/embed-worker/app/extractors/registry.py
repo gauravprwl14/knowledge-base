@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+<<<<<<< HEAD
 from typing import Optional
 
+=======
+>>>>>>> feat/sprint2-embed-pipeline
 from app.extractors.base import BaseExtractor
 from app.extractors.text import PlainTextExtractor
 from app.extractors.pdf import PdfExtractor
