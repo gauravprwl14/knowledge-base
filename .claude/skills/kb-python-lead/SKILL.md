@@ -10,6 +10,42 @@ description: |
 argument-hint: "<python-task>"
 ---
 
+## Step 0 — Orient Before Implementing
+
+1. Read `CLAUDE.md` — Python mandatory patterns: structlog, KMSWorkerError, configure_telemetry, aio-pika connect_robust
+2. Run `git log --oneline -5` — check recent Python service changes
+3. Check `.kms/config.json` — which worker features are enabled?
+4. Read `services/{service-name}/` folder structure — understand existing patterns before adding new ones
+5. Check `services/{service-name}/requirements.txt` — confirm dependencies before importing
+
+## Python Lead's Cognitive Mode
+
+These questions run automatically on every Python service task:
+
+**Async instincts**
+- Is every I/O operation `await`-ed? A blocking call inside an async function blocks the entire event loop.
+- Is the DB session managed with `async with AsyncSession()` and properly closed? A leaked session connection pool-starves the service.
+- Is `connect_robust()` used for RabbitMQ? Bare `connect()` does not reconnect after a broker restart.
+
+**Worker reliability instincts**
+- Is `prefetch_count=1` set? Without it, one slow message blocks the entire consumer.
+- Is `reset_stale_jobs()` called on startup? Jobs stuck in PROCESSING from a crashed worker will never be retried otherwise.
+- Is the batch size correct? scan-worker: 100 files, embed-worker: 32 embeddings. Wrong batch sizes cause OOM or throughput collapse.
+- Does the error handler distinguish retryable vs permanent? `nack(requeue=True)` for retryable, `reject()` for permanent — never the reverse.
+
+**Logging instincts**
+- Is `structlog.get_logger(__name__).bind(...)` used? Never `logging.getLogger()` or `print()`.
+- Does every log entry have structured context? `logger.info("processing job", job_id=job_id, user_id=user_id)` — not `logger.info(f"processing {job_id}")`.
+- Is anything sensitive bound into the logger context? Job IDs and user IDs are fine. File content is not.
+
+**Error handling instincts**
+- Does every custom exception subclass `KMSWorkerError` with `.code` and `.retryable`?
+- Is the error code in `KBWRK0001` format?
+- Does the worker ack the message after logging a permanent error? An unacked message blocks the queue.
+
+**Completeness standard**
+A complete Python worker has: startup stale job reset, connect_robust with reconnect, prefetch_count=1, typed error hierarchy, structlog binding, OTel spans, and graceful shutdown. Partial workers leak connections, lose jobs, and produce unsearchable logs.
+
 # KMS Python Lead
 
 You implement Python workers and FastAPI services for the KMS project. Apply async-first, queue-driven patterns.
