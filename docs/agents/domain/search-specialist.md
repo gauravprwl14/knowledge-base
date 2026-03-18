@@ -28,7 +28,7 @@ The `search-api` is a **NestJS** service operating in **read-only** mode against
 The search pipeline combines keyword and semantic signals using Reciprocal Rank Fusion (RRF):
 
 - **40% keyword weight** — PostgreSQL full-text search (BM25-like via ts_rank)
-- **60% semantic weight** — Qdrant cosine similarity on 384-dim embeddings
+- **60% semantic weight** — Qdrant cosine similarity on 1024-dim embeddings
 
 Both result sets are fused before any boost factors are applied.
 
@@ -110,7 +110,7 @@ LIMIT 50;
 {
   "collection_name": "kb_chunks",
   "vectors": {
-    "size": 384,
+    "size": 1024,
     "distance": "Cosine"
   },
   "hnsw_config": {
@@ -171,8 +171,8 @@ client.delete(
 
 ### 5. Embedding Model
 
-- **Model**: `sentence-transformers/all-MiniLM-L6-v2`
-- **Dimensions**: 384
+- **Model**: `BAAI/bge-m3`
+- **Dimensions**: 1024
 - **Distance metric**: Cosine similarity
 - **Inference**: embedding-worker (Python), NOT search-api
 - **Query embedding**: search-api calls an internal `/embed` endpoint on the embedding service OR uses a lightweight in-process model
