@@ -1,20 +1,3 @@
-<<<<<<< HEAD
-/**
- * Sources page — lists all connected knowledge sources (Google Drive, Obsidian,
- * Local folders) and allows connecting new ones.
- *
- * This is a Server Component shell. All interactive content is delegated to
- * DriveSourcesClient (a Client Component) so that hooks and mutations work.
- */
-import { DriveSourcesClient } from '@/components/features/sources/DriveSourcesClient';
-
-export const metadata = {
-  title: 'Sources — KMS',
-  description: 'Manage your connected knowledge sources: Obsidian vaults, Google Drive, and local folders',
-};
-
-export default function SourcesPage() {
-=======
 'use client';
 
 /**
@@ -74,7 +57,6 @@ export default function DrivePage() {
   // Show nothing until we know which tab to default to (avoids flash)
   const activeTab = tab ?? (hasActiveSources ? 'files' : 'sources');
 
->>>>>>> feat/drive-frontend
   return (
     <div className="flex flex-col gap-6 p-6 md:p-8">
       {/* ------------------------------------------------------------------ */}

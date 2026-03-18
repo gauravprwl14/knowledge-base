@@ -8,43 +8,24 @@ import { FilesService } from './files.service';
 import { FileRepository } from '../../database/repositories/file.repository';
 
 /**
-<<<<<<< HEAD
- * FilesModule encapsulates REST endpoints and business logic for KMS file
- * management and scan job orchestration.
- *
- * Provides:
- * - GET  /files                          — paginated file listing
- * - GET  /files/:id                      — single file lookup
- * - POST /sources/:sourceId/scan         — trigger a scan job
- * - GET  /sources/:sourceId/scan-history — past scan jobs for a source
- *
- * DatabaseModule is @Global so the explicit import is for readability.
- * QueueModule is @Global so ScanJobPublisher is already available, but we
- * import it explicitly here for clarity.
- */
-@Module({
-  imports: [DatabaseModule, QueueModule],
-  controllers: [FilesController, ScanController, ScanJobsController],
-  providers: [FilesService],
-  exports: [FilesService],
-=======
  * FilesModule — encapsulates REST endpoints and business logic for KMS file
- * management.
+ * management and scan job orchestration.
  *
  * Provides:
  *   - FilesController: GET /files, GET /files/:id, DELETE /files/:id,
  *     POST /files/bulk-delete, POST /files/bulk-move
+ *   - ScanController: POST /sources/:sourceId/scan
+ *   - ScanJobsController: GET /sources/:sourceId/scan-history
  *   - FilesService: ownership-scoped business logic
  *   - FileRepository: Prisma data-access layer
  *
- * DatabaseModule is imported for PrismaService; it is @Global in production
- * but imported explicitly for testability.
+ * DatabaseModule is imported for PrismaService.
+ * QueueModule is imported so ScanJobPublisher is available.
  */
 @Module({
-  imports: [DatabaseModule],
-  controllers: [FilesController],
+  imports: [DatabaseModule, QueueModule],
+  controllers: [FilesController, ScanController, ScanJobsController],
   providers: [FilesService, FileRepository],
   exports: [FilesService, FileRepository],
->>>>>>> feat/drive-backend
 })
 export class FilesModule {}

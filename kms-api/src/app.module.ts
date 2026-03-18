@@ -19,16 +19,9 @@ import { FilesModule } from './modules/files/files.module';
 import { SearchModule } from './modules/search/search.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { CollectionsModule } from './modules/collections/collections.module';
-<<<<<<< HEAD
-<<<<<<< HEAD
-import { AcpModule } from './modules/acp/acp.module';
-=======
 import { TagsModule } from './modules/tags/tags.module';
->>>>>>> feat/drive-backend
-=======
-// WorkflowModule — Sprint 3: URL ingestion pipeline (BullMQ + url-agent + Anthropic summary)
+import { AcpModule } from './modules/acp/acp.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
->>>>>>> feat/sprint3-workflow-engine
 
 // Infrastructure modules
 import { QueueModule } from './queue/queue.module';
@@ -52,11 +45,7 @@ import { RolesGuard } from './common/guards/roles.guard';
  *
  * Configures:
  * - Global modules (Config, Database, Logger, Telemetry, Queue, Cache)
-<<<<<<< HEAD
- * - Feature modules (Auth, Health, Sources, Files, Search, Agents)
-=======
- * - Feature modules (Auth, Health, Sources, Files, Search, Agents, Collections, Workflow)
->>>>>>> feat/sprint3-workflow-engine
+ * - Feature modules (Auth, Health, Sources, Files, Search, Agents, Collections, Tags, ACP, Workflow)
  * - Global filters, interceptors, guards, and middleware
  * - Rate limiting with Throttler
  */
@@ -77,12 +66,8 @@ import { RolesGuard } from './common/guards/roles.guard';
       },
     ]),
 
-    // Infrastructure — global Redis cache and BullMQ queues
-<<<<<<< HEAD
-=======
-    // QueueModule must be imported BEFORE WorkflowModule so that
-    // BullModule.forRootAsync (Redis connection) is registered globally first
->>>>>>> feat/sprint3-workflow-engine
+    // Infrastructure — global Redis cache and AMQP queues
+    // QueueModule must be imported BEFORE WorkflowModule so the AMQP connection is registered first
     CacheModule,
     QueueModule,
 
@@ -98,19 +83,9 @@ import { RolesGuard } from './common/guards/roles.guard';
     SearchModule,
     AgentsModule,
     CollectionsModule,
-<<<<<<< HEAD
-<<<<<<< HEAD
-    AcpModule,
-=======
     TagsModule,
->>>>>>> feat/drive-backend
-=======
-
-    // Sprint 3: URL ingestion workflow pipeline
-    // Registers the `workflow` BullMQ queue and its async processor.
-    // Exposes POST /workflow/urls/ingest and GET /workflow/jobs/:jobId.
+    AcpModule,
     WorkflowModule,
->>>>>>> feat/sprint3-workflow-engine
   ],
   providers: [
     // Global exception filters — order matters: registered last = runs first.

@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-"""LangGraph node functions for the RAG pipeline."""
-import structlog
-import httpx
-from app.graph.state import GraphState, SearchResult, Citation
-from app.config import get_settings
-from app.telemetry import tracer
-from opentelemetry.trace import SpanKind
-
-=======
 """LangGraph node functions for the RAG pipeline.
 
 Each function maps GraphState → GraphState and is registered as a node
@@ -29,7 +19,6 @@ from app.services.llm_guard import LLMGuard
 from app.services.tier_router import TierRouter
 from app.telemetry import tracer
 
->>>>>>> feat/sprint2-tiered-retrieval
 logger = structlog.get_logger(__name__)
 settings = get_settings()
 
@@ -38,35 +27,6 @@ RELEVANCE_THRESHOLD = 0.3
 
 
 async def retrieve(state: GraphState) -> GraphState:
-<<<<<<< HEAD
-    """Call search-api to retrieve relevant chunks."""
-    query = state.get("rewritten_query") or state["query"]
-    logger.info("Retrieving chunks", query=query[:100], user_id=state["user_id"])
-
-    with tracer.start_as_current_span("kb.vector_search", kind=SpanKind.CLIENT) as span:
-        span.set_attribute("query", query[:100])
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"{settings.search_api_url}/search",
-                params={"q": query, "type": "hybrid", "limit": 20, "user_id": state["user_id"]},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-    chunks: list[SearchResult] = data.get("results", [])
-    span.set_attribute("chunk_count", len(chunks))
-    return {**state, "chunks": chunks}
-
-
-async def grade_documents(state: GraphState) -> GraphState:
-    """Grade chunks for relevance. Stub: uses score threshold."""
-    logger.info("Grading documents", chunk_count=len(state["chunks"]))
-
-    with tracer.start_as_current_span("kb.rag_grade") as span:
-        graded = [c for c in state["chunks"] if c.get("score", 0) >= RELEVANCE_THRESHOLD]
-        span.set_attribute("relevant_count", len(graded))
-
-=======
     """Route query through the tiered retrieval system.
 
     Uses TierRouter to find the cheapest retrieval tier that can answer
@@ -161,23 +121,10 @@ async def grade_documents(state: GraphState) -> GraphState:
         span.set_attribute("relevant_count", len(graded))
 
     log.info("grade_documents: complete", relevant=len(graded), dropped=len(state["chunks"]) - len(graded))
->>>>>>> feat/sprint2-tiered-retrieval
     return {**state, "graded_chunks": graded}
 
 
 async def rewrite_query(state: GraphState) -> GraphState:
-<<<<<<< HEAD
-    """Rewrite the query for better retrieval. Stub returns original query."""
-    logger.info("Rewriting query", iteration=state["iteration"], query=state["query"][:100])
-    # TODO M10: call LLM to rewrite
-    return {**state, "rewritten_query": state["query"], "iteration": state["iteration"] + 1}
-
-
-async def generate(state: GraphState) -> GraphState:
-    """Generate answer from context chunks. Stub returns placeholder."""
-    logger.info("Generating answer", chunk_count=len(state["graded_chunks"]))
-
-=======
     """Rewrite the query for better retrieval.
 
     Stub implementation returns the original query. Future milestone (M10)
@@ -228,7 +175,6 @@ async def generate(state: GraphState) -> GraphState:
     routing_result = state.get("_routing_result")  # type: ignore[call-overload]
 
     # Build context from graded chunks
->>>>>>> feat/sprint2-tiered-retrieval
     context_parts = [c["content"] for c in state["graded_chunks"][:10]]
     context = "\n\n".join(context_parts)
 
@@ -243,10 +189,6 @@ async def generate(state: GraphState) -> GraphState:
         for c in state["graded_chunks"][:5]
     ]
 
-<<<<<<< HEAD
-    # TODO M10: real LLM streaming call via Anthropic SDK or Ollama
-    answer = f"[LLM stub] Based on {len(state['graded_chunks'])} relevant chunks: {context[:500]}..."
-=======
     with tracer.start_as_current_span("kb.rag_generate", kind=SpanKind.CLIENT) as span:
         # Determine whether LLM should be called.
         # If we have a routing result from TierRouter, use LLMGuard for the decision.
@@ -287,18 +229,11 @@ async def generate(state: GraphState) -> GraphState:
             answer = _format_direct_answer(context)
 
         span.set_attribute("answer_len", len(answer))
->>>>>>> feat/sprint2-tiered-retrieval
 
     return {**state, "context": context, "answer": answer, "citations": citations}
 
 
 def should_rewrite(state: GraphState) -> str:
-<<<<<<< HEAD
-    """Routing function: 'rewrite' if graded chunks are empty and iter < MAX, else 'generate'."""
-    if not state["graded_chunks"] and state["iteration"] < MAX_REWRITES:
-        return "rewrite"
-    return "generate"
-=======
     """Routing function: 'rewrite' if graded chunks are empty and iter < MAX, else 'generate'.
 
     Args:
@@ -332,4 +267,3 @@ def _format_direct_answer(context: str) -> str:
         "Here are the most relevant excerpts from your knowledge base:\n\n"
         f"{context}"
     )
->>>>>>> feat/sprint2-tiered-retrieval

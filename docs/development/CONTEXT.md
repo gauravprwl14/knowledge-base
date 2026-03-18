@@ -9,19 +9,19 @@ Each guide has exactly 6 sections: Business Use Case, Flow Diagram, Code Structu
 
 | Question / Task | Load This File |
 |-----------------|----------------|
-| JWT auth, login, register, refresh tokens, API keys, RBAC | `FOR-authentication.md` |
-| NestJS controllers, DTOs, Zod validation, Fastify, response format | `FOR-nestjs-patterns.md` |
+| JWT auth, login, register, refresh tokens, API keys, RBAC | `FOR-authentication.md` *(guide pending)* |
+| NestJS controllers, DTOs, Zod validation, Fastify, response format | `FOR-nestjs-patterns.md` *(guide pending)* |
 | FastAPI endpoints, Pydantic, Depends(), lifespan, domain structure | `FOR-python-patterns.md` |
-| Prisma schema, BaseRepository, pagination, soft delete, migrations | `FOR-database.md` |
-| AppException, error codes (KB*), exception filters, Prisma error mapping | `FOR-error-handling.md` |
-| nestjs-pino InjectPinoLogger, structlog, mandatory log fields | `FOR-logging.md` |
+| Prisma schema, BaseRepository, pagination, soft delete, migrations | `FOR-database.md` *(guide pending)* |
+| AppException, error codes (KB*), exception filters, KMSWorkerError, AMQP ack/nack | `FOR-error-handling.md` |
+| nestjs-pino InjectPinoLogger, structlog, mandatory log fields, no print() | `FOR-logging.md` |
 | OTel, custom spans (kb.*), W3C traceparent, health checks, Prometheus | `FOR-observability.md` |
 | AMQP aio-pika, connect_robust, quorum queues, DLX, RabbitMQ patterns | `FOR-queue-system.md` |
-| OpenAPI 3.1, endpoint design, versioning, Swagger decorators, TSDoc | `FOR-api-design.md` |
+| OpenAPI 3.1, endpoint design, versioning, Swagger decorators, TSDoc | `FOR-api-design.md` *(guide pending)* |
 | Jest unit tests, pytest, asyncio_mode, integration tests, coverage | `FOR-testing.md` |
-| BGE-M3 embedding, Qdrant upsert, chunking, FlagEmbedding | `FOR-embedding.md` |
-| Neo4j driver, graph traversal, Leiden community detection | `FOR-graph.md` |
-| ACP protocol, agent orchestrator, LangGraph inside rag-service | `FOR-agent-patterns.md` |
+| BGE-M3 embedding, Qdrant upsert, chunking, FlagEmbedding, MOCK_EMBEDDING | `FOR-embedding.md` |
+| Neo4j driver, graph traversal, entity extraction, Leiden community detection | `FOR-graph.md` |
+| ACP protocol, agent orchestrator, LangGraph inside rag-service | `FOR-agent-patterns.md` *(guide pending)* |
 | ACP HTTP gateway, tool registry, session management, permission model | `FOR-acp-integration.md` |
 | Workflow Engine, agent spawning, YouTube URL workflow, how to add a new skill | `FOR-agentic-workflows.md` |
 | External agent adapters (Claude Code, Codex, Gemini), MCP server, RAG context pipeline | `FOR-external-agent-integration.md` |
