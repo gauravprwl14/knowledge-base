@@ -254,12 +254,13 @@ async def test_llm_generator_generate_on_generator_error_returns_fallback():
     """When generate_stream raises GeneratorError, generate() returns fallback without raising."""
     gen = LLMGenerator()
 
-    async def failing_ollama_stream(prompt: str):
-        raise ConnectionError("Ollama is down")
-        yield  # noqa: unreachable
+    async def failing_generate_stream(self_inner, query, context_chunks, run_id):
+        raise GeneratorError("both providers failed")
+        yield  # noqa: unreachable — needed to make this an async generator
 
     with (
-        patch.object(gen, "_ollama_stream", side_effect=failing_ollama_stream),
+        # Patch parent's generate_stream so it raises GeneratorError
+        patch.object(Generator, "generate_stream", failing_generate_stream),
         patch("app.services.generator.settings") as mock_settings,
     ):
         mock_settings.llm_enabled = True
@@ -267,7 +268,7 @@ async def test_llm_generator_generate_on_generator_error_returns_fallback():
         mock_settings.ollama_model = "llama3.2"
         mock_settings.ollama_base_url = "http://ollama:11434"
 
-        # Should NOT raise — falls back gracefully
+        # Should NOT raise — LLMGenerator.generate() catches GeneratorError and falls back
         answer = await gen.generate("what is X?", "some context")
 
     assert isinstance(answer, str)

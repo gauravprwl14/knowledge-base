@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.query_classifier import QueryClassifier, QueryType
-from app.services.tier_router import SearchResult, TierRouter
+from app.services.tier_router import SearchResult, TierRouter  # direct submodule import
 
 
 # ---------------------------------------------------------------------------
@@ -94,21 +94,27 @@ async def test_route_lookup_high_score_short_circuits_at_tier1():
 # ---------------------------------------------------------------------------
 
 
-async def test_route_explain_calls_bm25_then_hybrid():
-    """EXPLAIN query at Tier 2: first call returns low BM25 score, second call returns hybrid."""
-    bm25_result = {
+async def test_route_explain_calls_hybrid_and_escalates_to_tier3():
+    """EXPLAIN query at Tier 2: first hybrid call returns low score → escalates to Tier 3.
+
+    EXPLAIN min_tier=2 → range(2,4) = [2, 3].
+    Tier 2 score 0.5 < 0.8 threshold → escalates to Tier 3.
+    Tier 3 score 0.85 > 0.0 threshold → short-circuits.
+    Two total search-api calls.
+    """
+    tier2_result = {
         "fileId": "file-001",
         "filename": "test.pdf",
-        "snippet": "partial match",
-        "score": 0.5,  # below 0.9 → escalate
+        "snippet": "partial hybrid match",
+        "score": 0.5,  # below 0.8 threshold → escalate to tier 3
         "chunkIndex": 0,
         "sourceId": "src-001",
     }
-    hybrid_result = {
+    tier3_result = {
         "fileId": "file-001",
         "filename": "test.pdf",
-        "snippet": "better hybrid match",
-        "score": 0.85,  # above 0.8 → stop
+        "snippet": "better hybrid+rerank match",
+        "score": 0.85,  # above 0.0 threshold for tier 3 → stop
         "chunkIndex": 0,
         "sourceId": "src-001",
     }
@@ -119,8 +125,8 @@ async def test_route_explain_calls_bm25_then_hybrid():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            return {"results": [bm25_result]}
-        return {"results": [hybrid_result]}
+            return {"results": [tier2_result]}  # Tier 2 — score below 0.8
+        return {"results": [tier3_result]}       # Tier 3 — score above 0.0 → stop
 
     mock_resp = AsyncMock()
     mock_resp.ok = True
@@ -137,8 +143,6 @@ async def test_route_explain_calls_bm25_then_hybrid():
     mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-    # EXPLAIN starts at Tier 2 (min_tier=2), so range(max(2,1),4) = range(2,4) → tiers 2, 3
-    # First iteration uses tier 2 (hybrid), which returns 0.85 >= 0.8 → short-circuit
     classifier = MagicMock(spec=QueryClassifier)
     classifier.classify.return_value = QueryType.EXPLAIN
 
@@ -147,9 +151,11 @@ async def test_route_explain_calls_bm25_then_hybrid():
     with patch("app.services.tier_router.aiohttp.ClientSession", return_value=mock_session_ctx):
         result = await router.route("how does BGE-M3 work?", user_id="user-001")
 
-    # EXPLAIN min_tier=2, so Tier 2 (hybrid) is called first; score 0.85 >= 0.8 → stop
-    assert mock_session.get.call_count == 1
-    assert result.tier_used == 2
+    # Two HTTP calls: Tier 2 (score 0.5 < 0.8 → escalate) → Tier 3 (score 0.85 > 0.0 → stop)
+    assert mock_session.get.call_count == 2
+    assert result.tier_used == 3
+    assert len(result.results) == 1
+    assert result.results[0].score == 0.85
 
 
 # ---------------------------------------------------------------------------
@@ -201,12 +207,18 @@ async def test_route_synthesize_uses_hybrid_search():
 
 
 async def test_route_escalates_when_tier_returns_no_results():
-    """When Tier 1 returns empty results, TierRouter escalates to the next tier."""
+    """When Tier 1 returns empty results, TierRouter escalates to the next tier.
+
+    FIND min_tier=1 → range(1,4) = [1, 2, 3].
+    Tier 1: empty → escalate.
+    Tier 2: returns score 0.85 >= 0.8 → short-circuit.
+    Two total search-api calls.
+    """
     tier2_result = {
         "fileId": "file-003",
         "filename": "found.pdf",
         "snippet": "found via hybrid",
-        "score": 0.75,
+        "score": 0.85,  # above 0.8 threshold → stop at Tier 2
         "chunkIndex": 0,
         "sourceId": "src-003",
     }
@@ -217,8 +229,8 @@ async def test_route_escalates_when_tier_returns_no_results():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            return {"results": []}  # Tier 1: no results → escalate
-        return {"results": [tier2_result]}  # Tier 2: hybrid finds something
+            return {"results": []}         # Tier 1: no results → escalate
+        return {"results": [tier2_result]} # Tier 2: high score → short-circuit
 
     mock_resp = AsyncMock()
     mock_resp.ok = True
@@ -244,7 +256,7 @@ async def test_route_escalates_when_tier_returns_no_results():
     with patch("app.services.tier_router.aiohttp.ClientSession", return_value=mock_session_ctx):
         result = await router.route("find authentication docs", user_id="user-001")
 
-    # Two HTTP calls: Tier 1 (empty) → Tier 2 (result found)
+    # Two HTTP calls: Tier 1 (empty → escalate) → Tier 2 (score 0.85 >= 0.8 → stop)
     assert mock_session.get.call_count == 2
     assert result.tier_used == 2
     assert len(result.results) == 1

@@ -8,7 +8,7 @@ New integrations:
 """
 
 from app.services.generator import LLMGenerator
-from app.services.retriever import ContextRetriever
+from app.services.retriever import Retriever as ContextRetriever
 from app.services.run_store import RunStore
 from app.services.llm_factory import LLMFactory, LLMCapability, LLMResponse, LLMProviderUnavailableError
 from app.services.query_classifier import QueryClassifier, QueryType, MIN_TIER
