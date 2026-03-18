@@ -8,7 +8,17 @@ logger = structlog.get_logger(__name__)
 
 
 def build_rag_graph() -> StateGraph:
-    """Build and compile the RAG LangGraph pipeline."""
+    """Build and compile the RAG LangGraph pipeline.
+
+    Constructs a :class:`~langgraph.graph.StateGraph` with four nodes:
+    ``retrieve``, ``grade_documents``, ``rewrite_query``, and ``generate``.
+    The ``grade_documents`` node uses a conditional edge to either rewrite the
+    query (when no relevant chunks are found) or proceed to generation.
+
+    Returns:
+        StateGraph: A compiled LangGraph runnable ready for ``ainvoke`` or
+            ``astream`` calls.
+    """
     graph = StateGraph(GraphState)
 
     graph.add_node("retrieve", retrieve)

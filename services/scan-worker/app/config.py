@@ -1,9 +1,41 @@
+"""Configuration for scan-worker.
+
+All values are read from environment variables (or a .env file).
+Use ``get_settings()`` everywhere — the result is cached via ``lru_cache``.
+"""
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    """Runtime configuration for the scan-worker.
+
+    All fields are sourced from environment variables or the ``.env`` file.
+    Secrets (``api_key_encryption_secret``, ``google_client_secret``) must
+    never be hard-coded and must not appear in structured logs.
+
+    Attributes:
+        service_name: OTel service.name and log identifier.
+        log_level: Python log level (DEBUG, INFO, WARNING, ERROR).
+        database_url: asyncpg-compatible PostgreSQL DSN.
+        rabbitmq_url: AMQP broker URL for aio_pika connect_robust.
+        scan_queue: Queue name for incoming scan job messages.
+        embed_queue: Queue name for outbound FileDiscoveredMessages.
+        dedup_queue: Queue name for outbound DedupCheckMessages.
+        redis_url: Redis connection URL for progress tracking.
+        kms_api_url: Base URL for the kms-api (HTTP fallback for job status).
+        google_client_id: Google OAuth2 client ID for Drive sources.
+        google_client_secret: Google OAuth2 client secret (keep out of logs).
+        api_key_encryption_secret: AES-256-GCM key that must match the NestJS
+            TokenEncryptionService value (keep out of logs).
+        scan_batch_size: Number of file records to upsert in a single DB batch.
+        max_file_size_mb: Files larger than this value are skipped during scan.
+        vault_path: Host path mounted for local/Obsidian vault access.
+        otel_endpoint: OTLP gRPC collector endpoint.
+        otel_enabled: When False, OTel instrumentation is disabled.
+    """
+
     # Service
     service_name: str = "scan-worker"
     log_level: str = "INFO"
@@ -62,4 +94,9 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Return the cached singleton Settings instance.
+
+    Returns:
+        Settings: Loaded and validated settings object.
+    """
     return Settings()

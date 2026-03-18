@@ -25,12 +25,32 @@ class ScanHandler:
     connector can decrypt and use the OAuth2 credentials.
     """
 
-    def __init__(self, channel: aio_pika.Channel):
+    def __init__(self, channel: aio_pika.Channel) -> None:
+        """Initialise the handler with a shared aio_pika channel.
+
+        Args:
+            channel: An open aio_pika channel used to publish downstream
+                messages to the embed and dedup queues.
+        """
         self._channel = channel
         self._file_sync = FileSyncService()
         self._progress = ProgressService()
 
     async def handle(self, message: aio_pika.IncomingMessage) -> None:
+        """Entry point called by aio_pika for each message on kms.scan.
+
+        Parses the message body as a :class:`ScanJobMessage`, runs the full
+        scan pipeline, then acks or nacks the message based on the outcome.
+
+        Error handling strategy:
+        - Invalid JSON / schema validation failure → reject (dead-letter, no retry).
+        - :class:`KMSWorkerError` with ``retryable=True`` → nack (requeue).
+        - :class:`KMSWorkerError` with ``retryable=False`` → reject (dead-letter).
+        - Unexpected exception → nack (requeue; may eventually reach DLQ).
+
+        Args:
+            message: Raw AMQP message from aio_pika.
+        """
         try:
             payload = json.loads(message.body)
             job = ScanJobMessage.model_validate(payload)
@@ -87,6 +107,24 @@ class ScanHandler:
             await message.nack(requeue=True)
 
     async def _run_scan(self, job: ScanJobMessage) -> int:
+        """Execute the full scan pipeline for a single job.
+
+        For Google Drive sources, enriches the connector config with OAuth2
+        tokens loaded from the database before calling the connector.
+
+        For incremental scans, preloads existing file records so the connector
+        can detect changes without a full re-index.
+
+        Args:
+            job: Validated :class:`ScanJobMessage` describing the scan to run.
+
+        Returns:
+            int: Total number of files discovered during the scan.
+
+        Raises:
+            ConnectorError: When the connector cannot connect or authenticate.
+            FileDiscoveryError: When file listing fails mid-scan.
+        """
         # Enrich config for Google Drive: load encrypted tokens from DB
         enriched_config = dict(job.config)
         if job.source_type == SourceType.GOOGLE_DRIVE:
@@ -164,6 +202,14 @@ class ScanHandler:
         return files_count
 
     async def _publish_file_discovered(self, msg: FileDiscoveredMessage) -> None:
+        """Publish a FileDiscoveredMessage to the embed queue.
+
+        Args:
+            msg: The :class:`FileDiscoveredMessage` to publish.
+
+        Raises:
+            QueuePublishError: If the aio_pika publish call fails.
+        """
         try:
             await self._channel.default_exchange.publish(
                 aio_pika.Message(
@@ -177,6 +223,15 @@ class ScanHandler:
             raise QueuePublishError(settings.embed_queue, str(e)) from e
 
     async def _publish_dedup_check(self, msg: FileDiscoveredMessage) -> None:
+        """Publish a DedupCheckMessage to the dedup queue (best-effort).
+
+        Failures here are logged as warnings and swallowed — dedup is non-critical
+        and should not block the embedding pipeline.
+
+        Args:
+            msg: The :class:`FileDiscoveredMessage` whose checksum to submit for
+                deduplication checking.
+        """
         try:
             dedup_msg = DedupCheckMessage(
                 file_path=msg.file_path,
