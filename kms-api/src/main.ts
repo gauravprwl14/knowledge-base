@@ -69,10 +69,28 @@ async function bootstrap() {
         'Authorization',
         'X-API-Key',
         'X-Request-ID',
-        'Accept',
-        'Cache-Control',
-        'X-Accel-Buffering',
+        'Accept',            // required for text/event-stream SSE requests
+        'Cache-Control',     // browser sends this on SSE reconnect
+        'X-Accel-Buffering', // nginx/proxy SSE buffering control
       ],
+      exposedHeaders: [
+        'X-Request-ID',
+        'Content-Type', // needed so browser can read text/event-stream
+      ],
+    });
+
+    // Add SSE response hook — prevents nginx/proxies from buffering the stream
+    app.getHttpAdapter().getInstance().addHook('onSend', async (request, reply, payload) => {
+      // Detect SSE routes by Content-Type header that NestJS @Sse sets
+      if (reply.getHeader('Content-Type')?.toString().includes('text/event-stream')) {
+        // Disable nginx/proxy buffering for SSE streams
+        reply.header('X-Accel-Buffering', 'no');
+        // Ensure no caching of SSE streams
+        reply.header('Cache-Control', 'no-cache, no-transform');
+        // Keep the connection alive
+        reply.header('Connection', 'keep-alive');
+      }
+      return payload;
     });
 
     // Fastify onSend hook: disable response buffering for SSE endpoints so
