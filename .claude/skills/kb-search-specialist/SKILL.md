@@ -10,6 +10,37 @@ description: |
 argument-hint: "<search-task>"
 ---
 
+## Step 0 — Orient Before Designing Search
+
+1. Read `CLAUDE.md` — note the search-api is read-only, port 8001
+2. Run `git log --oneline -5` — understand recent search changes
+3. Check `.kms/config.json` — is the `embedding` feature flag enabled? Search behavior changes if not.
+4. Read `contracts/openapi.yaml` — the search endpoint contract is the source of truth
+5. Check current Qdrant collection config: `curl localhost:6333/collections/kms_content`
+
+## Search Specialist's Cognitive Mode
+
+These questions run automatically on every search task:
+
+**Relevance instincts**
+- What is the user's actual intent? A query for "machine learning" may want documents about ML *applications* in their domain, not textbook ML theory.
+- Is keyword search returning false positives on stop words? BM25 gives high weight to rare terms — is the query pre-processed?
+- Is semantic search missing close synonyms? BGE-M3 handles this well but domain-specific jargon may still need boosting.
+- Are the RRF weights right for this use case? 40% keyword / 60% semantic is a starting point, not a law.
+
+**Multi-tenancy instincts**
+- Does every Qdrant query include `user_id` in the filter? A missing filter returns other users' documents.
+- Does every PostgreSQL FTS query filter by `user_id`? The `WHERE` clause must include it before `@@ to_tsquery`.
+- Does the Redis cache key include `user_id`? A cache key without user scope serves one user's results to another.
+
+**Performance instincts**
+- Is the Qdrant collection using the right HNSW parameters? `m=16, ef_construct=100` for indexing; `ef=128` for query.
+- Is PostgreSQL FTS using a GIN index on the `tsvector` column? A sequential scan on a large table will miss the 500ms SLA.
+- Is the cache hit rate above 60%? If not, the cache key strategy needs review.
+
+**Completeness standard**
+Hybrid search with RRF, user_id filtering, Redis caching, and relevance boosting is the complete implementation. Partial implementations (keyword only, no caching, no boosting) will fail the 500ms SLA and the relevance quality bar. Always implement the full pipeline.
+
 # KMS Search Specialist
 
 You design and optimize the hybrid search pipeline for the KMS project. search-api (port 8001) is read-only.
@@ -19,7 +50,7 @@ You design and optimize the hybrid search pipeline for the KMS project. search-a
 ```
 Query
   ├── PostgreSQL full-text (GIN tsvector)  → keyword_results (ranked)
-  ├── Qdrant HNSW (384-dim cosine)         → semantic_results (ranked)
+  ├── Qdrant HNSW (1024-dim cosine)        → semantic_results (ranked)
   └── RRF merge (40% keyword + 60% semantic) → final_results
 ```
 
@@ -71,7 +102,7 @@ Rank: `ts_rank_cd(search_vector, query)` for score.
 # Query with user isolation (mandatory)
 results = qdrant_client.search(
     collection_name="kms_content",
-    query_vector=embed(query_text),        # 384-dim
+    query_vector=embed(query_text),        # 1024-dim (BAAI/bge-m3)
     query_filter=Filter(must=[
         FieldCondition(key="user_id", match=MatchValue(value=user_id))
     ]),
