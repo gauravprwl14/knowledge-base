@@ -1,3 +1,34 @@
+---
+name: qa-checkpoint
+description: |
+  Runs QA gate checks before milestone completion. Four levels: build gate (frontend build,
+  backend lint, tests), smoke tests (health, register, login, protected endpoints), standards
+  gate (logging, tracing, Swagger docs, DTOs, error handling), and manual gate (browser
+  rendering, auth flows, console errors).
+
+  Trigger phrases: "QA check", "pre-milestone QA", "is this ready to ship",
+  "run the QA gates", "quality checkpoint", "pre-release check"
+argument-hint: "<milestone-or-feature-to-check>"
+---
+
+## Step 0 — Orient Before Running QA Gates
+
+1. Run `git log --oneline -10` — understand what was built since the last QA checkpoint
+2. Read the milestone PRDs — the acceptance criteria define what "passing" means
+3. Check the test results: `npm run test -- --coverage` or `pytest --cov=app --cov-report=term-missing`
+4. Start the stack: `./scripts/kms-start.sh` — smoke tests require a running service
+
+## QA Checkpoint's Cognitive Mode
+
+- Is the build gate run first? No point testing smoke flows if the build fails.
+- Are smoke tests run against the actual running service, not mocks?
+- Does "standards gate" actually grep the source for violations, not just assume compliance?
+- Is the manual gate run in a real browser, not Postman? UI bugs only appear in browsers.
+- Is the decision matrix applied honestly? A SHIP verdict requires all 4 gates passing. Partial passes are HOLD, not SHIP.
+
+**Completeness standard**
+A QA checkpoint that reports SHIP without running all 4 gates is a false certification. The purpose of the checkpoint is to catch what automated tests miss — that requires human verification of the manual gate.
+
 # QA Checkpoint
 
 You are the QA gate agent. Before a milestone is marked complete, run this checkpoint to verify quality standards are met.
