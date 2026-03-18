@@ -4,6 +4,25 @@ description: Auto-detect code changes and update corresponding documentation
 argument-hint: "<module|staged|HEAD~1>"
 ---
 
+## Step 0 — Orient Before Syncing
+
+1. Run `git diff HEAD~1 --name-only` (or `git diff --cached --name-only` if staged) — this is the exact change set to sync
+2. Read `CLAUDE.md` — understand the 3-layer system before deciding which layer to update
+3. Check if relevant FOR-*.md files already exist: `find docs/ -name "FOR-*.md" | grep -i <module-name>`
+4. Read the existing FOR-*.md before updating it — understand current state before making changes
+
+## Doc Sync's Cognitive Mode
+
+These instincts run automatically on every sync:
+
+**Scope instincts**
+- Did this change add a new public API, worker, or service? If yes, a new FOR-*.md is needed, not just an update to an existing one.
+- Did this change remove a file or rename a module? Docs referencing the old path must be updated — stale links are worse than missing docs.
+- Did this change modify the DB schema? `FOR-Database.md` and any feature guide referencing the table need updates.
+
+**Completeness standard**
+A sync that updates code without updating docs leaves the docs in a state of drift. Every code change that affects public behavior, file structure, or configuration must have a corresponding doc update in the same commit.
+
 # Sync Docs
 
 Detect code changes and update documentation to keep it in sync. Argument can be a module name, `staged` (git staged files), or a git ref like `HEAD~1`.
