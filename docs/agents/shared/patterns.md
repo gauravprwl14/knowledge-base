@@ -294,3 +294,161 @@ async with db.begin():
 ```
 
 Never update job status outside a transaction. Never skip intermediate states.
+
+---
+
+## Universal Preamble (Required in Every Skill)
+
+Before taking any action, every skill must orient itself:
+
+```
+1. Read CLAUDE.md — understand project conventions, mandatory patterns, error codes, naming rules
+2. Run `git status` and `git log --oneline -10` — understand current branch and recent changes
+3. Check `.kms/config.json` — understand which feature flags are active (embedding, graph, RAG, voice)
+4. If a TODOS.md or sprint board exists, scan it — know what's deferred and what's blocked
+```
+
+**Why this matters:** A skill that acts without reading current state will contradict conventions, reference stale decisions, or generate code that conflicts with what's already been built. 60 seconds of orientation prevents hours of rework.
+
+**Minimum preamble (add to every skill's Step 0):**
+```
+Step 0 — Orient
+- Read CLAUDE.md for project conventions and mandatory patterns
+- Run: git status && git log --oneline -10
+- Check .kms/config.json for active feature flags
+- If present, scan docs/TODOS.md for deferred work related to this task
+```
+
+---
+
+## Completeness Standard ("Boil the Lake")
+
+**Core principle:** When AI reduces the marginal cost of completeness to near-zero, shortcuts are no longer justified by time pressure. Always choose the complete, correct solution over the expedient one.
+
+**Compression table — embed this reasoning in every recommendation:**
+
+| Task Type | Human Time | AI+KMS Time | Compression |
+|-----------|-----------|-------------|-------------|
+| NestJS module + tests | 2 days | 20 min | 100x |
+| Prisma migration + rollback | 4h | 10 min | 25x |
+| OpenAPI spec + DTOs | 1 day | 15 min | 50x |
+| Python worker + error handling | 1 day | 20 min | 35x |
+| ADR + sequence diagram | 4h | 15 min | 20x |
+| E2E test suite | 2 days | 30 min | 50x |
+| Security review + fixes | 1 day | 20 min | 30x |
+| Feature guide + CONTEXT.md | 3h | 10 min | 20x |
+
+**The rule:** If the complete version takes <15 minutes more than the shortcut version, always recommend the complete version. The 80-line implementation is not meaningfully cheaper than the 150-line implementation when the author is Claude Code.
+
+**How to apply:** When offering options, always include a "Completeness: X/10" rating. A score of 10 means the solution handles all cases. Never recommend a 6/10 solution without explicitly stating what the missing 4 points cover and why they were omitted.
+
+---
+
+## Structured Decision Format
+
+Every question, recommendation, or decision presented to the user must follow this format. No exceptions.
+
+**Format:**
+
+```
+**Re-ground** (1-2 sentences)
+State: what project/service, what branch, what the current goal is.
+Never assume the user remembers — they may have multiple sessions open.
+
+**Plain English** (1-3 sentences)
+Explain the choice in terms a smart non-specialist can follow.
+No raw function names, no framework jargon, no acronyms without expansion.
+Use concrete examples: "The API will respond with a 400 error instead of crashing" not "input validation boundary enforcement".
+
+**Recommendation**
+RECOMMENDATION: [Option X] because [one concrete reason].
+Completeness: X/10 — [what a 10 would include that this doesn't]
+
+**Options**
+A) [First option] — [trade-off] (human: ~Xh / AI: ~Xmin)
+B) [Second option] — [trade-off] (human: ~Xh / AI: ~Xmin)
+C) [Third option if needed]
+```
+
+**Why this format works:**
+- Re-ground prevents context collapse in multi-session workflows
+- Plain English prevents the agent from hiding behind jargon
+- Explicit recommendation prevents "I'll let you decide" non-answers
+- Completeness score forces honesty about shortcuts
+- Both time scales expose the real cost difference
+
+---
+
+## Fix-First Workflow
+
+When reviewing, auditing, or implementing, apply this decision tree before asking any question:
+
+```
+For each issue found:
+  IF mechanical (typo, wrong import, missing decorator, obvious rename):
+    → Fix it immediately. No question needed. Log what was fixed.
+  IF pattern violation (wrong logger, wrong ORM, wrong error type):
+    → Fix it immediately. Cite the CLAUDE.md rule that was violated.
+  IF architectural (new abstraction, service boundary change, schema change):
+    → Batch with other architectural questions. Ask once, not per-issue.
+  IF uncertain (can't verify without running code, unclear intent):
+    → Flag with evidence. Never claim "this is wrong" without proof.
+```
+
+**Batching rule:** Never ask more than 3 questions in a row. Group related decisions. Present them together with the Structured Decision Format.
+
+**Evidence rule:** Every flagged issue must include:
+- What was found (file + line)
+- Why it's a problem (which rule/pattern it violates)
+- What the fix would be
+- Confidence level (verified / suspected / uncertain)
+
+---
+
+## Scope Drift Detection
+
+Before completing any task, check: **does the actual work match the stated intent?**
+
+**Detection steps:**
+```
+1. State the original goal (from user message, TODOS.md, or PR description)
+2. List all files changed (git diff --name-only)
+3. For each changed file: is it directly required by the goal?
+4. For each goal item: is there a corresponding change?
+```
+
+**Red flags:**
+- Files changed that were not mentioned in the goal
+- Goal items with no corresponding code change
+- New abstractions introduced without being requested
+- Tests added for features not in scope
+- Refactoring mixed into a bug fix
+
+**Output format:**
+```
+Scope Check:
+✅ In scope: [list of changes that match the goal]
+⚠️  Scope drift: [list of changes that were not in the goal]
+❌ Not implemented: [goal items with no corresponding change]
+```
+
+**Rule:** Flag scope drift. Never silently include out-of-scope changes. Never silently skip in-scope items.
+
+---
+
+## Cognitive Mode Protocol
+
+Each specialist skill operates in a specific cognitive mode — a set of internalized questions that expert practitioners always ask, even when not explicitly prompted.
+
+**How to embed a cognitive mode in a skill:**
+- List 8-15 non-obvious questions the expert always asks
+- Frame them as automatic instincts, not a checklist to work through
+- Each question should catch a real failure mode that a generalist would miss
+
+**Example — Staff Engineer reviewing code:**
+> "What are the failure modes at each service boundary? What happens when the DB is slow? What happens when the queue is full? What does the blast radius look like if this service crashes? Is there any code path that silently succeeds when it should fail? Are there any N+1 queries hiding in a loop? Does this respect the multi-tenant boundary at every data access? What would an attacker do with this API?"
+
+**Example — Security Reviewer:**
+> "Who can reach this endpoint without authentication? What data is returned if userId scoping is bypassed? Where does user input touch the database without validation? Is there a timing attack surface? What is logged, and does any log entry contain PII or credentials? What happens if this endpoint is called 1000 times per second?"
+
+These questions run automatically during the skill's work — they don't appear as literal checklist items in the output unless something fails.
