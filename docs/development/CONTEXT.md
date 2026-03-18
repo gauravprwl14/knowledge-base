@@ -31,6 +31,7 @@ Each guide has exactly 6 sections: Business Use Case, Flow Diagram, Code Structu
 | Sources (local, Obsidian, Google Drive OAuth), token encryption, reconnect flow | `FOR-sources.md` |
 | Frontend API clients (`lib/api/*.ts`), React Query hooks, loading/error states, TypeScript DTO alignment | `FOR-frontend-api-patterns.md` |
 | End-to-end data flows (Chat RAG, Search, Source scan, Embed pipeline, Collections) with exact URLs and payloads | `FOR-e2e-flows.md` |
+| search-api service (BM25, Qdrant, RRF fusion, x-user-id header, mock modes, config) | `FOR-search-api.md` |
 
 ---
 
