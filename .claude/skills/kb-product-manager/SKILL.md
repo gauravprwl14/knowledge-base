@@ -1,6 +1,11 @@
 ---
 name: kb-product-manager
-description: Feature prioritization, milestone planning, user story definition for KMS
+description: |
+  Writes PRDs, defines acceptance criteria, prioritizes features, and plans milestones for the KMS project.
+  Use when the user asks about product requirements, user stories, feature scope, success metrics,
+  out-of-scope decisions, or roadmap sequencing. Also use for PRD completeness reviews and
+  stakeholder sign-off gates. Trigger phrases: "write a PRD", "define requirements", "what should
+  this feature do", "what's in scope", "prioritize these features", "plan the milestone".
 argument-hint: "<product-question>"
 ---
 

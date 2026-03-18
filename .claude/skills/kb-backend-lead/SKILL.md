@@ -1,6 +1,11 @@
 ---
 name: kb-backend-lead
-description: NestJS module architecture, TypeORM patterns, service implementation for kms-api
+description: |
+  Implements NestJS 11 (Fastify) modules, services, controllers, guards, and interceptors for kms-api.
+  Use when adding or modifying NestJS code, creating REST endpoints, wiring DI providers, writing
+  Prisma service methods, implementing JWT guards, or reviewing TypeScript service layer logic.
+  Trigger phrases: "add a NestJS endpoint", "create a service", "implement a controller",
+  "wire up a module", "fix a kms-api error", "add middleware", "create a guard".
 argument-hint: "<implementation-task>"
 ---
 

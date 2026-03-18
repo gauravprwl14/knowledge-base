@@ -1,6 +1,11 @@
 ---
 name: kb-db-specialist
-description: PostgreSQL schema, TypeORM entities, migrations, query optimization
+description: |
+  Designs PostgreSQL schemas, writes Prisma migrations, optimizes queries, and reviews DB architecture.
+  Use when creating or modifying database tables, writing migrations, adding indexes, designing
+  data models, debugging slow queries, or reviewing schema changes for backward compatibility.
+  Trigger phrases: "create a migration", "add a table", "design the schema", "optimize this query",
+  "add an index", "fix a DB error", "write a Prisma model", "backward-compatible migration".
 argument-hint: "<database-task>"
 ---
 

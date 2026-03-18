@@ -1,6 +1,11 @@
 ---
 name: kb-observability
-description: OpenTelemetry instrumentation, Jaeger tracing, Prometheus metrics, Grafana dashboards
+description: |
+  Instruments services with OpenTelemetry spans, configures Prometheus metrics, Grafana dashboards,
+  and structured logging. Use when adding OTel spans to a new I/O path, setting up a new service
+  for observability, diagnosing missing traces, adding Prometheus metrics, or creating Grafana panels.
+  Trigger phrases: "add tracing", "instrument this service", "add a span", "set up metrics",
+  "configure OTel", "add Prometheus metric", "create a dashboard", "why is there no trace".
 argument-hint: "<observability-task>"
 ---
 

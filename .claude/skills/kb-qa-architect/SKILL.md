@@ -1,6 +1,11 @@
 ---
 name: kb-qa-architect
-description: Test strategy, pytest patterns, Jest/RTL, Playwright E2E, coverage analysis
+description: |
+  Defines test strategy, writes pytest/Jest/Playwright tests, and enforces coverage thresholds.
+  Use when designing the test pyramid for a new feature, writing missing unit or integration tests,
+  debugging flaky tests, reviewing test coverage gaps, or setting up the Docker Compose test environment.
+  Trigger phrases: "write tests", "add unit tests", "integration test", "test coverage",
+  "test strategy", "how to test this", "fix flaky test", "E2E test", "what to mock", "pytest fixture".
 argument-hint: "<testing-task>"
 ---
 

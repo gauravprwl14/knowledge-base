@@ -1,6 +1,12 @@
 ---
 name: kb-python-lead
-description: Python worker services, FastAPI endpoints, async job processing
+description: |
+  Implements Python FastAPI services, AMQP workers, asyncpg DB access, and aio-pika RabbitMQ consumers.
+  Use when adding or modifying Python code in rag-service, scan-worker, embed-worker, dedup-worker,
+  graph-worker, voice-app, or url-agent. Also use for structlog logging patterns, pytest test strategy,
+  Pydantic model design, and async Python patterns.
+  Trigger phrases: "add a Python endpoint", "write a worker", "fix a FastAPI error",
+  "implement a consumer", "write pytest tests", "add a Python service".
 argument-hint: "<python-task>"
 ---
 

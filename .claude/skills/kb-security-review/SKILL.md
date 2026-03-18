@@ -1,6 +1,12 @@
 ---
 name: kb-security-review
-description: Security audit, API key auth, OWASP checks, PII handling, threat modeling
+description: |
+  Audits code for OWASP Top 10 vulnerabilities, reviews auth/authorization logic, checks PII handling,
+  and performs threat modeling. Use when reviewing a new endpoint for security issues, checking that
+  userId scoping is correct, auditing for hardcoded secrets, reviewing input validation, or assessing
+  the security posture of a new feature.
+  Trigger phrases: "security review", "is this secure", "check for vulnerabilities", "audit the auth",
+  "OWASP check", "is PII handled correctly", "check for SQL injection", "review the permissions".
 argument-hint: "<security-concern>"
 ---
 

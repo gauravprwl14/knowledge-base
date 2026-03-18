@@ -1,6 +1,12 @@
 ---
 name: kb-search-specialist
-description: Hybrid search, Qdrant integration, RRF algorithm, cache strategy
+description: |
+  Implements and tunes the hybrid search pipeline: BM25 (PostgreSQL FTS), semantic ANN (Qdrant BGE-M3),
+  and Reciprocal Rank Fusion. Use when working on search relevance, adding search filters, tuning
+  RRF weights, diagnosing poor search results, implementing the tiered retrieval pipeline, or
+  integrating Qdrant vector operations.
+  Trigger phrases: "improve search results", "add a search filter", "tune relevance", "implement
+  hybrid search", "search is returning wrong results", "add semantic search", "RRF", "Qdrant query".
 argument-hint: "<search-task>"
 ---
 

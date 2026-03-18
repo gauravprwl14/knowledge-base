@@ -1,6 +1,12 @@
 ---
 name: kb-api-designer
-description: REST API contracts, endpoint design, validation schemas, error mapping
+description: |
+  Designs REST API contracts, defines endpoint shapes, writes OpenAPI specs, DTOs, and maps errors.
+  Use when designing new API endpoints, reviewing an endpoint for RESTful correctness, writing
+  OpenAPI YAML, defining request/response DTOs, designing error response formats, or auditing
+  API contracts for consistency across services.
+  Trigger phrases: "design the API", "what should the endpoint look like", "write the OpenAPI spec",
+  "define the DTO", "review the API contract", "is this RESTful", "HTTP method for this", "API versioning".
 argument-hint: "<api-task>"
 ---
 

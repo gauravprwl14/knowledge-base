@@ -1,6 +1,12 @@
 ---
 name: kb-embedding-specialist
-description: Content extraction, text chunking, sentence-transformers, Qdrant indexing
+description: |
+  Implements content extraction pipelines, text chunking, BGE-M3 embedding generation, and Qdrant
+  vector indexing. Use when working on the embed-worker, adding a new file type extractor (PDF, DOCX,
+  CSV, HTML, markdown), tuning chunk sizes, debugging embedding failures, or configuring the Qdrant
+  collection schema.
+  Trigger phrases: "add a file extractor", "extract text from", "chunk the content", "BGE-M3",
+  "embed this file type", "Qdrant collection", "embedding pipeline", "vector indexing".
 argument-hint: "<embedding-task>"
 ---
 

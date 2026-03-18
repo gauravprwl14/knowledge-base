@@ -1,6 +1,12 @@
 ---
 name: kb-doc-engineer
-description: 3-layer documentation system, CONTEXT.md updates, feature guide creation
+description: |
+  Creates and maintains the 3-layer documentation system: CONTEXT.md routing files, FOR-{feature}.md
+  feature guides, and PRD documents. Use when a new module needs documentation, CONTEXT.md routing
+  tables need updating, a feature guide needs writing, or documentation quality needs linting.
+  Also use for syncing docs after code changes or onboarding documentation.
+  Trigger phrases: "write the docs", "update CONTEXT.md", "create a feature guide", "sync the docs",
+  "document this", "FOR-*.md", "documentation is outdated", "write a feature guide".
 argument-hint: "<doc-task>"
 ---
 

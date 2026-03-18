@@ -1,6 +1,12 @@
 ---
 name: kb-voice-specialist
-description: Transcription provider integration, job lifecycle, worker patterns for Voice App
+description: |
+  Implements voice transcription pipelines, Whisper integration, job lifecycle management, and
+  voice-app worker patterns. Use when working on the voice-app service, adding a new transcription
+  provider, debugging transcription job failures, implementing the RabbitMQ consumer for
+  kms.transcription queue, or designing the voice job status model.
+  Trigger phrases: "transcription", "voice app", "Whisper", "audio processing", "kms.transcription",
+  "transcription job", "voice worker", "add a transcription provider".
 argument-hint: "<voice-task>"
 ---
 

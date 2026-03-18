@@ -1,6 +1,12 @@
 ---
 name: kb-platform-engineer
-description: Docker Compose multi-service orchestration, CI/CD, environment configuration
+description: |
+  Manages Docker Compose multi-service orchestration, CI/CD pipelines, environment configuration,
+  and infrastructure setup. Use when adding a new service to docker-compose, configuring healthchecks,
+  setting up environment variables, debugging container startup failures, setting up CI/CD pipelines,
+  or configuring network settings between services.
+  Trigger phrases: "add to docker-compose", "fix container startup", "configure healthcheck",
+  "set up CI", "Docker won't start", "environment config", "deploy pipeline", "service networking".
 argument-hint: "<platform-task>"
 ---
 

@@ -1,6 +1,12 @@
 ---
 name: kb-architect
-description: Design KMS microservice architecture, component diagrams, integration strategy
+description: |
+  Designs KMS microservice architecture, writes ADRs, creates component diagrams, and evaluates
+  technology choices with trade-off analysis. Use when designing a new feature's system architecture,
+  deciding between technology options, writing an Architecture Decision Record, creating sequence
+  diagrams for a data flow, reviewing a design for cross-service coupling, or evaluating scalability.
+  Trigger phrases: "design the architecture", "write an ADR", "should we use X or Y",
+  "how should this be structured", "draw the sequence", "system design", "architecture review".
 argument-hint: "<design-task>"
 ---
 
