@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Search, Bell, User, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 /**
  * KMS Topbar — fixed header with logo, global search, and user menu.
@@ -13,6 +13,44 @@ export function KmsTopbar() {
   const params = useParams();
   const locale = (params?.locale as string) ?? 'en';
   const [searchFocused, setSearchFocused] = useState(false);
+  const router = useRouter();
+
+  // Ref to the search input so we can programmatically focus it via ⌘K
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * ⌘K / Ctrl+K global shortcut — focuses the topbar search input.
+   * Registered once on mount via addEventListener (not via onKeyDown on the
+   * input itself) so it fires regardless of which element has focus.
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        // Prevent browser's default ⌘K action (e.g. open link in some browsers)
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select(); // select existing text so user can replace it
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    // Cleanup on unmount to avoid stacking listeners across re-mounts
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  /**
+   * Navigate to the search page when the user presses Enter in the topbar.
+   * We don't search inline in the topbar — the search page provides the
+   * full result list, filters, and highlighted snippets.
+   */
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      const q = e.currentTarget.value.trim();
+      if (q) {
+        // Navigate to the dedicated search page with the query in the URL
+        router.push(`/${locale}/search?q=${encodeURIComponent(q)}`);
+      }
+    }
+  }
 
   return (
     <header
@@ -55,10 +93,13 @@ export function KmsTopbar() {
         >
           <Search className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search knowledge base…"
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
+            // Navigate to /search?q=... on Enter — the search page has the full UI
+            onKeyDown={handleSearchKeyDown}
             className="
               flex-1 bg-transparent outline-none
               text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]
