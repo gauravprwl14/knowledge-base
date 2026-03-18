@@ -40,6 +40,7 @@ Engineering standards, architecture decision records, and sequence diagrams.
 | LangGraph checkpointer: PostgreSQL vs Redis (dual storage) | `decisions/0025-langgraph-postgres-checkpointer.md` |
 | LLM provider abstraction: capability-based factory, Anthropic-primary | `decisions/0026-llm-provider-abstraction.md` |
 | Dual-queue boundary: BullMQ (internal) vs RabbitMQ (Python IPC) | `decisions/0028-dual-queue-boundary.md` |
+| Why search-api is a standalone NestJS service (port 8001) with header-based auth? | `decisions/0029-search-api-standalone-service.md` |
 | ADR index (all decisions) | `decisions/README.md` |
 | User registration flow (POST /auth/register, bcrypt, JWT, Redis refresh token) | `sequence-diagrams/01-user-registration.md` |
 | User login + JWT refresh flow (bcrypt verify, token rotation, Redis) | `sequence-diagrams/02-user-login.md` |
@@ -75,6 +76,6 @@ Engineering standards, architecture decision records, and sequence diagrams.
 
 ## Naming Conventions
 
-- ADRs: `decisions/NNNN-{kebab-case-title}.md` (4-digit zero-padded, next = 0027)
+- ADRs: `decisions/NNNN-{kebab-case-title}.md` (4-digit zero-padded, next = 0030)
 - Sequence diagrams: `sequence-diagrams/NN-{kebab-case-flow}.md` (2-digit, next = 22)
 - Status values in ADRs: `Proposed` → `Accepted` → `Deprecated` → `Superseded by [ADR-NNNN]`

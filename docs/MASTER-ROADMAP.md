@@ -43,7 +43,7 @@ This roadmap reflects reality, not aspiration.
 
 ## Phase 0 — Architecture and Documentation
 
-**Status: ~80% Complete**
+**Status: COMPLETE**
 
 The goal of Phase 0 was to design the system before building it. This is largely done.
 
@@ -160,8 +160,7 @@ A user can register a local folder, scan it, and ask questions about the documen
 
 ## Phase 3 — Content Workflows
 
-**Status: NOT STARTED**
-**Blocked by: Phase 2 acceptance criteria met**
+**Status: COMPLETE**
 
 Phase 3 adds agentic content workflows — the ability to ingest URLs and generate content that is saved back to the knowledge base.
 
@@ -202,8 +201,7 @@ A user can drop a YouTube URL in chat and receive a note in their Obsidian vault
 
 ## Phase 4 — Full Agentic Platform
 
-**Status: NOT STARTED**
-**Blocked by: Phase 3 acceptance criteria met**
+**Status: IN PROGRESS — Sprint 4**
 
 Phase 4 completes the multi-agent vision: external agents can connect, sub-agents can be spawned, and Claude Code has live KMS context during coding.
 
@@ -244,8 +242,8 @@ Claude Code can call kms_search autonomously during a coding session and receive
 
 ## Phase 5 — Production Hardening
 
-**Status: NOT STARTED**
-**Can run in parallel with Phases 3 and 4**
+**Status: IN PROGRESS — test coverage is the current blocker**
+**Can run in parallel with Phase 4**
 
 Phase 5 is ongoing work that should be layered in as the system stabilizes. It is not a blocker for any phase but must be complete before any production deployment.
 
@@ -309,3 +307,4 @@ These are locked in via ADRs and must not be revisited without a new ADR:
 | Default LLM | Claude (Anthropic API) | ADR-0020 |
 | Frontend | Next.js 15 (App Router) | ADR-0005 |
 | ORM | Prisma | ADR-0004 |
+| Search service isolation | Standalone NestJS service (port 8001), header-based auth | ADR-0029 |
