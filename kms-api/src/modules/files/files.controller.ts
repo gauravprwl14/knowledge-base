@@ -1,31 +1,28 @@
 import {
   Controller,
   Get,
-  Delete,
-  Patch,
   Param,
-  Body,
+  Query,
   UseGuards,
-  HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
   ApiParam,
-  ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { FilesService } from './files.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ApiEndpoint } from '../../common/decorators/swagger.decorator';
 
 /**
- * FilesController exposes REST endpoints for querying and managing KMS files.
+ * FilesController exposes REST endpoints for querying KMS files.
  *
- * Files are individual documents discovered by the scan-worker and processed
- * by the embed-worker. Clients can list, inspect, delete, and tag files via
- * these endpoints.
+ * Routes:
+ * - GET /files         — paginated file list (cursor-based)
+ * - GET /files/:id     — single file by UUID
  *
  * All routes require a valid JWT access token.
  */
@@ -37,73 +34,45 @@ export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   /**
-   * Returns all KMS files with optional filtering.
+   * Returns a cursor-based page of KMS files belonging to the caller.
    *
-   * @returns Array of file records.
+   * @param userId - Injected from JWT
+   * @param cursor - Opaque cursor from the previous response
+   * @param limit  - Max results per page (default: 20)
    */
   @Get()
-  @ApiOperation({ summary: 'List all KMS files' })
-  @ApiResponse({ status: 200, description: 'Files retrieved successfully' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findAll() {
-    return this.filesService.findAll();
+  @ApiEndpoint({
+    summary: 'List KMS files (cursor pagination)',
+    description: 'Returns a page of files belonging to the authenticated user. Use nextCursor for subsequent pages.',
+  })
+  @ApiQuery({ name: 'cursor', required: false, type: String, description: 'Opaque cursor from previous page' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max results per page (default: 20)' })
+  async listFiles(
+    @CurrentUser('id') userId: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? Math.min(parseInt(limit, 10), 100) : 20;
+    return this.filesService.listFiles(userId, cursor, parsedLimit);
   }
 
   /**
    * Returns a single KMS file by its UUID.
    *
-   * @param id - UUID of the file.
-   * @returns The matching file record.
+   * @param id     - File UUID
+   * @param userId - Injected from JWT
    */
   @Get(':id')
-  @ApiOperation({ summary: 'Get a KMS file by ID' })
   @ApiParam({ name: 'id', type: String, description: 'File UUID' })
-  @ApiResponse({ status: 200, description: 'File retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'File not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findOne(@Param('id') id: string) {
-    return this.filesService.findOne(id);
-  }
-
-  /**
-   * Soft-deletes a KMS file and removes its embedding from Qdrant.
-   *
-   * @param id - UUID of the file to delete.
-   */
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a KMS file' })
-  @ApiParam({ name: 'id', type: String, description: 'File UUID' })
-  @ApiResponse({ status: 204, description: 'File deleted successfully' })
-  @ApiResponse({ status: 404, description: 'File not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  remove(@Param('id') id: string) {
-    return this.filesService.remove(id);
-  }
-
-  /**
-   * Replaces the tags on a KMS file.
-   *
-   * @param id - UUID of the file to tag.
-   * @param body - Object containing the `tags` array.
-   * @returns The updated file record.
-   */
-  @Patch(':id/tags')
-  @ApiOperation({ summary: 'Update tags on a KMS file' })
-  @ApiParam({ name: 'id', type: String, description: 'File UUID' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        tags: { type: 'array', items: { type: 'string' } },
-      },
-      required: ['tags'],
-    },
+  @ApiEndpoint({
+    summary: 'Get a KMS file by ID',
+    description: 'Returns a single file owned by the caller. 404 if not found or not owned.',
+    responses: [{ status: HttpStatus.NOT_FOUND, description: 'File not found' }],
   })
-  @ApiResponse({ status: 200, description: 'Tags updated successfully' })
-  @ApiResponse({ status: 404, description: 'File not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  updateTags(@Param('id') id: string, @Body() body: { tags: string[] }) {
-    return this.filesService.updateTags(id, body.tags);
+  async getFile(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.filesService.getFile(id, userId);
   }
 }

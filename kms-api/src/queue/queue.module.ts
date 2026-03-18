@@ -1,69 +1,31 @@
 import { Global, Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import {
-  EMBED_QUEUE,
-  SCAN_QUEUE,
-  GRAPH_QUEUE,
-  TRANSCRIPTION_QUEUE,
-} from './queue.constants';
+import { ScanJobPublisher } from './publishers/scan-job.publisher';
 
 /**
- * QueueModule registers BullMQ queues used by the KMS API.
+ * QueueModule — RabbitMQ (AMQP) publisher infrastructure for kms-api.
  *
- * Marked `@Global()` so that any feature module can inject a `Queue` token
- * without explicitly importing QueueModule.
+ * Marked `@Global()` so feature modules can inject `ScanJobPublisher` without
+ * explicitly importing QueueModule.
  *
- * The Redis connection is derived from `ConfigService` at runtime using the
- * following environment variables:
- * - `REDIS_HOST`     — defaults to `localhost`
- * - `REDIS_PORT`     — defaults to `6379`
- * - `REDIS_PASSWORD` — optional
- * - `REDIS_DB`       — defaults to `0`
+ * ## Single queue system: RabbitMQ only
  *
- * Registered queues:
- * - `kms.embed`         (EMBED_QUEUE)
- * - `kms.scan`          (SCAN_QUEUE)
- * - `kms.graph`         (GRAPH_QUEUE)
- * - `kms.transcription` (TRANSCRIPTION_QUEUE)
+ * All async messaging uses RabbitMQ regardless of producer/consumer language.
+ * NestJS publishes via `ScanJobPublisher` (amqplib).
+ * Python workers consume via `aio-pika`.
  *
- * @example
- * ```typescript
- * // Inject a queue producer in any service
- * import { InjectQueue } from '@nestjs/bullmq';
- * import { Queue } from 'bullmq';
- * import { SCAN_QUEUE } from '@queue/queue.constants';
+ * There is no BullMQ in this module. `@nestjs/schedule` handles all time-based
+ * scheduling (cron, intervals) within NestJS. See ADR-0028.
  *
- * @Injectable()
- * export class SourcesService {
- *   constructor(@InjectQueue(SCAN_QUEUE) private readonly scanQueue: Queue) {}
- * }
- * ```
+ * Queue topology:
+ *   kms.scan          ← ScanJobPublisher (this module)   → scan-worker (Python)
+ *   kms.embed         ← scan-worker (Python)             → embed-worker (Python)
+ *   kms.dedup         ← scan-worker (Python)             → dedup-worker (Python)
+ *   kms.graph         ← embed-worker (Python)            → graph-worker (Python)
+ *   kms.transcription ← voice-app (Python)               → voice-app (Python)
  */
 @Global()
 @Module({
-  imports: [
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          host: config.get<string>('REDIS_HOST') ?? 'localhost',
-          port: config.get<number>('REDIS_PORT') ?? 6379,
-          password: config.get<string>('REDIS_PASSWORD'),
-          db: config.get<number>('REDIS_DB') ?? 0,
-        },
-      }),
-    }),
-
-    // Register all queues so producers can be injected via @InjectQueue()
-    BullModule.registerQueue(
-      { name: EMBED_QUEUE },
-      { name: SCAN_QUEUE },
-      { name: GRAPH_QUEUE },
-      { name: TRANSCRIPTION_QUEUE },
-    ),
-  ],
-  exports: [BullModule],
+  providers: [ScanJobPublisher],
+  exports: [ScanJobPublisher],
 })
 export class QueueModule {}

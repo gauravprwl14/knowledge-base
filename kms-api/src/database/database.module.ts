@@ -5,6 +5,7 @@ import { ApiKeyRepository } from './repositories/api-key.repository';
 import { AuditLogRepository } from './repositories/audit-log.repository';
 import { SourceRepository } from './repositories/source.repository';
 import { ScanJobRepository } from './repositories/scan-job.repository';
+import { FileRepository } from './repositories/file.repository';
 
 /**
  * DatabaseModule provides database access throughout the application.
@@ -37,6 +38,7 @@ import { ScanJobRepository } from './repositories/scan-job.repository';
     AuditLogRepository,
     SourceRepository,
     ScanJobRepository,
+    FileRepository,
   ],
   exports: [
     PrismaModule,
@@ -45,6 +47,7 @@ import { ScanJobRepository } from './repositories/scan-job.repository';
     AuditLogRepository,
     SourceRepository,
     ScanJobRepository,
+    FileRepository,
   ],
 })
 export class DatabaseModule {}
