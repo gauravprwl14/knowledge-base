@@ -25,3 +25,4 @@ export * from './api-key.repository';
 export * from './audit-log.repository';
 export * from './source.repository';
 export * from './scan-job.repository';
+export * from './file.repository';
