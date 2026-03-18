@@ -1,75 +1,44 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
-
-import { PrismaModule } from './prisma/prisma.module';
+import { AppConfigModule } from './config/config.module';
 import { SearchModule } from './search/search.module';
-import { HealthModule } from './health/health.module';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { HealthController } from './health/health.controller';
 
 /**
- * AppModule — root module for the search-api NestJS application.
+ * AppModule is the root NestJS module for search-api.
  *
- * ### Responsibilities
- * - Loads environment variables via `ConfigModule.forRoot({ isGlobal: true })`.
- * - Registers {@link PrismaModule} globally so all feature modules can inject
- *   {@link PrismaService} without additional imports.
- * - Configures rate limiting via `ThrottlerModule` (health endpoints are
- *   excluded via `\@SkipThrottle()`).
- * - Applies the global {@link AllExceptionsFilter} to produce structured
- *   error responses.
- *
- * No JWT guards are registered here — authentication is handled upstream by
- * the kms-api gateway which forwards the `x-user-id` header.
+ * Module composition:
+ * - `AppConfigModule`  — global Zod-validated env config (imported once here)
+ * - `LoggerModule`     — nestjs-pino structured JSON logger (global, transport depends on NODE_ENV)
+ * - `SearchModule`     — POST /search, POST /search/seed
+ * - `HealthController` — GET /health (registered directly; no sub-module needed)
  */
 @Module({
   imports: [
-    // Environment configuration — global so all modules can inject ConfigService
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: ['.env.local', '.env'],
-    }),
+    // Global config module — validates env vars at startup via Zod schema
+    AppConfigModule,
 
-    // Structured JSON logging via pino
+    // Pino structured logger — JSON in production, pretty-printed in development
     LoggerModule.forRoot({
       pinoHttp: {
-        level: process.env.LOG_LEVEL || 'info',
+        // Log level from env (falls back to 'info' if not set at this point)
+        level: process.env.LOG_LEVEL ?? 'info',
+        // Redact sensitive headers from access logs
+        redact: ['req.headers.authorization', 'req.headers["x-user-id"]'],
+        // Use pretty printing in non-production for developer ergonomics
         transport:
           process.env.NODE_ENV !== 'production'
-            ? { target: 'pino-pretty', options: { colorize: true } }
+            ? { target: 'pino-pretty', options: { colorize: true, singleLine: true } }
             : undefined,
+        // Attach request ID to every log line for trace correlation
+        genReqId: (req) => (req.headers['x-request-id'] as string) ?? crypto.randomUUID(),
       },
     }),
-
-    // Rate limiting: 100 requests per minute by default
-    ThrottlerModule.forRoot([
-      {
-        ttl: parseInt(process.env.THROTTLE_TTL || '60', 10) * 1000,
-        limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10),
-      },
-    ]),
-
-    // Global database access (marked @Global inside PrismaModule)
-    PrismaModule,
 
     // Feature modules
     SearchModule,
-    HealthModule,
   ],
-  providers: [
-    // Global exception filter
-    {
-      provide: APP_FILTER,
-      useClass: AllExceptionsFilter,
-    },
-    // Global rate limiting guard
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
-  ],
+  // HealthController registered at the root level so it maps to GET /health
+  controllers: [HealthController],
 })
 export class AppModule {}
