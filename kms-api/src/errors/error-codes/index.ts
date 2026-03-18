@@ -13,6 +13,10 @@
  * - DAT: Data/Database errors
  * - SRV: Server/Internal errors
  * - EXT: External service errors
+<<<<<<< HEAD
+=======
+ * - WFL: Workflow engine errors
+>>>>>>> feat/sprint3-workflow-engine
  *
  * Each error definition includes:
  * - code: Unique error identifier
@@ -800,25 +804,58 @@ export const EXT_ERROR_CODES = {
     retryable: true,
     userFacing: true,
   },
+<<<<<<< HEAD
   ACP_SESSION_NOT_FOUND: {
     code: 'EXT0012',
     message: 'ACP session not found or expired',
+=======
+} as const satisfies Record<string, ErrorDefinition>;
+
+/**
+ * Workflow Engine Error Codes (WFL0000 - WFL9999)
+ *
+ * Used by WorkflowService, WorkflowProcessor, and ContentStoreService.
+ */
+export const WFL_ERROR_CODES = {
+  /**
+   * KBWFL0001 — Workflow job not found.
+   * Returned by GET /workflow/jobs/:jobId when the BullMQ job has expired
+   * or the provided ID was never valid.
+   */
+  WORKFLOW_JOB_NOT_FOUND: {
+    code: 'KBWFL0001',
+    message: 'Workflow job not found',
+>>>>>>> feat/sprint3-workflow-engine
     httpStatus: 404,
     severity: 'WARNING',
     retryable: false,
     userFacing: true,
   },
+<<<<<<< HEAD
   ANTHROPIC_ERROR: {
     code: 'EXT0013',
     message: 'Anthropic API error',
     httpStatus: 502,
     severity: 'ERROR',
+=======
+  /**
+   * KBWFL0002 — url-agent service unavailable.
+   * Raised when all retry attempts to POST url-agent /api/v1/urls/ingest fail.
+   * Marked retryable so BullMQ back-off policy applies automatically.
+   */
+  URL_AGENT_UNAVAILABLE: {
+    code: 'KBWFL0002',
+    message: 'URL agent service is unavailable',
+    httpStatus: 502,
+    severity: 'WARNING',
+>>>>>>> feat/sprint3-workflow-engine
     retryable: true,
     userFacing: true,
   },
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
+<<<<<<< HEAD
  * File Error Codes (FIL0000 - FIL9999)
  */
 export const FIL_ERROR_CODES = {
@@ -863,6 +900,8 @@ export const TAG_ERROR_CODES = {
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
+=======
+>>>>>>> feat/sprint3-workflow-engine
  * Combined error codes object
  */
 export const ERROR_CODES = {
@@ -873,8 +912,12 @@ export const ERROR_CODES = {
   DAT: DAT_ERROR_CODES,
   SRV: SRV_ERROR_CODES,
   EXT: EXT_ERROR_CODES,
+<<<<<<< HEAD
   FIL: FIL_ERROR_CODES,
   TAG: TAG_ERROR_CODES,
+=======
+  WFL: WFL_ERROR_CODES,
+>>>>>>> feat/sprint3-workflow-engine
 } as const;
 
 /**
@@ -888,8 +931,12 @@ export type ErrorCode =
   | (typeof DAT_ERROR_CODES)[keyof typeof DAT_ERROR_CODES]['code']
   | (typeof SRV_ERROR_CODES)[keyof typeof SRV_ERROR_CODES]['code']
   | (typeof EXT_ERROR_CODES)[keyof typeof EXT_ERROR_CODES]['code']
+<<<<<<< HEAD
   | (typeof FIL_ERROR_CODES)[keyof typeof FIL_ERROR_CODES]['code']
   | (typeof TAG_ERROR_CODES)[keyof typeof TAG_ERROR_CODES]['code'];
+=======
+  | (typeof WFL_ERROR_CODES)[keyof typeof WFL_ERROR_CODES]['code'];
+>>>>>>> feat/sprint3-workflow-engine
 
 /**
  * Helper type to extract error definition from error codes object
@@ -907,8 +954,12 @@ export type AnyErrorDefinition =
   | ExtractErrorDef<typeof DAT_ERROR_CODES>
   | ExtractErrorDef<typeof SRV_ERROR_CODES>
   | ExtractErrorDef<typeof EXT_ERROR_CODES>
+<<<<<<< HEAD
   | ExtractErrorDef<typeof FIL_ERROR_CODES>
   | ExtractErrorDef<typeof TAG_ERROR_CODES>;
+=======
+  | ExtractErrorDef<typeof WFL_ERROR_CODES>;
+>>>>>>> feat/sprint3-workflow-engine
 
 /**
  * Gets the error definition for a given error code

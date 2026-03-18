@@ -20,10 +20,15 @@ import { SearchModule } from './modules/search/search.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { CollectionsModule } from './modules/collections/collections.module';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { AcpModule } from './modules/acp/acp.module';
 =======
 import { TagsModule } from './modules/tags/tags.module';
 >>>>>>> feat/drive-backend
+=======
+// WorkflowModule — Sprint 3: URL ingestion pipeline (BullMQ + url-agent + Anthropic summary)
+import { WorkflowModule } from './modules/workflow/workflow.module';
+>>>>>>> feat/sprint3-workflow-engine
 
 // Infrastructure modules
 import { QueueModule } from './queue/queue.module';
@@ -47,7 +52,11 @@ import { RolesGuard } from './common/guards/roles.guard';
  *
  * Configures:
  * - Global modules (Config, Database, Logger, Telemetry, Queue, Cache)
+<<<<<<< HEAD
  * - Feature modules (Auth, Health, Sources, Files, Search, Agents)
+=======
+ * - Feature modules (Auth, Health, Sources, Files, Search, Agents, Collections, Workflow)
+>>>>>>> feat/sprint3-workflow-engine
  * - Global filters, interceptors, guards, and middleware
  * - Rate limiting with Throttler
  */
@@ -69,6 +78,11 @@ import { RolesGuard } from './common/guards/roles.guard';
     ]),
 
     // Infrastructure — global Redis cache and BullMQ queues
+<<<<<<< HEAD
+=======
+    // QueueModule must be imported BEFORE WorkflowModule so that
+    // BullModule.forRootAsync (Redis connection) is registered globally first
+>>>>>>> feat/sprint3-workflow-engine
     CacheModule,
     QueueModule,
 
@@ -85,10 +99,18 @@ import { RolesGuard } from './common/guards/roles.guard';
     AgentsModule,
     CollectionsModule,
 <<<<<<< HEAD
+<<<<<<< HEAD
     AcpModule,
 =======
     TagsModule,
 >>>>>>> feat/drive-backend
+=======
+
+    // Sprint 3: URL ingestion workflow pipeline
+    // Registers the `workflow` BullMQ queue and its async processor.
+    // Exposes POST /workflow/urls/ingest and GET /workflow/jobs/:jobId.
+    WorkflowModule,
+>>>>>>> feat/sprint3-workflow-engine
   ],
   providers: [
     // Global exception filters — order matters: registered last = runs first.
