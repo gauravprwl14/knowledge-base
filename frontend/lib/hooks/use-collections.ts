@@ -1,63 +1,122 @@
 'use client';
 
 /**
- * Collections hooks — React Query wrappers for /collections API endpoints.
+ * Collections hooks — TanStack Query wrappers over collectionsApi.
+ *
+ * Follows the same pattern as use-sources.ts and use-files.ts.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { collectionsApi, type CreateCollectionPayload } from '@/lib/api/collections';
+import { collectionsApi } from '../api/collections';
+import type { CreateCollectionPayload } from '../api/collections';
 
-export const COLLECTIONS_QUERY_KEY = ['collections'] as const;
-
-// ---------------------------------------------------------------------------
-// List collections
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Read hooks
+// ===========================================================================
 
 /**
- * Fetches all collections for the authenticated user.
+ * Returns all collections for the authenticated user.
  */
 export function useCollections() {
   return useQuery({
-    queryKey: COLLECTIONS_QUERY_KEY,
+    queryKey: ['collections'],
     queryFn: collectionsApi.list,
-    staleTime: 30_000,
   });
 }
 
-// ---------------------------------------------------------------------------
-// Create collection
-// ---------------------------------------------------------------------------
+/**
+ * Returns a single collection by ID.
+ * Only fetches when a non-empty id is provided.
+ */
+export function useCollection(id: string) {
+  return useQuery({
+    queryKey: ['collections', id],
+    queryFn: () => collectionsApi.get(id),
+    enabled: !!id,
+  });
+}
+
+// ===========================================================================
+// Mutation hooks
+// ===========================================================================
 
 /**
  * Mutation to create a new collection.
- * Invalidates the collections list cache on success.
+ * Invalidates the collections list on success.
  */
 export function useCreateCollection() {
   const qc = useQueryClient();
-
   return useMutation({
-    mutationFn: (data: CreateCollectionPayload) => collectionsApi.create(data),
+    mutationFn: (payload: CreateCollectionPayload) =>
+      collectionsApi.create(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collections'] }),
+  });
+}
+
+/**
+ * Mutation to update a collection's name or description.
+ */
+export function useUpdateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: { id: string } & Partial<CreateCollectionPayload>) =>
+      collectionsApi.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collections'] }),
+  });
+}
+
+/**
+ * Mutation to delete a collection.
+ * Files inside are not deleted — only the collection record is removed.
+ */
+export function useDeleteCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => collectionsApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collections'] }),
+  });
+}
+
+/**
+ * Mutation to add files to a collection.
+ * Invalidates both collections (fileCount) and files (collectionId field) on success.
+ */
+export function useAddFilesToCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      collectionId,
+      fileIds,
+    }: {
+      collectionId: string;
+      fileIds: string[];
+    }) => collectionsApi.addFiles(collectionId, fileIds),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: COLLECTIONS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ['collections'] });
+      qc.invalidateQueries({ queryKey: ['files'] });
     },
   });
 }
 
-// ---------------------------------------------------------------------------
-// Delete collection
-// ---------------------------------------------------------------------------
-
 /**
- * Mutation to delete a collection by ID.
- * Invalidates the collections list cache on success.
+ * Mutation to remove files from a collection.
  */
-export function useDeleteCollection() {
+export function useRemoveFilesFromCollection() {
   const qc = useQueryClient();
-
   return useMutation({
-    mutationFn: (id: string) => collectionsApi.delete(id),
+    mutationFn: ({
+      collectionId,
+      fileIds,
+    }: {
+      collectionId: string;
+      fileIds: string[];
+    }) => collectionsApi.removeFiles(collectionId, fileIds),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: COLLECTIONS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ['collections'] });
+      qc.invalidateQueries({ queryKey: ['files'] });
     },
   });
 }

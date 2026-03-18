@@ -1,112 +1,168 @@
 'use client';
 
 /**
- * Files hooks — React Query wrappers for /files API endpoints.
+ * File and tag hooks — TanStack Query wrappers over filesApi and tagsApi.
+ *
+ * Each hook follows the pattern established in use-sources.ts:
+ * - useQuery for reads (auto-fetches, cached by queryKey)
+ * - useMutation for writes (invalidates related caches on success)
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { filesApi, type FilesListParams, type KmsFile } from '@/lib/api/files';
+import { filesApi, tagsApi } from '../api/files';
+import type { ListFilesParams } from '../api/files';
 
-export const FILES_QUERY_KEY = ['files'] as const;
-
-// ---------------------------------------------------------------------------
-// List files
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Files hooks
+// ===========================================================================
 
 /**
- * Fetches the paginated list of files, optionally filtered.
- * Data is considered stale after 30 seconds.
+ * Returns a paginated list of files, re-fetched whenever params change.
+ * Params are serialised into the queryKey so each unique filter set is cached separately.
  */
-export function useFiles(params?: FilesListParams) {
+export function useFiles(params: ListFilesParams = {}) {
   return useQuery({
-    queryKey: [...FILES_QUERY_KEY, params] as const,
+    // Stringify params so deep equality works correctly as a cache key
+    queryKey: ['files', params],
     queryFn: () => filesApi.list(params),
-    staleTime: 30_000,
   });
 }
-
-// ---------------------------------------------------------------------------
-// Single file
-// ---------------------------------------------------------------------------
 
 /**
- * Fetches a single file by ID.
+ * Returns a single file by ID.
+ * Only fetches when a non-empty id is provided.
  */
-export function useFile(id: string | null) {
+export function useFile(id: string) {
   return useQuery({
-    queryKey: [...FILES_QUERY_KEY, id] as const,
-    queryFn: () => filesApi.get(id!),
-    enabled: Boolean(id),
-    staleTime: 30_000,
+    queryKey: ['files', id],
+    queryFn: () => filesApi.get(id),
+    enabled: !!id,
   });
 }
-
-// ---------------------------------------------------------------------------
-// Delete single file
-// ---------------------------------------------------------------------------
 
 /**
  * Mutation to delete a single file.
- * Applies an optimistic update: removes the file from cached list immediately,
- * then invalidates to refetch on success.
+ * Invalidates the files list on success.
  */
 export function useDeleteFile() {
   const qc = useQueryClient();
-
   return useMutation({
     mutationFn: (id: string) => filesApi.delete(id),
-    onMutate: async (id: string) => {
-      await qc.cancelQueries({ queryKey: FILES_QUERY_KEY });
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['files'] }),
+  });
+}
 
-      // Snapshot all file-list cache entries for rollback
-      const previous = qc.getQueriesData<{ items: KmsFile[]; total: number }>({
-        queryKey: FILES_QUERY_KEY,
-      });
+/**
+ * Mutation to bulk-delete multiple files.
+ * Invalidates the files list on success.
+ */
+export function useBulkDeleteFiles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fileIds: string[]) => filesApi.bulkDelete(fileIds),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['files'] }),
+  });
+}
 
-      // Optimistically remove the file
-      qc.setQueriesData<{ items: KmsFile[]; total: number }>(
-        { queryKey: FILES_QUERY_KEY },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            items: old.items.filter((f) => f.id !== id),
-            total: Math.max(0, old.total - 1),
-          };
-        },
-      );
+// ===========================================================================
+// Tags hooks
+// ===========================================================================
 
-      return { previous };
-    },
-    onError: (_err, _id, context) => {
-      // Roll back optimistic update
-      if (context?.previous) {
-        for (const [key, value] of context.previous) {
-          qc.setQueryData(key, value);
-        }
-      }
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: FILES_QUERY_KEY });
+/**
+ * Returns all tags for the authenticated user.
+ */
+export function useTags() {
+  return useQuery({
+    queryKey: ['tags'],
+    queryFn: tagsApi.list,
+  });
+}
+
+/**
+ * Mutation to create a new tag.
+ * Invalidates the tags list on success.
+ */
+export function useCreateTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, color }: { name: string; color: string }) =>
+      tagsApi.create(name, color),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tags'] }),
+  });
+}
+
+/**
+ * Mutation to update an existing tag's name or color.
+ * Invalidates the tags list on success.
+ */
+export function useUpdateTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: string;
+      name?: string;
+      color?: string;
+    }) => tagsApi.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tags'] }),
+  });
+}
+
+/**
+ * Mutation to delete a tag.
+ * Invalidates both tags and files (since file tag arrays change) on success.
+ */
+export function useDeleteTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => tagsApi.delete(id),
+    onSuccess: () => {
+      // Invalidate both caches — file cards embed tag chips
+      qc.invalidateQueries({ queryKey: ['tags'] });
+      qc.invalidateQueries({ queryKey: ['files'] });
     },
   });
 }
 
-// ---------------------------------------------------------------------------
-// Bulk delete files
-// ---------------------------------------------------------------------------
+/**
+ * Mutation to add a tag to a single file.
+ * Invalidates files so tag chips re-render.
+ */
+export function useAddTagToFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fileId, tagId }: { fileId: string; tagId: string }) =>
+      tagsApi.addToFile(fileId, tagId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['files'] }),
+  });
+}
 
 /**
- * Mutation to delete multiple files at once.
- * Invalidates the files list cache on success.
+ * Mutation to remove a tag from a single file.
  */
-export function useBulkDeleteFiles() {
+export function useRemoveTagFromFile() {
   const qc = useQueryClient();
-
   return useMutation({
-    mutationFn: (ids: string[]) => filesApi.bulkDelete(ids),
+    mutationFn: ({ fileId, tagId }: { fileId: string; tagId: string }) =>
+      tagsApi.removeFromFile(fileId, tagId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['files'] }),
+  });
+}
+
+/**
+ * Mutation to apply a tag to multiple selected files at once.
+ * Invalidates both tags (fileCount changes) and files on success.
+ */
+export function useBulkTagFiles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fileIds, tagId }: { fileIds: string[]; tagId: string }) =>
+      tagsApi.bulkTag(fileIds, tagId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: FILES_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ['tags'] });
+      qc.invalidateQueries({ queryKey: ['files'] });
     },
   });
 }
