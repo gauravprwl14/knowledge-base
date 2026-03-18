@@ -13,6 +13,17 @@ export interface AcpSession {
   createdAt: string;
   lastTouchedAt: string;
   cwd?: string;
+  /**
+   * Spawn depth of this session.
+   * 0 = created directly by a user; 1 = spawned by WorkflowEngine from a user session;
+   * 2 = spawned by an agent at depth 1 (maximum — enforced by ADR-0022).
+   */
+  sessionDepth?: number;
+  /**
+   * Session ID of the parent session that spawned this one (ADR-0022).
+   * Present only when sessionDepth >= 1.
+   */
+  parentSessionId?: string;
 }
 
 const SESSION_KEY_PREFIX = 'kms:acp:session:';
@@ -88,6 +99,31 @@ export class AcpSessionStore {
   async delete(sessionId: string): Promise<void> {
     await this.cache.del(this.key(sessionId));
     this.logger.info('ACP session deleted', { sessionId });
+  }
+
+  /**
+   * Updates a session with spawn metadata (parent session ID and depth).
+   * Called by AcpToolRegistry.kmsSpawnAgent() after a child session is created.
+   *
+   * @param sessionId      - The child session UUID to update.
+   * @param metadata       - Spawn metadata to merge into the session.
+   */
+  async setSpawnMetadata(
+    sessionId: string,
+    metadata: { parentSessionId: string; sessionDepth: number },
+  ): Promise<void> {
+    const session = await this.get(sessionId);
+    const updated: AcpSession = {
+      ...session,
+      parentSessionId: metadata.parentSessionId,
+      sessionDepth: metadata.sessionDepth,
+    };
+    await this.cache.set(this.key(sessionId), updated, this.ttlSeconds);
+    this.logger.info('ACP session spawn metadata set', {
+      sessionId,
+      parentSessionId: metadata.parentSessionId,
+      sessionDepth: metadata.sessionDepth,
+    });
   }
 
   private key(sessionId: string): string {
