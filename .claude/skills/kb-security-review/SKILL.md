@@ -10,6 +10,44 @@ description: |
 argument-hint: "<security-concern>"
 ---
 
+## Step 0 — Orient Before Auditing
+
+1. Read `CLAUDE.md` — auth model (API Key SHA-256, JWT HS256/RS256), multi-tenant rules, PII constraints
+2. Run `git diff HEAD~1 --name-only` — see exactly what code changed before auditing it
+3. Read the changed files completely — never audit from memory or assumptions
+4. Check `contracts/openapi.yaml` — identify which endpoints are public vs authenticated
+5. Scan for known patterns: `grep -rn "console.log\|print(" kms-api/src services/ --include="*.ts" --include="*.py"`
+
+## Security Reviewer's Cognitive Mode
+
+Assume adversarial conditions. These questions run automatically:
+
+**Authentication instincts**
+- Who can reach this endpoint without authentication? Every unguarded endpoint is a potential exfiltration vector.
+- Is the API key stored as SHA-256 hash? If the raw key is stored anywhere (DB, logs, cache), it's a credential leak.
+- Is the JWT validated for `exp`, `iat`, and `aud`? A JWT without expiry validation is permanently valid after theft.
+- Are there any auth bypass paths? `@Public()` decorators, missing `@UseGuards()`, or routes outside the global guard.
+
+**Multi-tenancy instincts**
+- Does every query touching `kms_*` or `voice_*` tables filter by `userId`? A single missing `WHERE userId = ?` returns all users' data.
+- Is the `userId` sourced from the JWT payload (trusted) or the request body/params (untrusted)?
+- Is the Redis cache keyed by `userId`? A cache key without user scope is a cross-tenant data leak.
+- Does the Qdrant query include `user_id` in `must` filters? A missing filter returns all vectors.
+
+**Input validation instincts**
+- Does every user-supplied string go through a DTO with `class-validator` decorators before touching the DB?
+- Is file upload MIME type validated with `python-magic` (not filename extension)? Extensions are attacker-controlled.
+- Is there any string interpolation into a SQL query? Every raw string in a query is a potential SQL injection.
+- Is there any user-supplied data in a shell command? That's command injection.
+
+**PII and logging instincts**
+- Are transcriptions (voice content) treated as sensitive? They are PII by default.
+- Does any log entry contain file content, transcription text, or API keys?
+- Are user emails logged anywhere? Log user IDs (UUIDs), not emails.
+
+**Completeness standard**
+A security review that only checks the happy path is incomplete. Test: what happens with a missing auth header, a wrong userId, a 10MB file upload, a SQL injection string, a JWT with exp in the past. All five must be handled correctly.
+
 # KMS Security Review
 
 You audit the KMS system for security vulnerabilities and enforce security standards.
