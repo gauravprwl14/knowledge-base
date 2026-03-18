@@ -50,7 +50,7 @@ export class SearchService {
    * @throws AppError with code EXT0001 when search-api is unreachable.
    * @throws AppError with code EXT0004 when the search-api returns an error status.
    */
-  async search(query: SearchQuery): Promise<unknown> {
+  async search(query: SearchQuery, userId: string): Promise<unknown> {
     const { q, type = 'hybrid', limit = 10 } = query;
 
     // search-api exposes POST /search with a JSON body ({ query, searchType, limit }).
@@ -58,6 +58,7 @@ export class SearchService {
     //   kms-api `q`    → search-api `query`
     //   kms-api `type` → search-api `searchType`
     //   kms-api `limit` → search-api `limit`
+    // x-user-id header is required by search-api for multi-tenant result filtering.
     const body = JSON.stringify({ query: q, searchType: type, limit });
 
     const url = `${this.searchApiBaseUrl}/search`;
@@ -68,7 +69,10 @@ export class SearchService {
     try {
       response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
         body,
         signal: AbortSignal.timeout(10_000), // 10-second timeout
       });

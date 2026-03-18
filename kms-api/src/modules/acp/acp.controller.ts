@@ -84,8 +84,9 @@ export class AcpController {
   promptSession(
     @Param('id') sessionId: string,
     @Body() dto: PromptSessionDto,
+    @Request() req: { user: { id: string } },
   ): Observable<MessageEvent> {
-    return this.acpService.runPrompt(sessionId, dto);
+    return this.acpService.runPrompt(sessionId, dto, req.user.id);
   }
 
   /**

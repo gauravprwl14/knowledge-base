@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -53,10 +53,11 @@ export class SearchController {
   @ApiResponse({ status: 502, description: 'Search service unavailable' })
   search(
     @Query('q') q: string,
+    @Request() req: any,
     @Query('type') type?: SearchType,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
   ) {
-    return this.searchService.search({ q, type, limit, offset });
+    return this.searchService.search({ q, type, limit, offset }, req.user.id);
   }
 }

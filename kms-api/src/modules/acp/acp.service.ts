@@ -57,12 +57,14 @@ export class AcpService {
    *
    * @param sessionId - The session UUID from the route param.
    * @param dto - The prompt payload.
+   * @param callerId - The authenticated caller's userId (from JWT). Used to
+   *   verify session ownership before executing the pipeline.
    * @returns RxJS Observable of SSE MessageEvents.
    */
-  runPrompt(sessionId: string, dto: PromptSessionDto): Observable<MessageEvent> {
+  runPrompt(sessionId: string, dto: PromptSessionDto, callerId: string): Observable<MessageEvent> {
     const emitter = new AcpEventEmitter();
 
-    this.executePromptPipeline(sessionId, dto, emitter).catch((err: Error) => {
+    this.executePromptPipeline(sessionId, dto, callerId, emitter).catch((err: Error) => {
       this.logger.error('Prompt pipeline error', { sessionId, error: err.message });
       emitter.emitError(err.message);
     });
@@ -73,9 +75,16 @@ export class AcpService {
   private async executePromptPipeline(
     sessionId: string,
     dto: PromptSessionDto,
+    callerId: string,
     emitter: AcpEventEmitter,
   ): Promise<void> {
     const session = await this.sessionStore.get(sessionId);
+
+    // Enforce session ownership — prevent cross-user prompt injection.
+    if (session.userId !== callerId) {
+      emitter.emitError('Session not found or access denied');
+      return;
+    }
 
     const question = dto.prompt
       .filter(p => p.type === 'text')
