@@ -32,11 +32,11 @@ All agents reference this file for project constants. Do not duplicate these val
 | NestJS services | `kms-api/src/modules/*/services/` |
 | NestJS DTOs | `kms-api/src/modules/*/dto/` |
 | Search API | `search-api/src/` |
-| Python workers | `backend/app/workers/` |
-| Python services | `backend/app/services/` |
-| Transcription providers | `backend/app/services/transcription/` |
-| Embedding workers | `backend/app/workers/embedding/` |
-| Python config | `backend/app/config.py` |
+| Python workers | `services/` |
+| Python services | `services/` |
+| Transcription providers | `services/voice-app/` |
+| Embedding workers | `services/embed-worker/` |
+| Python config | `services/*/config.py` |
 | Frontend pages | `frontend/app/` |
 | Frontend API client | `frontend/lib/api.ts` |
 | Docker dev config | `docker-compose.yml` + `docker-compose.override.yml` |
@@ -52,7 +52,7 @@ All agents reference this file for project constants. Do not duplicate these val
 |---------|------|-------|
 | kms-api (NestJS) | 8000 | Primary REST API |
 | search-api (NestJS) | 8001 | Search-specific endpoints |
-| voice-app (Python FastAPI) | 8002 | Transcription service |
+| voice-app (Python FastAPI) | 8003 | Transcription service |
 | Frontend (Next.js) | 3000 | Web UI |
 | PostgreSQL | 5432 | Exposed on localhost in dev |
 | Qdrant | 6333 (HTTP) / 6334 (gRPC) | Vector store |
@@ -107,9 +107,9 @@ Used for both voice transcription jobs and embedding/scan jobs:
 
 | Queue | Routing Key | Purpose |
 |-------|-------------|---------|
-| `scan.queue` | `scan` | Document source scan jobs |
-| `embed.queue` | `embed` | Embedding generation jobs |
-| `dedup.queue` | `dedup` | Deduplication check jobs |
+| `kms.scan` | `scan` | Document source scan jobs |
+| `kms.embed` | `embed` | Embedding generation jobs |
+| `kms.dedup` | `dedup` | Deduplication check jobs |
 | `trans.queue` | `transcription` | Voice transcription jobs |
 | `priority.queue` | `priority` | High-priority jobs (any type) |
 | `failed.queue` | — | Dead letter queue for all failed messages |
@@ -123,8 +123,8 @@ Used for both voice transcription jobs and embedding/scan jobs:
 
 | Property | Value |
 |----------|-------|
-| Model | `all-MiniLM-L6-v2` |
-| Dimensions | 384 |
+| Model | `BAAI/bge-m3` |
+| Dimensions | 1024 |
 | Source | sentence-transformers (HuggingFace) |
 | Qdrant distance metric | Cosine |
 | Qdrant collection | `kms_documents` |
