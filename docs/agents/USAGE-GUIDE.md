@@ -171,7 +171,7 @@ This guide covers common workflow patterns, when to use each agent, how to chain
 ```bash
 /kb-embedding-specialist "Switch from fixed 512-token chunks to sentence-boundary chunks with 20% overlap"
 /kb-python-lead "Update EmbeddingWorker to use new SentenceChunker class"
-/kb-db-specialist "Verify all-MiniLM-L6-v2 384-dim vectors are correctly typed in Qdrant collection"
+/kb-db-specialist "Verify BAAI/bge-m3 1024-dim vectors are correctly typed in Qdrant collection"
 ```
 
 ---
@@ -293,7 +293,7 @@ For complex tasks, let `kb-coordinate` determine the chain:
 ```bash
 /kb-search-specialist "Tune RRF k-parameter for better code search precision"
 /kb-search-specialist "Design Redis cache strategy for repeated search queries"
-/kb-search-specialist "Configure Qdrant HNSW index parameters for 384-dim vectors"
+/kb-search-specialist "Configure Qdrant HNSW index parameters for 1024-dim vectors"
 ```
 
 ### `/kb-voice-specialist`
