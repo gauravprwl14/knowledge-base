@@ -1,84 +1,59 @@
-import { Controller, Get, HttpStatus } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger';
-import { SkipThrottle } from '@nestjs/throttler';
-import { PrismaService } from '../prisma/prisma.service';
+import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 
 /**
- * HealthController — liveness and readiness probes for the search-api.
+ * HealthController provides a lightweight liveness probe for orchestrators
+ * (Docker, Kubernetes, load balancers) and the kms-api health aggregator.
  *
- * All endpoints are public (no auth header required) and throttle-skipped
- * so that Kubernetes / Docker probes are never rate-limited.
- *
- * @example
- * ```http
- * GET /api/v1/health
- * → { status: 'ok', database: true, timestamp: '…' }
- * ```
+ * GET /health returns 200 with service metadata when the process is alive.
+ * No dependency checks are performed — this is a liveness probe, not readiness.
  */
-@ApiTags('Health')
-@SkipThrottle()
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly config: ConfigService) {}
 
   /**
-   * Liveness probe — confirms the HTTP server is running.
+   * Returns liveness status for the search-api service.
    *
-   * @returns `{ status: 'ok', timestamp }` — always 200 while the process is alive.
+   * @returns JSON object with status, service name, and mock-mode flags
    */
   @Get()
-  @ApiOperation({ summary: 'Liveness probe — confirms the service is running' })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Liveness probe',
+    description: 'Returns 200 if the process is alive. Used by Docker healthcheck.',
+  })
   @ApiResponse({
-    status: HttpStatus.OK,
+    status: 200,
     description: 'Service is alive',
     schema: {
-      example: {
-        status: 'ok',
-        service: 'search-api',
-        timestamp: '2024-01-01T00:00:00.000Z',
+      type: 'object',
+      properties: {
+        status: { type: 'string', example: 'ok' },
+        service: { type: 'string', example: 'search-api' },
+        version: { type: 'string', example: '1.0.0' },
+        mockBm25: { type: 'boolean', example: true },
+        mockSemantic: { type: 'boolean', example: true },
+        uptime: { type: 'number', example: 42.5 },
       },
     },
   })
-  liveness(): Record<string, unknown> {
+  health(): Record<string, unknown> {
+    // Read mock-mode flags so operators can confirm the service configuration at a glance
+    const mockBm25 = this.config.get<boolean>('MOCK_BM25') ?? true;
+    const mockSemantic = this.config.get<boolean>('MOCK_SEMANTIC') ?? true;
+
     return {
       status: 'ok',
       service: 'search-api',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  /**
-   * Readiness probe — verifies the database connection is healthy.
-   *
-   * @returns `{ status, database, timestamp }` — `status: 'ok'` when ready.
-   */
-  @Get('ready')
-  @ApiOperation({ summary: 'Readiness probe — verifies database connectivity' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Service is ready to serve traffic',
-    schema: {
-      example: {
-        status: 'ok',
-        database: true,
-        timestamp: '2024-01-01T00:00:00.000Z',
-      },
-    },
-  })
-  @ApiResponse({
-    status: HttpStatus.SERVICE_UNAVAILABLE,
-    description: 'Database is not reachable',
-  })
-  async readiness(): Promise<Record<string, unknown>> {
-    const dbHealthy = await this.prisma.isHealthy();
-    return {
-      status: dbHealthy ? 'ok' : 'degraded',
-      database: dbHealthy,
-      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      // Mock flags help operators confirm dev vs production mode without reading env vars
+      mockBm25,
+      mockSemantic,
+      // Process uptime in seconds — useful for diagnosing recent restarts
+      uptime: parseFloat(process.uptime().toFixed(2)),
     };
   }
 }

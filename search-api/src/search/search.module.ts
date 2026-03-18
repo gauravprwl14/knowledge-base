@@ -1,24 +1,21 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { SearchController } from './search.controller';
 import { SearchService } from './search.service';
-import { KeywordService } from './keyword.service';
+import { Bm25Service } from './bm25.service';
 import { SemanticService } from './semantic.service';
 import { RrfService } from './rrf.service';
 
 /**
- * SearchModule — wires together the keyword, semantic, and RRF services that
- * power the `GET /api/v1/search` endpoint.
+ * SearchModule bundles all search-related providers and the controller.
  *
- * `ConfigModule` is imported to allow {@link SemanticService} to read
- * `QDRANT_URL` and `EMBED_WORKER_URL` from the environment.
- *
- * `PrismaModule` is global so it does not need to be imported here.
+ * Providers registered here:
+ * - `SearchService`   — orchestrates the three-stage pipeline
+ * - `Bm25Service`     — PostgreSQL FTS with mock fallback
+ * - `SemanticService` — Qdrant ANN with mock fallback
+ * - `RrfService`      — Reciprocal Rank Fusion
  */
 @Module({
-  imports: [ConfigModule],
   controllers: [SearchController],
-  providers: [SearchService, KeywordService, SemanticService, RrfService],
-  exports: [SearchService],
+  providers: [SearchService, Bm25Service, SemanticService, RrfService],
 })
 export class SearchModule {}

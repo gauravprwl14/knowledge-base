@@ -1,120 +1,69 @@
-/**
- * search-api Application Entry Point
- *
- * Bootstraps a read-only NestJS 11 + Fastify service that provides:
- *   - Keyword search  — PostgreSQL tsvector full-text search
- *   - Semantic search — Qdrant ANN with BGE-M3 1024-dim embeddings
- *   - Hybrid search   — Reciprocal Rank Fusion combining both
- *
- * OTel is initialised FIRST before any other import.
- */
-
-// ── OpenTelemetry initialisation (must be line 1 of runtime execution) ─────
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
-import { resourceFromAttributes } from '@opentelemetry/resources';
-import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
-
-const otelEnabled = process.env.OTEL_ENABLED !== 'false';
-
-if (otelEnabled) {
-  // OTel v2: Resource is now a type; use resourceFromAttributes() factory instead
-  // OTel gRPC exporter: endpoint is set via OTEL_EXPORTER_OTLP_ENDPOINT env var
-  // (the constructor config type no longer accepts a `url` property directly)
-  const sdk = new NodeSDK({
-    resource: resourceFromAttributes({
-      [SEMRESATTRS_SERVICE_NAME]: process.env.APP_NAME || 'search-api',
-      [SEMRESATTRS_SERVICE_VERSION]: process.env.npm_package_version || '1.0.0',
-    }),
-    traceExporter: new OTLPTraceExporter(),
-    instrumentations: [getNodeAutoInstrumentations()],
-  });
-
-  sdk.start();
-}
-
-// ── NestJS bootstrap ────────────────────────────────────────────────────────
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
+/**
+ * Bootstrap the search-api NestJS application.
+ *
+ * Adapter:   Fastify (lower latency than Express for high-throughput read-only queries)
+ * Logger:    nestjs-pino replaces the default NestJS logger for structured JSON output
+ * Swagger:   OpenAPI docs at /api/docs (disabled in production)
+ * Port:      8001 (configurable via PORT env var)
+ */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule,
-    new FastifyAdapter({ logger: false }),
-    { bufferLogs: true },
-  );
-
-  // Use pino as the global NestJS logger
-  app.useLogger(app.get(Logger));
-
-  // Global API prefix
-  const apiPrefix = process.env.API_PREFIX || 'api/v1';
-  app.setGlobalPrefix(apiPrefix);
-
-  // Security / compression / CORS (Fastify plugins)
-  await app.register(require('@fastify/helmet'));
-  await app.register(require('@fastify/compress'));
-  await app.register(require('@fastify/cors'), {
-    origin: (process.env.CORS_ORIGINS || '*').split(',').map((o: string) => o.trim()),
-    methods: ['GET', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-user-id', 'X-Request-ID'],
+  // Use Fastify adapter for higher throughput compared to Express
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
+    // Suppress the built-in logger — nestjs-pino takes over after module init
+    bufferLogs: true,
   });
 
-  // Swagger docs (non-production only)
+  // Replace NestJS default logger with the Pino-based structured logger
+  app.useLogger(app.get(Logger));
+
+  // Enable CORS — kms-api and the frontend may call this service directly in development
+  await app.register(
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@fastify/cors'),
+    {
+      // In production, restrict to kms-api origin via environment variable
+      origin: process.env.CORS_ORIGIN ?? '*',
+    },
+  );
+
+  // Swagger / OpenAPI documentation — enabled only outside production
   if (process.env.NODE_ENV !== 'production') {
-    const config = new DocumentBuilder()
-      .setTitle('search-api')
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('KMS Search API')
       .setDescription(
-        'Read-only hybrid search service for the Knowledge Management System.\n\n' +
-        'Provides keyword, semantic, and RRF-hybrid search over kms_files and kms_chunks.',
+        'Read-only hybrid search service — BM25 (PostgreSQL FTS) + ' +
+          'semantic (Qdrant ANN) + RRF fusion. All endpoints require x-user-id header.',
       )
       .setVersion('1.0')
-      .addApiKey(
-        {
-          type: 'apiKey',
-          in: 'header',
-          name: 'x-user-id',
-          description: 'Authenticated user UUID (injected by kms-api gateway)',
-        },
-        'x-user-id',
-      )
-      .addTag('Search', 'Hybrid knowledge-base search endpoints')
-      .addTag('Health', 'Liveness and readiness probes')
+      .addApiKey({ type: 'apiKey', name: 'x-user-id', in: 'header' }, 'x-user-id')
       .build();
 
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('docs', app, document, {
-      swaggerOptions: {
-        persistAuthorization: true,
-        docExpansion: 'none',
-        filter: true,
-        showRequestDuration: true,
-      },
-    });
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    // Mount at /api/docs so it doesn't conflict with the /health and /search paths
+    SwaggerModule.setup('api/docs', app, document);
   }
 
-  const port = parseInt(process.env.PORT || '8001', 10);
-  const host = process.env.HOST || '0.0.0.0';
+  // Bind to all interfaces (0.0.0.0) so the container is reachable from the host
+  const port = parseInt(process.env.PORT ?? '8001', 10);
+  await app.listen(port, '0.0.0.0');
 
-  await app.listen(port, host);
-
-  console.log(`
-╔═══════════════════════════════════════════════════════════════╗
-║                    search-api  Started                         ║
-╠═══════════════════════════════════════════════════════════════╣
-║  Port:         ${String(port).padEnd(46)}║
-║  Prefix:       ${apiPrefix.padEnd(46)}║
-║  Swagger:      ${(process.env.NODE_ENV === 'production' ? 'Disabled' : `http://localhost:${port}/docs`).padEnd(46)}║
-║  OTel:         ${(otelEnabled ? 'Enabled' : 'Disabled').padEnd(46)}║
-╚═══════════════════════════════════════════════════════════════╝
-  `);
+  // Use the pino logger for the startup message so it appears in structured JSON logs
+  const logger = app.get(Logger);
+  logger.log(`search-api listening on port ${port}`, 'Bootstrap');
+  if (process.env.NODE_ENV !== 'production') {
+    logger.log(`Swagger docs: http://localhost:${port}/api/docs`, 'Bootstrap');
+  }
 }
 
+// Top-level await not available with CommonJS target — use .catch for unhandled rejections
 bootstrap().catch((err) => {
-  console.error('Failed to start search-api:', err);
+  // Use console here because the Pino logger may not be initialised yet
+  console.error('[search-api] Fatal startup error', err);
   process.exit(1);
 });
