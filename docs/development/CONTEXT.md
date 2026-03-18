@@ -26,6 +26,9 @@ Each guide has exactly 6 sections: Business Use Case, Flow Diagram, Code Structu
 | Workflow Engine, agent spawning, YouTube URL workflow, how to add a new skill | `FOR-agentic-workflows.md` |
 | External agent adapters (Claude Code, Codex, Gemini), MCP server, RAG context pipeline | `FOR-external-agent-integration.md` |
 | Tiered retrieval, Query Classifier, LLM Guard, when to skip LLM, threshold tuning | `FOR-tiered-retrieval.md` |
+| Collections CRUD, file membership, userId scoping, N+1 note | `FOR-collections.md` |
+| Files list/delete/bulk ops, scan trigger, internal worker callback, merge-conflict note | `FOR-files.md` |
+| Sources (local, Obsidian, Google Drive OAuth), token encryption, reconnect flow | `FOR-sources.md` |
 
 ---
 

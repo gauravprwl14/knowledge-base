@@ -56,6 +56,9 @@ Engineering standards, architecture decision records, and sequence diagrams.
 | RAG context pipeline to Claude Code/API (context packing, external agent stream) | `sequence-diagrams/13-rag-claude-code-context-pipeline.md` |
 | MCP server: Claude Code live tool calls into KMS during coding session | `sequence-diagrams/14-mcp-server-claude-code.md` |
 | Tiered retrieval flow (Query Classifier → Tier Router → cache/BM25/hybrid/graph/LLM) | `sequence-diagrams/15-tiered-retrieval-flow.md` |
+| Drive file browser — paginated list, bulk delete, tag assign, bulk move | `sequence-diagrams/16-drive-file-browser-flow.md` |
+| Tag system lifecycle (manual create, AI auto-tag, filter, cascade delete) | `sequence-diagrams/17-tag-system-flow.md` |
+| SSE ACP streaming (session → prompt → tool → stream → done events) | `sequence-diagrams/18-sse-acp-streaming.md` |
 | Google Drive incremental/full sync (OAuth token refresh, batch upsert, embed fanout) | `sequence-diagrams/19-google-drive-sync.md` |
 | Deduplication pipeline (SHA-256 cache, DB cross-source check, Qdrant near-dup 0.98) | `sequence-diagrams/20-dedup-pipeline.md` |
 | Tag system (manual create/assign, AI auto-tag, filter by tag, cascade delete) | `sequence-diagrams/21-tag-system.md` |
