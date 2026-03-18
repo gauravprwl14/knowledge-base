@@ -67,3 +67,26 @@ export const kmsSourcesApi = {
     window.location.href = `${base}/api/v1/sources/google-drive/oauth?userId=${encodeURIComponent(userId)}`;
   },
 };
+
+/**
+ * Typed API methods for local and Obsidian sources.
+ */
+export const localSourcesApi = {
+  /**
+   * POST /sources/obsidian — registers an Obsidian vault by its filesystem path.
+   *
+   * @param vaultPath - Absolute path to the vault directory (e.g. /vault in Docker)
+   * @param displayName - Optional human-readable label for the source
+   */
+  registerObsidian: (vaultPath: string, displayName?: string): Promise<KmsSource> =>
+    apiClient.post<KmsSource>('/sources/obsidian', { vaultPath, displayName }),
+
+  /**
+   * POST /sources/local — registers a local folder by its filesystem path.
+   *
+   * @param path - Absolute path to the directory to index
+   * @param displayName - Optional human-readable label for the source
+   */
+  registerLocal: (path: string, displayName?: string): Promise<KmsSource> =>
+    apiClient.post<KmsSource>('/sources/local', { path, displayName }),
+};

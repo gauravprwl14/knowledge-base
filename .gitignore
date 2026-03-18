@@ -54,3 +54,15 @@ logs/
 
 # Docker
 docker-compose.override.yml
+
+# Test vault — track structure but not personal files
+test-vault/**/*.pdf
+test-vault/**/*.docx
+test-vault/**/*.xlsx
+test-vault/**/*.pptx
+test-vault/**/*.png
+test-vault/**/*.jpg
+test-vault/**/*.jpeg
+# Always track the markdown structure and CSVs
+!test-vault/**/*.md
+!test-vault/**/*.csv
