@@ -7,7 +7,7 @@ import { ERROR_CODES } from '../../errors/error-codes';
 /** Supported search modes forwarded to the search-api service. */
 export type SearchType = 'keyword' | 'semantic' | 'hybrid';
 
-/** Query parameters accepted by the search endpoint. */
+/** Parameters forwarded to the search-api POST /search endpoint. */
 export interface SearchQuery {
   /** Full-text search string */
   q: string;
@@ -15,7 +15,7 @@ export interface SearchQuery {
   type?: SearchType;
   /** Maximum number of results — defaults to 10 */
   limit?: number;
-  /** Number of results to skip for pagination — defaults to 0 */
+  /** Number of results to skip for pagination — defaults to 0 (not forwarded; search-api uses cursor) */
   offset?: number;
 }
 
@@ -51,24 +51,25 @@ export class SearchService {
    * @throws AppError with code EXT0004 when the search-api returns an error status.
    */
   async search(query: SearchQuery): Promise<unknown> {
-    const { q, type = 'hybrid', limit = 10, offset = 0 } = query;
+    const { q, type = 'hybrid', limit = 10 } = query;
 
-    const params = new URLSearchParams({
-      q,
-      type,
-      limit: String(limit),
-      offset: String(offset),
-    });
+    // search-api exposes POST /search with a JSON body ({ query, searchType, limit }).
+    // Field mapping:
+    //   kms-api `q`    → search-api `query`
+    //   kms-api `type` → search-api `searchType`
+    //   kms-api `limit` → search-api `limit`
+    const body = JSON.stringify({ query: q, searchType: type, limit });
 
-    const url = `${this.searchApiBaseUrl}/search?${params.toString()}`;
+    const url = `${this.searchApiBaseUrl}/search`;
 
-    this.logger.info('Proxying search request to search-api', { url, type, limit, offset });
+    this.logger.info('Proxying search request to search-api', { url, type, limit });
 
     let response: Response;
     try {
       response = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body,
         signal: AbortSignal.timeout(10_000), // 10-second timeout
       });
     } catch (err) {

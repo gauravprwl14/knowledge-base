@@ -32,9 +32,10 @@ flowchart TD
 |------|----------------|
 | `frontend/lib/api/client.ts` | Singleton `KmsApiClient` (Axios): JWT injection, auto-refresh on 401, typed `ApiError` |
 | `frontend/lib/api/acp.ts` | ACP-specific client using **native fetch** (not Axios) for SSE streaming |
+| `frontend/lib/api/chat.ts` | Legacy RAG-service streaming client — **NOT wired to any component**. The current chat UI uses `acp.ts` via `use-chat.ts`. Keep or remove once the ACP path is confirmed permanent. |
 | `frontend/lib/api/sources.ts` | `kmsSourcesApi` + `localSourcesApi` — source CRUD and OAuth initiation |
-| `frontend/lib/api/search.ts` | `searchApi.search()` — proxied to `search-api` via `kms-api /search` |
-| `frontend/lib/api/collections.ts` | `collectionsApi` — collections CRUD and file membership |
+| `frontend/lib/api/search.ts` | `searchApi.search()` — proxied to `search-api` via `kms-api GET /search` |
+| `frontend/lib/api/collections.ts` | `collectionsApi` — collections CRUD and single-file membership operations |
 | `frontend/lib/api/files.ts` | `filesApi` + `tagsApi` — file CRUD, bulk actions, tag management |
 | `frontend/lib/hooks/use-chat.ts` | ACP session lifecycle + SSE streaming state machine |
 | `frontend/lib/hooks/use-sources.ts` | TanStack Query wrappers for sources + scan mutations |

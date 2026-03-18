@@ -87,10 +87,22 @@ orchestration moves to `rag-service`.  Update the diagrams when that refactor oc
 | Hop | Method + URL | Payload (→) | Response (←) |
 |-----|-------------|-------------|--------------|
 | 1. Browser → kms-api | `GET /api/v1/search?q=...&type=hybrid&limit=20` + JWT | — (query params) | `{ results, total, searchType, took }` |
-| 2. kms-api → search-api | `GET http://search-api:8001/search?q=...&type=hybrid&limit=20` | — | `{ results, total, searchType, took }` |
+| 2. kms-api → search-api | `POST http://search-api:8001/search` + `x-user-id` header | `{ query, searchType, limit }` (JSON body) | `{ results, total, searchType, took }` |
 | 3. search-api → PostgreSQL | BM25 full-text scan | — | Ranked rows |
 | 4. search-api → Qdrant | Dense HNSW vector search (BGE-M3 1024-dim) | — | Scored chunk payloads |
 | 5. search-api | RRF merge | — | `SearchResult[]` |
+
+**Field mapping — kms-api → search-api:**
+
+| kms-api query param | search-api JSON body field |
+|---------------------|---------------------------|
+| `q` | `query` |
+| `type` | `searchType` |
+| `limit` | `limit` |
+
+**Important:** `search-api` exposes `POST /search` only (JSON body, no query params).
+`kms-api/SearchService` must translate incoming query params into the JSON body before forwarding.
+The `offset` param from the frontend is not forwarded; `search-api` uses cursor-based pagination internally.
 
 **Frontend type (`SearchResult`):**
 ```typescript
@@ -164,15 +176,12 @@ If false, text is extracted and persisted but no vectors are stored.
 | Add files (bulk) | `POST /api/v1/collections/:id/files` + JWT | `{ fileIds: string[] }` | `204 No Content` |
 | Remove file (single) | `DELETE /api/v1/collections/:id/files/:fileId` + JWT | — | `204 No Content` |
 
-**Known gap — `removeFiles` (bulk) not implemented:**
-`frontend/lib/api/collections.ts` (`feat/drive-frontend` branch) defines
-`collectionsApi.removeFiles(collectionId, fileIds)` calling
-`DELETE /collections/:id/files` with a JSON body. The backend
-`CollectionsController` only exposes `DELETE /collections/:id/files/:fileId`
-(single file). The bulk remove endpoint does not exist. Either:
-(a) remove `collectionsApi.removeFiles` from the frontend and iterate
-`removeFile` per fileId, or (b) add `DELETE /collections/:id/files` with body
-to `CollectionsController`.
+**Fixed — `removeFiles` (bulk) API aligned to backend:**
+`collectionsApi` now exposes `removeFile(collectionId, fileId)` (single-file only),
+matching the only endpoint the backend exposes: `DELETE /collections/:id/files/:fileId`.
+A bulk `removeFiles` endpoint does not exist on the backend. To remove multiple files
+iterate `removeFile` per fileId, or add `DELETE /collections/:id/files` with a
+`{ fileIds }` body to `CollectionsController` (backlog item).
 
 ---
 

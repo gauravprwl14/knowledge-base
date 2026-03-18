@@ -1,43 +1,13 @@
 /**
-<<<<<<< HEAD
  * Collections API — typed wrappers over the /api/v1/collections endpoints.
-=======
- * Collections API — typed methods for the /collections resource.
  *
  * Collections group related files for scoped RAG queries.
->>>>>>> feat/drive-frontend
  */
 
 import { apiClient } from './client';
 
-<<<<<<< HEAD
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface Collection {
-  id: string;
-  name: string;
-  description?: string;
-  color?: string;
-  isDefault: boolean;
-  fileCount: number;
-  createdAt: string;
-}
-
-export interface CreateCollectionPayload {
-  name: string;
-  description?: string;
-  color?: string;
-}
-
-// ---------------------------------------------------------------------------
-// API methods
-// ---------------------------------------------------------------------------
-
-=======
 // ===========================================================================
-// Types
+// Types — aligned to CollectionResponseDto in kms-api
 // ===========================================================================
 
 /**
@@ -46,7 +16,13 @@ export interface CreateCollectionPayload {
 export interface KmsCollection {
   id: string;
   name: string;
-  description: string | null;
+  description?: string;
+  /** Optional hex colour code for UI display (e.g. "#6366f1"). */
+  color?: string;
+  /** Optional icon identifier for UI display. */
+  icon?: string;
+  /** True if this is the user's default collection (cannot be deleted). */
+  isDefault: boolean;
   fileCount: number;
   createdAt: string;
   updatedAt: string;
@@ -58,6 +34,8 @@ export interface KmsCollection {
 export interface CreateCollectionPayload {
   name: string;
   description?: string;
+  color?: string;
+  icon?: string;
 }
 
 // ===========================================================================
@@ -67,14 +45,10 @@ export interface CreateCollectionPayload {
 /**
  * Typed API methods for the /collections resource.
  */
->>>>>>> feat/drive-frontend
 export const collectionsApi = {
   /**
    * GET /collections — returns all collections for the authenticated user.
    */
-<<<<<<< HEAD
-  list: (): Promise<Collection[]> => apiClient.get<Collection[]>('/collections'),
-=======
   list: (): Promise<KmsCollection[]> =>
     apiClient.get<KmsCollection[]>('/collections'),
 
@@ -83,25 +57,15 @@ export const collectionsApi = {
    */
   get: (id: string): Promise<KmsCollection> =>
     apiClient.get<KmsCollection>(`/collections/${id}`),
->>>>>>> feat/drive-frontend
 
   /**
    * POST /collections — creates a new collection.
    */
-<<<<<<< HEAD
-  create: (data: CreateCollectionPayload): Promise<Collection> =>
-    apiClient.post<Collection>('/collections', data),
-
-  /**
-   * DELETE /collections/:id — deletes a collection (does not delete its files).
-   */
-  delete: (id: string): Promise<void> => apiClient.delete<void>(`/collections/${id}`),
-=======
   create: (payload: CreateCollectionPayload): Promise<KmsCollection> =>
     apiClient.post<KmsCollection>('/collections', payload),
 
   /**
-   * PATCH /collections/:id — updates a collection's name or description.
+   * PATCH /collections/:id — updates a collection's name, description, colour, or icon.
    */
   update: (
     id: string,
@@ -114,24 +78,20 @@ export const collectionsApi = {
    */
   delete: (id: string): Promise<void> =>
     apiClient.delete<void>(`/collections/${id}`),
->>>>>>> feat/drive-frontend
 
   /**
-   * POST /collections/:id/files — adds files to a collection.
+   * POST /collections/:id/files — adds files to a collection (bulk).
    */
-<<<<<<< HEAD
-  addFiles: (id: string, fileIds: string[]): Promise<{ added: number }> =>
-    apiClient.post<{ added: number }>(`/collections/${id}/files`, { fileIds }),
-=======
   addFiles: (collectionId: string, fileIds: string[]): Promise<void> =>
     apiClient.post<void>(`/collections/${collectionId}/files`, { fileIds }),
 
   /**
-   * DELETE /collections/:id/files — removes files from a collection.
+   * DELETE /collections/:id/files/:fileId — removes a single file from a collection.
+   *
+   * NOTE: The backend only supports single-file removal.
+   * To remove multiple files, iterate this method per fileId.
+   * A bulk remove endpoint (DELETE /collections/:id/files with body) does NOT exist yet.
    */
-  removeFiles: (collectionId: string, fileIds: string[]): Promise<void> =>
-    apiClient.delete<void>(`/collections/${collectionId}/files`, {
-      data: { fileIds },
-    }),
->>>>>>> feat/drive-frontend
+  removeFile: (collectionId: string, fileId: string): Promise<void> =>
+    apiClient.delete<void>(`/collections/${collectionId}/files/${fileId}`),
 };

@@ -1,26 +1,12 @@
 /**
-<<<<<<< HEAD
- * Files API — typed wrappers over the /api/v1/files endpoints.
-=======
- * Files API — typed methods for the /files and /tags resources.
+ * Files API — typed wrappers over the /api/v1/files and /api/v1/tags endpoints.
  *
  * Uses cursor-based pagination (cursor + limit) matching the backend contract.
  * All methods delegate to the shared apiClient (JWT auth + auto-refresh).
->>>>>>> feat/drive-frontend
  */
 
 import { apiClient } from './client';
 
-<<<<<<< HEAD
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type FileStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
-export type SourceType = 'LOCAL' | 'OBSIDIAN' | 'GOOGLE_DRIVE';
-export type MimeGroup = 'documents' | 'images' | 'audio' | 'video' | 'data';
-
-=======
 // ===========================================================================
 // Shared types
 // ===========================================================================
@@ -36,9 +22,17 @@ export type FileStatus = 'PENDING' | 'PROCESSING' | 'INDEXED' | 'ERROR';
 export type MimeGroup = 'document' | 'image' | 'audio' | 'video' | 'spreadsheet' | 'other';
 
 /**
+ * Tag reference as embedded in a KmsFile response.
+ */
+export interface KmsFileTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+/**
  * A file in the knowledge base as returned by the API.
  */
->>>>>>> feat/drive-frontend
 export interface KmsFile {
   id: string;
   name: string;
@@ -47,78 +41,11 @@ export interface KmsFile {
   sizeBytes: number;
   status: FileStatus;
   sourceId: string;
-<<<<<<< HEAD
-  sourceType: SourceType;
-  checksumSha256?: string;
-  extractedText?: string;
-  externalModifiedAt?: string;
-=======
   collectionId: string | null;
   tags: KmsFileTag[];
   indexedAt: string | null;
->>>>>>> feat/drive-frontend
   createdAt: string;
   updatedAt: string;
-}
-
-<<<<<<< HEAD
-export interface FilesListParams {
-  sourceId?: string;
-  mimeGroup?: MimeGroup;
-  status?: FileStatus;
-  page?: number;
-  pageSize?: number;
-}
-
-export interface FilesListResponse {
-  items: KmsFile[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-// ---------------------------------------------------------------------------
-// API methods
-// ---------------------------------------------------------------------------
-
-export const filesApi = {
-  /**
-   * GET /files — returns a paginated list of files with optional filters.
-   */
-  list: (params?: FilesListParams): Promise<FilesListResponse> => {
-    const query = new URLSearchParams();
-    if (params?.sourceId) query.set('sourceId', params.sourceId);
-    if (params?.mimeGroup) query.set('mimeGroup', params.mimeGroup);
-    if (params?.status) query.set('status', params.status);
-    if (params?.page) query.set('page', String(params.page));
-    if (params?.pageSize) query.set('pageSize', String(params.pageSize));
-    const qs = query.toString();
-    return apiClient.get<FilesListResponse>(`/files${qs ? `?${qs}` : ''}`);
-  },
-
-  /**
-   * GET /files/:id — returns a single file with full metadata.
-   */
-  get: (id: string): Promise<KmsFile> => apiClient.get<KmsFile>(`/files/${id}`),
-
-  /**
-   * DELETE /files/:id — permanently deletes a file record.
-   */
-  delete: (id: string): Promise<void> => apiClient.delete<void>(`/files/${id}`),
-
-  /**
-   * POST /files/bulk-delete — deletes multiple file records.
-   */
-  bulkDelete: (ids: string[]): Promise<{ deleted: number }> =>
-    apiClient.post<{ deleted: number }>('/files/bulk-delete', { ids }),
-=======
-/**
- * Tag reference as embedded in a KmsFile response.
- */
-export interface KmsFileTag {
-  id: string;
-  name: string;
-  color: string;
 }
 
 // ===========================================================================
@@ -170,7 +97,6 @@ export const filesApi = {
    * GET /files — returns a cursor-paginated list of files with optional filters.
    */
   list: (params: ListFilesParams = {}): Promise<ListFilesResponse> => {
-    // Build query string from non-undefined params
     const qs = new URLSearchParams();
     if (params.cursor) qs.set('cursor', params.cursor);
     if (params.limit !== undefined) qs.set('limit', String(params.limit));
@@ -266,5 +192,4 @@ export const tagsApi = {
    */
   bulkTag: (fileIds: string[], tagId: string): Promise<void> =>
     apiClient.post<void>('/files/bulk-tag', { fileIds, tagId }),
->>>>>>> feat/drive-frontend
 };

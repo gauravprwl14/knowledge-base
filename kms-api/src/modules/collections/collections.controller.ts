@@ -31,13 +31,14 @@ import { CollectionResponseDto } from './dto/collection-response.dto';
  * A collection is a named, user-owned group of files that can be used to scope
  * search queries or RAG context to a curated subset of the knowledge base.
  *
- * All routes are versioned under `api/v1/collections` and require a valid JWT
- * access token via {@link JwtAuthGuard}.
+ * All routes are served under `api/v1/collections` (the `api/v1` global prefix
+ * is applied by `main.ts` — the controller path must NOT repeat it).
+ * Requires a valid JWT access token via {@link JwtAuthGuard}.
  */
 @ApiTags('Collections')
 @ApiBearerAuth('jwt')
 @UseGuards(JwtAuthGuard)
-@Controller('api/v1/collections')
+@Controller('collections')
 export class CollectionsController {
   constructor(private readonly collectionsService: CollectionsService) {}
 
