@@ -21,12 +21,12 @@ Sprint Goal: MCP server exposes KMS tools to Claude Code; external agents (Codex
 
 ### Sprint 4: Full Agentic Platform
 
-- [ ] kms_spawn_agent tool: invoke Claude / Codex / Gemini as workflow step
-- [ ] MCP server: expose kms_search, kms_store, kms_graph_query to Claude Code
-- [ ] Codex adapter (OpenAI API)
-- [ ] Gemini adapter (Google AI API)
+- [x] kms_spawn_agent tool: invoke Claude / Codex / Gemini as workflow step (2026-03-18)
+- [x] MCP server: expose kms_search, kms_store, kms_graph_query to Claude Code (2026-03-18)
+- [ ] Codex adapter (OpenAI API) — HttpAcpAdapter wired; needs Codex API auth + endpoint config
+- [ ] Gemini adapter (Google AI API) — StdioAcpAdapter wired; needs gemini-acp npm package
 - [ ] Obsidian plugin: "Send to KMS" and "Ask KMS" commands
-- [ ] Google Drive connector: OAuth flow, delta sync, index in pipeline
+- [ ] Google Drive connector: OAuth flow complete; delta sync + pipeline indexing pending
 
 ### Sprint 5 (Parallel): Production Hardening
 
