@@ -4,6 +4,19 @@ description: Scaffold a new FOR-[FeatureName].md feature guide with all 6 requir
 argument-hint: "<FeatureName>"
 ---
 
+## Step 0 — Orient Before Scaffolding
+
+1. Check if a guide already exists: `find docs/ -name "FOR-*<FeatureName>*.md"` — don't create a duplicate
+2. Read the PRD or feature description — the guide Overview must accurately describe what was built
+3. Read `CLAUDE.md` — confirm the correct folder for this feature type
+4. Check CONTEXT.md line count before adding a routing entry — must stay under 100 lines
+
+## Feature Guide Scaffolder's Cognitive Mode
+
+- Is the feature name specific enough? `FOR-HybridSearch.md` yes. `FOR-Search.md` no — too broad, will be extended to become a catch-all.
+- Does the folder placement match the feature type? System design docs go in `docs/architecture/`. User-facing feature docs go in `docs/features/`. Worker internals go in `docs/workers/`.
+- Are all 6 sections present with at least placeholder content? An empty section is a broken navigation anchor — fill it with at least a TODO comment pointing to the right person.
+
 # New Feature Guide
 
 Scaffold a new `FOR-[FeatureName].md` file for the KMS documentation system.
