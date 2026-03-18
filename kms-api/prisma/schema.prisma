@@ -275,6 +275,8 @@ model KmsFile {
   transcriptionLinks   KmsTranscriptionLink[]
   duplicates           KmsFileDuplicate[]
   collectionFiles      KmsCollectionFile[]
+  /// Tag associations for this file (see KmsFileTag join table)
+  fileTags             KmsFileTag[]
 
   @@index([userId])
   @@index([userId, status])
@@ -282,6 +284,40 @@ model KmsFile {
   @@index([checksumSha256])
   @@unique([sourceId, externalId])
   @@map("kms_files")
+}
+
+/// User-defined tag used to categorise KMS files
+model KmsTag {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String       @db.Uuid @map("user_id")
+  name      String
+  color     String       @default("#6366f1")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  /// Files associated with this tag
+  fileTags  KmsFileTag[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("kms_tags")
+}
+
+/// Join table linking KmsFile to KmsTag; source tracks manual vs. AI tagging
+model KmsFileTag {
+  fileId    String   @db.Uuid @map("file_id")
+  tagId     String   @db.Uuid @map("tag_id")
+  /// 'manual' (user-applied) or 'ai' (auto-suggested by the pipeline)
+  source    String   @default("manual")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  file KmsFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  tag  KmsTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([fileId, tagId])
+  @@index([tagId])
+  @@index([fileId])
+  @@map("kms_file_tags")
 }
 
 /// Text chunk extracted from a file and indexed into Qdrant

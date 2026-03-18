@@ -5,8 +5,10 @@ import { FilesController } from './files.controller';
 import { ScanController } from './scan.controller';
 import { ScanJobsController } from './scan-jobs.controller';
 import { FilesService } from './files.service';
+import { FileRepository } from '../../database/repositories/file.repository';
 
 /**
+<<<<<<< HEAD
  * FilesModule encapsulates REST endpoints and business logic for KMS file
  * management and scan job orchestration.
  *
@@ -25,5 +27,24 @@ import { FilesService } from './files.service';
   controllers: [FilesController, ScanController, ScanJobsController],
   providers: [FilesService],
   exports: [FilesService],
+=======
+ * FilesModule — encapsulates REST endpoints and business logic for KMS file
+ * management.
+ *
+ * Provides:
+ *   - FilesController: GET /files, GET /files/:id, DELETE /files/:id,
+ *     POST /files/bulk-delete, POST /files/bulk-move
+ *   - FilesService: ownership-scoped business logic
+ *   - FileRepository: Prisma data-access layer
+ *
+ * DatabaseModule is imported for PrismaService; it is @Global in production
+ * but imported explicitly for testability.
+ */
+@Module({
+  imports: [DatabaseModule],
+  controllers: [FilesController],
+  providers: [FilesService, FileRepository],
+  exports: [FilesService, FileRepository],
+>>>>>>> feat/drive-backend
 })
 export class FilesModule {}

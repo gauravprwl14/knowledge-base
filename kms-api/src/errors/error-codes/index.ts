@@ -819,6 +819,50 @@ export const EXT_ERROR_CODES = {
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
+ * File Error Codes (FIL0000 - FIL9999)
+ */
+export const FIL_ERROR_CODES = {
+  FILE_NOT_FOUND: {
+    code: 'FIL0001',
+    message: 'File not found',
+    httpStatus: 404,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
+
+/**
+ * Tag Error Codes (TAG0000 - TAG9999)
+ */
+export const TAG_ERROR_CODES = {
+  TAG_NOT_FOUND: {
+    code: 'TAG0001',
+    message: 'Tag not found',
+    httpStatus: 404,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  TAG_NAME_CONFLICT: {
+    code: 'TAG0002',
+    message: 'A tag with this name already exists',
+    httpStatus: 409,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  TAG_LIMIT_EXCEEDED: {
+    code: 'TAG0003',
+    message: 'Maximum tag limit (50) reached for this user',
+    httpStatus: 400,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
+
+/**
  * Combined error codes object
  */
 export const ERROR_CODES = {
@@ -829,6 +873,8 @@ export const ERROR_CODES = {
   DAT: DAT_ERROR_CODES,
   SRV: SRV_ERROR_CODES,
   EXT: EXT_ERROR_CODES,
+  FIL: FIL_ERROR_CODES,
+  TAG: TAG_ERROR_CODES,
 } as const;
 
 /**
@@ -841,7 +887,9 @@ export type ErrorCode =
   | (typeof AUZ_ERROR_CODES)[keyof typeof AUZ_ERROR_CODES]['code']
   | (typeof DAT_ERROR_CODES)[keyof typeof DAT_ERROR_CODES]['code']
   | (typeof SRV_ERROR_CODES)[keyof typeof SRV_ERROR_CODES]['code']
-  | (typeof EXT_ERROR_CODES)[keyof typeof EXT_ERROR_CODES]['code'];
+  | (typeof EXT_ERROR_CODES)[keyof typeof EXT_ERROR_CODES]['code']
+  | (typeof FIL_ERROR_CODES)[keyof typeof FIL_ERROR_CODES]['code']
+  | (typeof TAG_ERROR_CODES)[keyof typeof TAG_ERROR_CODES]['code'];
 
 /**
  * Helper type to extract error definition from error codes object
@@ -858,7 +906,9 @@ export type AnyErrorDefinition =
   | ExtractErrorDef<typeof AUZ_ERROR_CODES>
   | ExtractErrorDef<typeof DAT_ERROR_CODES>
   | ExtractErrorDef<typeof SRV_ERROR_CODES>
-  | ExtractErrorDef<typeof EXT_ERROR_CODES>;
+  | ExtractErrorDef<typeof EXT_ERROR_CODES>
+  | ExtractErrorDef<typeof FIL_ERROR_CODES>
+  | ExtractErrorDef<typeof TAG_ERROR_CODES>;
 
 /**
  * Gets the error definition for a given error code

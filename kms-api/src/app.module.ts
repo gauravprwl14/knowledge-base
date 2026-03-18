@@ -19,7 +19,11 @@ import { FilesModule } from './modules/files/files.module';
 import { SearchModule } from './modules/search/search.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { CollectionsModule } from './modules/collections/collections.module';
+<<<<<<< HEAD
 import { AcpModule } from './modules/acp/acp.module';
+=======
+import { TagsModule } from './modules/tags/tags.module';
+>>>>>>> feat/drive-backend
 
 // Infrastructure modules
 import { QueueModule } from './queue/queue.module';
@@ -80,7 +84,11 @@ import { RolesGuard } from './common/guards/roles.guard';
     SearchModule,
     AgentsModule,
     CollectionsModule,
+<<<<<<< HEAD
     AcpModule,
+=======
+    TagsModule,
+>>>>>>> feat/drive-backend
   ],
   providers: [
     // Global exception filters — order matters: registered last = runs first.
