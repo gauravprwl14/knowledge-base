@@ -800,6 +800,22 @@ export const EXT_ERROR_CODES = {
     retryable: true,
     userFacing: true,
   },
+  ACP_SESSION_NOT_FOUND: {
+    code: 'EXT0012',
+    message: 'ACP session not found or expired',
+    httpStatus: 404,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  ANTHROPIC_ERROR: {
+    code: 'EXT0013',
+    message: 'Anthropic API error',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
