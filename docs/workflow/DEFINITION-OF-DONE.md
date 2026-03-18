@@ -90,19 +90,51 @@ Derived from: Google Engineering Practices, DORA 2024, ISO 25010, production rea
 - [ ] **[HUMAN]** Caching strategy correct — cache invalidation is sound, no stale-data risk
 - [ ] **[HUMAN]** Pagination used for any endpoint returning unbounded result sets
 
-### Gate 7 — Documentation
+### Gate 7 — Documentation & Doc Sync
 > Documentation is part of the change, not a follow-up task (Google Engineering Practices).
+> **Doc sync is mandatory** — stale docs are worse than no docs because they actively mislead.
 
+#### 7a — Inline Code Documentation
 - [ ] **[HUMAN]** TSDoc/docstrings on all new/modified public exports, methods, and classes
   - NestJS: TSDoc `/** */` on all exports + `@ApiOperation`/`@ApiResponse` on all endpoints
   - Python: Google-style docstrings on all `def` and classes
 - [ ] **[HUMAN]** Inline comments explain *why*, not *what* (the code shows what; comments explain intent)
-- [ ] **[HUMAN]** `CONTEXT.md` routing table updated if a new module, file, or data flow was added
-- [ ] **[HUMAN]** OpenAPI contract (`contracts/openapi.yaml`) updated for any new or modified endpoint
+- [ ] **[HUMAN]** No stale TODO/FIXME comments left unaddressed for > 1 sprint
+
+#### 7b — Architecture Documentation Sync
+- [ ] **[HUMAN]** `docs/architecture/CONTEXT.md` routing table updated for any new module, ADR, or sequence diagram
+- [ ] **[HUMAN]** ADR written for any non-obvious technology or architecture choice (`docs/architecture/decisions/NNNN-*.md`)
+- [ ] **[HUMAN]** Sequence diagram written for any new cross-service data flow (`docs/architecture/sequence-diagrams/NN-*.md`)
+- [ ] **[HUMAN]** Existing sequence diagrams still match the implementation — update if they diverge
+- [ ] **[HUMAN]** `docs/architecture/ENGINEERING_STANDARDS.md` updated if a new mandatory pattern is introduced
+
+#### 7c — Development Documentation Sync
+- [ ] **[HUMAN]** `docs/development/CONTEXT.md` routing table updated if a new feature guide or pattern doc is added
+- [ ] **[HUMAN]** Feature guide (`FOR-{feature}.md`) written for any non-trivial implementation pattern
+- [ ] **[HUMAN]** Existing feature guides updated if the implementation has changed since they were written
+- [ ] **[HUMAN]** `docs/prd/CONTEXT.md` updated if a new PRD was added
+
+#### 7d — Product Documentation Sync
 - [ ] **[HUMAN]** PRD written for any user-facing feature (`docs/prd/PRD-{feature}.md`)
-- [ ] **[HUMAN]** Feature guide written for any non-trivial implementation pattern (`FOR-{feature}.md`)
-- [ ] **[HUMAN]** ADR written for any non-obvious technology or architecture choice
-- [ ] **[HUMAN]** Sequence diagram written for any new cross-service data flow
+- [ ] **[HUMAN]** PRD acceptance criteria updated if implementation differs from original spec
+- [ ] **[HUMAN]** `docs/MASTER-ROADMAP.md` updated if a milestone is completed or scope changes
+- [ ] **[HUMAN]** `docs/SPRINT-BOARD.md` task moved to "Completed" with actual completion date
+
+#### 7e — API Contract Sync
+- [ ] **[HUMAN]** OpenAPI contract (`contracts/openapi.yaml`) updated for any new or modified endpoint
+- [ ] **[HUMAN]** Error response codes documented in OpenAPI spec (not just 200 responses)
+- [ ] **[HUMAN]** `.env.example` updated for any new environment variable introduced
+
+#### 7f — Navigation / CONTEXT.md Sync (applies to every layer)
+> CONTEXT.md files are the routing layer of the doc system. A feature without a CONTEXT.md entry is invisible.
+
+| File to check | Update when... |
+|---------------|----------------|
+| `docs/architecture/CONTEXT.md` | New ADR, new sequence diagram, new architecture doc added |
+| `docs/development/CONTEXT.md` | New `FOR-*.md` feature guide added |
+| `docs/prd/CONTEXT.md` | New PRD added |
+| `docs/guides/CONTEXT.md` | New operational guide added |
+| `CLAUDE.md` | New skill, new routing pattern, new mandatory standard added |
 
 ### Gate 8 — Code Quality & Maintainability
 > Preserves the ability to change this code safely in the future.

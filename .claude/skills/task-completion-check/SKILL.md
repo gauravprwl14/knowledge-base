@@ -72,13 +72,31 @@ Check:
 - Do any new endpoints return unbounded lists without pagination?
 - Are new indexes in the migration for any new `WHERE` clause columns?
 
-### Gate 7 — Documentation
+### Gate 7 — Documentation & Doc Sync
 
-Check:
+Check inline docs:
 - Do all new public functions/methods have TSDoc or Google-style docstrings?
-- Are inline comments present where the logic is non-obvious?
-- Is `CONTEXT.md` updated with routing for the new module/file?
-- Is `contracts/openapi.yaml` updated for any new endpoints?
+- Are inline comments present explaining *why* (not what) for non-obvious logic?
+
+Check architecture doc sync:
+- Is `docs/architecture/CONTEXT.md` updated with routing for any new ADR or sequence diagram?
+- Do existing sequence diagrams still match the implementation? Read both and compare.
+- Was an ADR written for every non-obvious technology choice?
+
+Check development doc sync:
+- Is `docs/development/CONTEXT.md` updated for any new `FOR-*.md` guide?
+- Does a `FOR-{feature}.md` guide exist for any non-trivial implementation pattern?
+- If an existing `FOR-*.md` was referenced but the implementation changed, is it updated?
+
+Check product doc sync:
+- Is a PRD present for this feature in `docs/prd/`?
+- Is `docs/prd/CONTEXT.md` routing updated?
+- Is `docs/SPRINT-BOARD.md` updated with task status?
+- Is `docs/MASTER-ROADMAP.md` up to date if a milestone changed?
+
+Check API contract sync:
+- Is `contracts/openapi.yaml` updated for any new or modified endpoint?
+- Is `.env.example` updated for any new environment variable?
 
 ### Gate 8 — Code Quality
 
