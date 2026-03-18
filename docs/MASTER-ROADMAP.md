@@ -1,29 +1,41 @@
 # KMS Master Roadmap
 
-Last Updated: 2026-03-17
+Last Updated: 2026-03-18
 
 ---
 
 ## Reality Check — Current State
 
-The documentation suite is extensive and high quality. The code is mostly scaffolding and stubs.
+The following phases are complete and merged into `feat/design-web-ui`:
 
-What is actually implemented and working:
-- Basic NestJS kms-api module structure (files, sources, collections, auth — scaffolded, not production-ready)
-- Python worker services with basic AMQP consumers (scan-worker, embed-worker, graph-worker — consumers exist, full pipelines not wired)
-- Frontend pages with placeholder UI (drive page, source cards — UI shells, no real data flow)
-- PostgreSQL schema partially migrated (kms_files, auth_users tables exist; not all relations finalized)
-- Feature flags in `.kms/config.json` are all set to `false` — nothing is enabled in production
+| Phase | Status |
+|-------|--------|
+| Phase 1 — ACP Foundation | COMPLETE |
+| Phase 2 — Core Knowledge Pipeline | COMPLETE |
+| Phase 3 — Content Workflows | COMPLETE |
+| Phase 4 — Full Agentic Platform | IN PROGRESS — Sprint 4 |
+| Phase 5 — Production Hardening | IN PROGRESS — test coverage is the current blocker |
 
-What is NOT implemented despite being documented:
-- ACP gateway — zero code written
-- Hybrid search (search-api) — scaffolded, not operational
-- Embedding pipeline — embed-worker exists but BGE-M3 not loaded and running
-- Tiered retrieval — designed in PRD but not coded
-- LangGraph workflows — no code
-- url-agent service — no code
-- MCP server — no code
-- Obsidian plugin — no code
+What is fully implemented and working:
+- ACP HTTP Gateway — initialize, session, SSE prompt endpoints operational
+- search-api (port 8001) — BM25 + semantic + RRF hybrid search
+- Embedding pipeline — embed-worker, BGE-M3 (1024 dims), Qdrant integration
+- Tiered retrieval — QueryClassifier (5 types), TierRouter (3 tiers), LLMGuard
+- url-agent service (port 8004) — YouTube + web extraction, YAML frontmatter
+- WorkflowEngine — BullMQ processor, url-agent call, Anthropic summary, ContentStore
+- Google Drive source — OAuth flow, token encryption, delta sync connector
+- Local + Obsidian source registration
+- Collections, Files, Tags CRUD — NestJS modules, repositories, DTOs
+- Frontend chat UI — ACP SSE client, useChat hook, ChatMessage
+- Frontend Drive UI — file browser, bulk actions, source cards
+- ADR-0001 through ADR-0029 written
+
+What is NOT yet complete:
+- Test coverage (Gate 3 blocked — 20 spec files missing; see SPRINT-BOARD.md)
+- MCP server — not yet started
+- kms_spawn_agent tool — not yet started
+- Obsidian plugin — not yet started
+- External agent adapters (Codex, Gemini) — not yet started
 
 This roadmap reflects reality, not aspiration.
 
@@ -56,7 +68,7 @@ The goal of Phase 0 was to design the system before building it. This is largely
 
 ## Phase 1 — ACP Foundation + Claude Code Integration
 
-**Status: NOT STARTED — Current Sprint**
+**Status: COMPLETE**
 
 Phase 1 is the first real code. The goal is simple: Claude Code can search the KMS knowledge base via ACP. No frontend required. No full pipeline required. One working end-to-end path.
 
@@ -109,8 +121,7 @@ No frontend required. No embedding pipeline required (BM25-only for Phase 1 is a
 
 ## Phase 2 — Core Knowledge Pipeline
 
-**Status: NOT STARTED**
-**Blocked by: Phase 1 acceptance criteria met**
+**Status: COMPLETE**
 
 Phase 2 makes the knowledge pipeline real. Content goes in, gets embedded, and becomes retrievable via hybrid search.
 

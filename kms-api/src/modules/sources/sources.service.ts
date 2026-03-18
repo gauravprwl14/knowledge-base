@@ -1,11 +1,12 @@
 'use strict';
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { google, Auth } from 'googleapis';
 import { KmsSource, SourceStatus, SourceType } from '@prisma/client';
 import { SourceRepository } from '../../database/repositories/source.repository';
 import { TokenEncryptionService } from './token-encryption.service';
 import { ErrorFactory } from '../../errors/types/error-factory';
+import { ERROR_CODES } from '../../errors/error-codes';
 import { Trace } from '../../telemetry/decorators/trace.decorator';
 import { SourceResponseDto } from './dto/sources.dto';
 
@@ -151,8 +152,8 @@ export class SourcesService {
    */
   @Trace({ name: 'sources.handleGoogleCallback' })
   async handleGoogleCallback(code: string, userId: string): Promise<SourceResponseDto> {
-    if (!code) throw new BadRequestException('Missing authorization code');
-    if (!userId) throw new BadRequestException('Missing state (userId)');
+    if (!code) throw ErrorFactory.authentication(ERROR_CODES.AUT.OAUTH_FAILED.code, 'Missing authorization code');
+    if (!userId) throw ErrorFactory.authentication(ERROR_CODES.AUT.OAUTH_FAILED.code, 'Missing state (userId)');
 
     this.logger.info({ userId }, 'Handling Google Drive OAuth callback');
 
@@ -163,7 +164,7 @@ export class SourcesService {
       tokens = t;
     } catch (err: unknown) {
       this.logger.error({ err, userId }, 'Google token exchange failed');
-      throw new BadRequestException('Failed to exchange authorization code with Google');
+      throw ErrorFactory.authentication(ERROR_CODES.AUT.OAUTH_FAILED.code, 'Failed to exchange authorization code with Google');
     }
 
     // Get Drive "About" info to use the user's email as displayName

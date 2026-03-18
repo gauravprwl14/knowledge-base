@@ -1,3 +1,10 @@
+---
+title: KMS Sprint Board
+type: planning
+status: current
+updated: 2026-03-18
+---
+
 # KMS Sprint Board
 
 Last Updated: 2026-03-18
@@ -12,23 +19,69 @@ Sprint Goal: MCP server exposes KMS tools to Claude Code; external agents (Codex
 
 ## In Progress
 
-Nothing yet — awaiting branch merges from Sprints 1-3 before Sprint 4 begins.
+### Sprint 4: Full Agentic Platform
+
+- [ ] kms_spawn_agent tool: invoke Claude / Codex / Gemini as workflow step
+- [ ] MCP server: expose kms_search, kms_store, kms_graph_query to Claude Code
+- [ ] Codex adapter (OpenAI API)
+- [ ] Gemini adapter (Google AI API)
+- [ ] Obsidian plugin: "Send to KMS" and "Ask KMS" commands
+- [ ] Google Drive connector: OAuth flow, delta sync, index in pipeline
+
+### Sprint 5 (Parallel): Production Hardening — Test Coverage Blocked
+
+- [ ] 80% test coverage: kms-api + all Python services (see DoD Gate Status below)
+- [ ] PostgreSQL checkpointer for LangGraph (ADR-0025)
+- [ ] Full OTel instrumentation: NestJS traces + metrics, Python traces
+- [ ] Grafana dashboards: latency by tier, embedding throughput, workflow success rate
+- [ ] Integration tests: all ACP endpoints, YouTube workflow, blog post workflow
+- [ ] Rate limiting on all public endpoints
+- [ ] JWT refresh token rotation + auth audit logging
 
 ---
 
-## Pending Merge (all branches ready)
+## DoD Gate Status (as of 2026-03-18)
 
-| Branch | Commit | Contents |
-|--------|--------|----------|
-| `feat/phase1-acp-gateway` | `d5d0d54` | ACP HTTP gateway (initialize/session/SSE prompt), kms_search tool, Anthropic adapter, Redis session store + AppError refactor, TransformInterceptor, OTel |
-| `feat/phase1-llm-provider` | `191702f` | LLMFactory (Anthropic-primary, Ollama fallback), GraphStateV2 with rolling window |
-| `feat/phase1-yaml-frontmatter` | `d5f60b4` | Mandatory YAML frontmatter spec (Section 14) + 32 retroactively patched AI docs |
-| `feat/sprint2-search-api` | `1724652` | NestJS hybrid search service: BM25 + semantic (Qdrant) + RRF (k=60), mock-first |
-| `feat/sprint2-embed-pipeline` | `cdad265` | EmbeddingService (BGE-M3 + SHA-256 mock), QdrantService, LocalFileConnector (incremental scan) |
-| `feat/sprint2-tiered-retrieval` | `c9b0ddb` | QueryClassifier (5 types), TierRouter (3 tiers), LLMGuard, 24 tests |
-| `feat/sprint2-frontend-chat` | `6aace79` | ACP client (fetch SSE), useChat hook, ChatMessage, ChatInput, chat page |
-| `feat/sprint3-url-agent` | `3575116` | FastAPI url-agent (port 8004): UrlClassifier, YouTubeExtractor, WebExtractor, YAML frontmatter, 19 tests |
-| `feat/sprint3-workflow-engine` | `4e2b3db` | WorkflowEngine NestJS module: BullMQ processor, url-agent call, Anthropic summary, ContentStore |
+| Gate | Description | Status |
+|------|-------------|--------|
+| 1 | ADR written for every non-obvious technology choice | PASS |
+| 2 | Sequence diagram for every new cross-service data flow | PASS |
+| 3 | Unit tests >= 80% coverage + error branches tested | **BLOCKED** |
+| 4 | Structured logs on all significant events | PASS |
+| 5 | TSDoc/docstrings on all new public exports | PASS |
+| 6 | CONTEXT.md updated for new modules/files | PASS |
+| 7 | No hardcoded secrets or raw PII in logs | PASS |
+| 8 | DB migrations are backward-compatible | PASS |
+
+### Gate 3 — Missing Spec Files (20 files)
+
+The following spec/test files must be written to reach 80% coverage:
+
+**kms-api (NestJS — 18 missing)**
+
+1. `kms-api/src/modules/sources/sources.service.spec.ts`
+2. `kms-api/src/modules/sources/sources.controller.spec.ts`
+3. `kms-api/src/modules/files/files.service.spec.ts`
+4. `kms-api/src/modules/files/files.controller.spec.ts`
+5. `kms-api/src/modules/acp/acp.service.spec.ts`
+6. `kms-api/src/modules/acp/acp.controller.spec.ts`
+7. `kms-api/src/modules/workflow/workflow.service.spec.ts`
+8. `kms-api/src/modules/workflow/workflow.controller.spec.ts`
+9. `kms-api/src/modules/workflow/content-store.service.spec.ts`
+10. `kms-api/src/modules/users/users.service.spec.ts`
+11. `kms-api/src/modules/tags/tags.service.spec.ts`
+12. `kms-api/src/modules/search/search.service.spec.ts`
+13. `kms-api/src/modules/agents/agents.service.spec.ts`
+14. `kms-api/src/modules/feature-flags/feature-flags.service.spec.ts`
+15. `kms-api/src/modules/auth/auth.controller.spec.ts`
+16. `kms-api/src/modules/collections/collections.controller.spec.ts`
+17. `kms-api/src/modules/sources/token-encryption.service.spec.ts`
+18. `kms-api/src/cache/cache.service.spec.ts`
+
+**Python services (2 missing)**
+
+19. `services/rag-service/tests/test_generator.py`
+20. `services/rag-service/tests/test_retriever.py`
 
 ---
 
@@ -36,12 +89,12 @@ Nothing yet — awaiting branch merges from Sprints 1-3 before Sprint 4 begins.
 
 ### Phase 0 — Architecture and Documentation
 - PRD-M00 through PRD-M15 (full product requirement suite)
-- ADR-0001 through ADR-0026 (all major architectural decisions)
-- Sequence diagrams 03-15 (all major data flows documented)
+- ADR-0001 through ADR-0029 (all major architectural decisions)
+- Sequence diagrams 03-21 (all major data flows documented)
 - KMS-AGENTIC-PLATFORM.md, KMS-VISION.md, MASTER-ROADMAP.md
 - Engineering standards, feature guides, YAML frontmatter spec
 
-### Phase 1 — ACP Foundation ✅
+### Phase 1 — ACP Foundation ✅ (merged into feat/design-web-ui)
 - [x] ACP HTTP Gateway — initialize, session, SSE prompt endpoints
 - [x] kms_search tool — calls search-api with AbortSignal timeout
 - [x] Anthropic Claude adapter — streaming with `@anthropic-ai/sdk`
@@ -51,7 +104,7 @@ Nothing yet — awaiting branch merges from Sprints 1-3 before Sprint 4 begins.
 - [x] AppError refactor — ErrorFactory, TransformInterceptor, LoggingInterceptor
 - [x] OTel — BatchSpanProcessor, PeriodicExportingMetricReader wired in main.ts
 
-### Sprint 2 — Core Knowledge Pipeline ✅
+### Sprint 2 — Core Knowledge Pipeline ✅ (merged into feat/design-web-ui)
 - [x] NestJS search-api (port 8001) — BM25 + semantic + RRF hybrid search, mock-first
 - [x] EmbeddingService — BGE-M3 (BAAI/bge-m3, 1024 dims) with SHA-256 mock fallback
 - [x] QdrantService — ensure_collection + upsert_chunks, mock/real modes
@@ -61,71 +114,29 @@ Nothing yet — awaiting branch merges from Sprints 1-3 before Sprint 4 begins.
 - [x] LLMGuard — ~90% queries skip Claude (LOOKUP/FIND with score > 0.85)
 - [x] Frontend chat UI — ACP SSE client, useChat hook, ChatMessage, ChatInput, auto-scroll
 
-### Sprint 3 — Content Workflows ✅
+### Sprint 3 — Content Workflows ✅ (merged into feat/design-web-ui)
 - [x] url-agent service (FastAPI, port 8004) — UrlClassifier, YouTubeExtractor (mock+yt-dlp), WebExtractor (mock+trafilatura), YAML frontmatter, Dockerfile
 - [x] WorkflowEngine NestJS module — POST /workflow/urls/ingest, BullMQ async processor
 - [x] WorkflowProcessor — url-agent extract → Anthropic summary → ContentStore write
 - [x] ContentStoreService — writes YAML-frontmatted .md files to CONTENT_STORE_PATH
 - [x] Error codes KBWFL0001 (job not found) + KBWFL0002 (url-agent unavailable, retryable)
 
----
-
-## Backlog (Future Sprints)
-
-### Sprint 4: Full Agentic Platform
-
-- [ ] kms_spawn_agent tool: invoke Claude / Codex / Gemini as workflow step
-- [ ] MCP server: expose kms_search, kms_store, kms_graph_query to Claude Code
-- [ ] Codex adapter (OpenAI API)
-- [ ] Gemini adapter (Google AI API)
-- [ ] Obsidian plugin: "Send to KMS" and "Ask KMS" commands
-- [ ] Google Drive connector: OAuth flow, delta sync, index in pipeline
-
-Acceptance criteria: Claude Code calls kms_search autonomously during a coding session. Google Drive files are searchable alongside local files.
-
-### Sprint 5 (Parallel): Production Hardening
-
-Can begin after Sprint 2 stabilizes. Must complete before production deployment.
-
-- [ ] PostgreSQL checkpointer for LangGraph (ADR-0025)
-- [ ] Full OTel instrumentation: NestJS traces + metrics, Python traces
-- [ ] Grafana dashboards: latency by tier, embedding throughput, workflow success rate
-- [ ] 80% test coverage: kms-api + all Python services
-- [ ] Integration tests: all ACP endpoints, YouTube workflow, blog post workflow
-- [ ] Rate limiting on all public endpoints
-- [ ] JWT refresh token rotation + auth audit logging
-
-### Sprint 4: Full Agentic Platform
-
-Blocked by: Phase 3 acceptance criteria met
-
-- [ ] kms_spawn_agent tool: invoke Claude / Codex / Gemini as workflow step
-- [ ] MCP server: expose kms_search, kms_store, kms_graph_query to Claude Code
-- [ ] Codex adapter (OpenAI API)
-- [ ] Gemini adapter (Google AI API)
-- [ ] Obsidian plugin: "Send to KMS" and "Ask KMS" commands
-- [ ] Google Drive connector: OAuth flow, delta sync, index in pipeline
-
-Acceptance criteria: Claude Code calls kms_search autonomously during a coding session. Google Drive files are searchable alongside local files.
-
-### Sprint 5 (Parallel): Production Hardening
-
-Can begin after Sprint 2 stabilizes. Must complete before production deployment.
-
-- [ ] PostgreSQL checkpointer for LangGraph (ADR-0025 prerequisite must be written in Sprint 1)
-- [ ] LLM provider abstraction layer (ADR-0026 prerequisite must be written in Sprint 1)
-- [ ] Full OTel instrumentation: NestJS traces + metrics, Python traces
-- [ ] Grafana dashboards: latency by tier, embedding throughput, workflow success rate
-- [ ] 80% test coverage: kms-api + all Python services
-- [ ] Integration tests: all ACP endpoints, YouTube workflow, blog post workflow
-- [ ] Rate limiting on all public endpoints
-- [ ] JWT refresh token rotation + auth audit logging
+### Additional completed work (merged into feat/design-web-ui)
+- [x] Google Drive source: OAuth flow, token encryption, delta sync connector
+- [x] Local + Obsidian source registration (POST /sources/local, POST /sources/obsidian)
+- [x] Drive file browser UI — paginated list, bulk delete, tag assign, bulk move
+- [x] Tag system — manual create/assign, AI auto-tag, filter by tag, cascade delete
+- [x] Deduplication pipeline — SHA-256 cache, DB cross-source check, Qdrant near-dup 0.98
+- [x] Collections CRUD — NestJS module, repository, DTOs
+- [x] Files CRUD — NestJS module, repository, DTOs, scan job publisher
+- [x] ADR-0028: Dual-queue boundary (BullMQ vs RabbitMQ)
+- [x] ADR-0029: Standalone search-api NestJS service
 
 ---
 
 ## Blocked
 
-Nothing blocked. Sprints 1-3 are complete pending merge.
+**Gate 3 (Tests)**: 80% test coverage not yet achieved. Sprint 5 test tasks are the current blocker for production deployment.
 
 ---
 
@@ -136,7 +147,7 @@ Nothing blocked. Sprints 1-3 are complete pending merge.
 | MCP server spec changes | Low | Low | Version-pin `@modelcontextprotocol/sdk` |
 | Google Drive OAuth complexity | Medium | Medium | Use existing `googleapis` package already in kms-api |
 | Obsidian plugin distribution | Low | Low | Local install via BRAT; AppStore not required for v1 |
-| Merge conflicts across 9 branches | High | Medium | Merge in dependency order: Phase1 → Sprint2 → Sprint3 |
+| Test coverage remains blocked | High | Medium | Dedicate Sprint 5 fully to test writing before merge to main |
 
 ---
 

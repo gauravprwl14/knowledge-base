@@ -9,6 +9,8 @@ from __future__ import annotations
 class UrlAgentError(Exception):
     """Base error for all url-agent errors."""
 
+    code: str = "KBURL0000"
+
     def __init__(self, message: str, retryable: bool = False) -> None:
         super().__init__(message)
         # retryable=True → caller should nack(requeue=True); False → reject()
@@ -17,6 +19,8 @@ class UrlAgentError(Exception):
 
 class UnsupportedUrlError(UrlAgentError):
     """URL scheme or domain is not supported."""
+
+    code: str = "KBURL0001"
 
     def __init__(self, url: str) -> None:
         super().__init__(f"Unsupported URL: {url}", retryable=False)
@@ -30,6 +34,8 @@ class ExtractionError(UrlAgentError):
     for permanent failures like missing dependencies.
     """
 
+    code: str = "KBURL0002"
+
     def __init__(self, message: str, retryable: bool = True) -> None:
         super().__init__(message, retryable=retryable)
 
@@ -39,6 +45,8 @@ class PublishError(UrlAgentError):
 
     Always retryable — RabbitMQ connection failures are transient.
     """
+
+    code: str = "KBURL0003"
 
     def __init__(self, message: str) -> None:
         super().__init__(message, retryable=True)
