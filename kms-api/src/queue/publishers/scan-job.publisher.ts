@@ -1,9 +1,7 @@
-/* eslint-disable */
-// @ts-nocheck
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const amqplib = require('amqplib');
+const amqplib = require('amqplib') as typeof import('amqplib');
 import { Trace } from '../../telemetry/decorators/trace.decorator';
 
 const SCAN_QUEUE = 'kms.scan';
@@ -92,7 +90,7 @@ export class ScanJobPublisher implements OnModuleInit, OnModuleDestroy {
       contentType: 'application/json',
     });
     this.logger.info(
-      { sourceId: message.sourceId, scanJobId: message.scanJobId, queue: SCAN_QUEUE },
+      { source_id: message.source_id, scan_job_id: message.scan_job_id, queue: SCAN_QUEUE },
       'Scan job published to RabbitMQ',
     );
   }

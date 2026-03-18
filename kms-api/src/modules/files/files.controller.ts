@@ -1,10 +1,6 @@
 import {
   Controller,
   Get,
-<<<<<<< HEAD
-  Param,
-  Query,
-=======
   Post,
   Delete,
   Patch,
@@ -12,8 +8,8 @@ import {
   Body,
   Query,
   Request,
->>>>>>> feat/drive-backend
   UseGuards,
+  HttpCode,
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
@@ -22,20 +18,12 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 import { FilesService } from './files.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-<<<<<<< HEAD
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { ApiEndpoint } from '../../common/decorators/swagger.decorator';
-
-/**
- * FilesController exposes REST endpoints for querying KMS files.
- *
- * Routes:
- * - GET /files         — paginated file list (cursor-based)
- * - GET /files/:id     — single file by UUID
-=======
 import { ListFilesQueryDto } from './dto/list-files-query.dto';
 import { ListFilesResponseDto } from './dto/list-files-response.dto';
 import { BulkDeleteDto } from './dto/bulk-delete.dto';
@@ -46,7 +34,6 @@ import { BulkMoveDto } from './dto/bulk-move.dto';
  *
  * Files are individual documents discovered by the scan-worker and processed
  * by the embed-worker. Clients can list, inspect, delete, and move files.
->>>>>>> feat/drive-backend
  *
  * All routes require a valid JWT access token (via JwtAuthGuard).
  * Multi-tenant isolation is enforced at the service/repository layer using
@@ -64,28 +51,6 @@ export class FilesController {
   // ---------------------------------------------------------------------------
 
   /**
-<<<<<<< HEAD
-   * Returns a cursor-based page of KMS files belonging to the caller.
-   *
-   * @param userId - Injected from JWT
-   * @param cursor - Opaque cursor from the previous response
-   * @param limit  - Max results per page (default: 20)
-   */
-  @Get()
-  @ApiEndpoint({
-    summary: 'List KMS files (cursor pagination)',
-    description: 'Returns a page of files belonging to the authenticated user. Use nextCursor for subsequent pages.',
-  })
-  @ApiQuery({ name: 'cursor', required: false, type: String, description: 'Opaque cursor from previous page' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max results per page (default: 20)' })
-  async listFiles(
-    @CurrentUser('id') userId: string,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
-  ) {
-    const parsedLimit = limit ? Math.min(parseInt(limit, 10), 100) : 20;
-    return this.filesService.listFiles(userId, cursor, parsedLimit);
-=======
    * Bulk-deletes up to 100 files owned by the authenticated user.
    * Files belonging to other users are silently ignored.
    *
@@ -104,17 +69,12 @@ export class FilesController {
     @Request() req: any,
   ): Promise<{ deleted: number }> {
     return this.filesService.bulkDeleteFiles(dto.ids, req.user.id);
->>>>>>> feat/drive-backend
   }
 
   /**
    * Bulk-moves up to 100 files into a target collection.
    * Files not owned by the authenticated user are silently ignored.
    *
-<<<<<<< HEAD
-   * @param id     - File UUID
-   * @param userId - Injected from JWT
-=======
    * @param dto - Body containing fileIds array and target collectionId.
    * @param req - Fastify request carrying `req.user.id`.
    * @returns Count of new collection memberships created.
@@ -178,22 +138,9 @@ export class FilesController {
    * @param id - File UUID (validated as UUID v4).
    * @param req - Fastify request carrying `req.user.id`.
    * @returns The matching file record.
->>>>>>> feat/drive-backend
    */
   @Get(':id')
   @ApiParam({ name: 'id', type: String, description: 'File UUID' })
-<<<<<<< HEAD
-  @ApiEndpoint({
-    summary: 'Get a KMS file by ID',
-    description: 'Returns a single file owned by the caller. 404 if not found or not owned.',
-    responses: [{ status: HttpStatus.NOT_FOUND, description: 'File not found' }],
-  })
-  async getFile(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-  ) {
-    return this.filesService.getFile(id, userId);
-=======
   @ApiResponse({ status: 200, description: 'File retrieved successfully' })
   @ApiResponse({ status: 404, description: 'File not found' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -264,6 +211,5 @@ export class FilesController {
     @Body() body: { tags: string[] },
   ): Promise<unknown> {
     return this.filesService.updateTags(id, body.tags);
->>>>>>> feat/drive-backend
   }
 }
