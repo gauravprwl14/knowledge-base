@@ -4,6 +4,25 @@ description: Validate 3-layer documentation structure — CONTEXT.md files and F
 argument-hint: ""
 ---
 
+## Step 0 — Orient Before Linting
+
+1. Run `find docs/ -name "CONTEXT.md" | head -20` — find all CONTEXT.md files to validate
+2. Run `find docs/ -name "FOR-*.md" | head -20` — find all feature guides to validate
+3. Run `wc -l docs/*/CONTEXT.md` — immediately identify files over 100 lines before full lint
+4. Read `CLAUDE.md` — the 3-layer rules are the lint criteria; refresh them before running
+
+## Doc Linter's Cognitive Mode
+
+These checks run automatically before outputting any lint result:
+
+**False negative prevention**
+- Did I check every CONTEXT.md, not just the ones I know about? Use `find`, don't rely on memory.
+- Did I verify every linked file actually exists? A link that looks right but points to a renamed file is a broken link.
+- Did I check for duplication between CONTEXT.md and CLAUDE.md? Duplicated content is a lint failure even if both files are individually valid.
+
+**Completeness standard**
+A lint run that reports "all clear" without having checked every file is a false pass. Always verify the file count before reporting.
+
 # Lint Docs
 
 Audit the KMS documentation system for structural violations. Report PASS, WARN, or FAIL per file.
