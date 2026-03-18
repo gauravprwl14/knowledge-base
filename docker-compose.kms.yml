@@ -301,7 +301,8 @@ services:
       APP_NAME: search-api
       DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
       REDIS_URL: redis://redis:6379
-      QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      MOCK_SEMANTIC: ${MOCK_SEMANTIC:-true}
       KMS_API_URL: http://kms-api:8000
       EMBED_SERVICE_URL: http://embed-worker:8011
       OTEL_ENABLED: "true"
@@ -367,12 +368,16 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       KMS_API_URL: http://kms-api:8000
+      VAULT_PATH: /vault
+      API_KEY_ENCRYPTION_SECRET: ${API_KEY_ENCRYPTION_SECRET:-dev-secret-32-bytes-exactly!!!!!!}
+      REDIS_URL: redis://redis:6379/0
       OTEL_ENABLED: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: scan-worker
       PYTHONUNBUFFERED: "1"
     volumes:
       - ./services/scan-worker/app:/app/app:ro
+      - ./test-vault:/vault:ro          # mount test vault read-only
     depends_on:
       postgres:
         condition: service_healthy
