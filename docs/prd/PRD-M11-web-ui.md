@@ -209,3 +209,91 @@ export const apiClient = {
 | Axios | HTTP client | 1.x |
 | Jest + RTL | Unit + integration tests | Latest |
 | Playwright | E2E tests | 1.x |
+
+---
+
+## Sprint 4 Additions (2026-03-18)
+
+### Drive File Browser (new requirement)
+
+The `/drive` page replaces the generic `/files` route as the primary file management surface. It combines source management and file browsing in a single tabbed view.
+
+#### Components
+
+| Component | Description | Priority |
+|-----------|-------------|----------|
+| `FilesBrowser` | Grid/list view toggle. Virtualized list via `react-virtual`. Infinite scroll with cursor-based pagination (`GET /files?cursor=&limit=50`). | Must |
+| `FiltersFilterPanel` | Left-rail filter panel with collapsible sections: Source (dropdown), Type (MIME group: Documents, Images, Audio, Video, Other), Status (pending / scanning / indexed / failed), Collection (dropdown), Tags (multi-select tag chips). All filters compose via query params. | Must |
+| `FileCard` | Card rendering file name, MIME type badge, status badge, tag chips (max 3 visible + overflow count), last-modified date, and a hover action menu (open, delete, add to collection, manage tags). | Must |
+| `BulkActionBar` | Sticky bottom bar that appears when ≥1 file is selected. Shows selection count and actions: Delete (with confirmation modal), Add to Collection (CollectionPicker), Add Tag (TagPicker), Remove Tag (TagPicker). | Must |
+| `TagPicker` | Popover that lists existing tags (fetched from `GET /tags`) with a search input. Inline "+ Create tag" flow: name input + 6-color preset picker. Creates tag then immediately assigns it. | Must |
+| `CollectionPicker` | Popover that lists existing collections. Inline "+ New collection" flow: name input then immediate assignment. | Must |
+
+#### Routes
+
+| Route | Purpose |
+|-------|---------|
+| `/drive` | Drive page: Sources tab + Files tab |
+| `/drive?tab=files` | Direct link to Files tab |
+| `/tags` | Tags management page — list all user tags, rename, delete, view file count |
+
+#### API Endpoints Required
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/files` | List files with filters: `sourceId`, `mimeGroup`, `status`, `collectionId`, `tags[]`, `cursor`, `limit` |
+| `DELETE` | `/files/bulk` | Bulk soft-delete files by ID array |
+| `POST` | `/files/bulk-tag` | Apply a tag to multiple files |
+| `DELETE` | `/files/bulk-tag` | Remove a tag from multiple files |
+| `GET` | `/tags` | List all tags for authenticated user |
+| `POST` | `/tags` | Create a new tag |
+| `DELETE` | `/tags/:id` | Delete a tag (cascades to kms_file_tags) |
+| `GET` | `/collections` | List all collections for authenticated user |
+| `POST` | `/collections` | Create a new collection |
+| `POST` | `/collections/:id/files` | Add files to a collection |
+
+---
+
+### Tag System (new requirement)
+
+Tags are user-scoped cross-cutting labels that can be applied to any file. They complement the collection system (coarse-grained, one-per-file) with fine-grained multi-tag annotation.
+
+#### KmsTag Entity
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| `id` | UUID | PK |
+| `userId` | UUID | FK → auth_users, NOT NULL |
+| `name` | string | max 50 chars, unique per user |
+| `color` | string | hex color, one of 6 presets |
+| `fileCount` | number | computed / virtual — count of associated files |
+
+#### KmsFileTag Junction
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| `fileId` | UUID | FK → kms_files, NOT NULL |
+| `tagId` | UUID | FK → kms_tags, NOT NULL |
+| `source` | enum | `'manual'` or `'ai'` |
+| PK | composite | (file_id, tag_id) |
+
+#### Business Rules
+
+| Rule | Detail |
+|------|--------|
+| Max tags per user | 50 tags maximum, enforced at service layer before INSERT |
+| Tag name uniqueness | Unique per user (not globally). Case-insensitive comparison on create. |
+| Tag sources | `'manual'` — created via UI; `'ai'` — written by `kms_classify` tool in M14 workflow |
+| Cascade delete | Deleting a tag removes all `kms_file_tags` rows for that tag |
+| AI tag badge | FileCard renders AI-sourced tags with a small sparkle indicator |
+
+#### Color Presets
+
+| Name | Hex |
+|------|-----|
+| Indigo | `#6366f1` |
+| Purple | `#8b5cf6` |
+| Pink | `#ec4899` |
+| Teal | `#14b8a6` |
+| Amber | `#f59e0b` |
+| Rose | `#f43f5e` |
