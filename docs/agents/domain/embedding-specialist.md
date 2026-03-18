@@ -170,7 +170,7 @@ class RecursiveCharacterSplitter:
 ```
 
 **Chunking strategy rationale:**
-- 1000 char chunks: optimal for `all-MiniLM-L6-v2` (max 256 tokens ≈ 1000 chars)
+- 1000 char chunks: optimal for `BAAI/bge-m3` (max 8192 tokens, ~1000 chars is a practical chunk size)
 - 200 char overlap: ensures context isn't lost at chunk boundaries
 - Recursive splitting: tries paragraph breaks first, then sentences, then words
 - Minimum 50 chars: filters out empty pages, headers-only chunks
@@ -183,14 +183,14 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 
 class EmbeddingGenerator:
-    MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    MODEL_NAME = "BAAI/bge-m3"
     BATCH_SIZE = 32
 
     def __init__(self):
         self.model = SentenceTransformer(self.MODEL_NAME)
 
     def embed(self, texts: list[str]) -> np.ndarray:
-        """Generate embeddings in batches. Returns shape (N, 384)."""
+        """Generate embeddings in batches. Returns shape (N, 1024)."""
         all_embeddings = []
         for i in range(0, len(texts), self.BATCH_SIZE):
             batch = texts[i:i + self.BATCH_SIZE]
@@ -206,7 +206,7 @@ class EmbeddingGenerator:
 **Key parameters:**
 - `normalize_embeddings=True`: required — Qdrant cosine metric assumes unit vectors
 - `batch_size=32`: optimal CPU batch size; increase to 64–128 with GPU
-- Model produces 384-dim float32 vectors
+- Model produces 1024-dim float32 vectors
 
 ### 4. Qdrant Indexing
 
