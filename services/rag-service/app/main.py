@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.api.v1.router import api_router
+from app.services.run_store import RunStore
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
@@ -27,6 +28,10 @@ async def lifespan(app: FastAPI):
 
     db_pool = await asyncpg.create_pool(settings.database_url, min_size=2, max_size=10)
     redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+
+    # Ensure kms_rag_runs table exists on startup
+    run_store = RunStore(db_pool)
+    await run_store.ensure_table()
 
     logger.info("RAG service started", llm_enabled=settings.llm_enabled, llm_provider=settings.llm_provider)
     yield

@@ -12,12 +12,18 @@ class SourceType(str, Enum):
     EXTERNAL_DRIVE = "external_drive"
 
 
+class ScanType(str, Enum):
+    FULL = "FULL"
+    INCREMENTAL = "INCREMENTAL"
+
+
 class ScanJobMessage(BaseModel):
     """Message consumed from kms.scan queue."""
     scan_job_id: UUID
     source_id: UUID
     source_type: SourceType
     user_id: UUID
+    scan_type: ScanType = ScanType.FULL
     config: dict = Field(default_factory=dict)
     retry_count: int = 0
     created_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
@@ -28,12 +34,14 @@ class FileDiscoveredMessage(BaseModel):
     scan_job_id: UUID
     source_id: UUID
     user_id: UUID
+    external_id: Optional[str] = None
     file_path: str
     original_filename: str
     mime_type: Optional[str] = None
     file_size_bytes: Optional[int] = None
     last_modified: Optional[datetime.datetime] = None
     checksum_sha256: Optional[str] = None
+    external_modified_at: Optional[datetime.datetime] = None
     source_type: SourceType
     source_metadata: dict = Field(default_factory=dict)
 
@@ -49,6 +57,6 @@ class DedupCheckMessage(BaseModel):
 
 class ScanJobStatus(str, Enum):
     QUEUED = "QUEUED"
-    PROCESSING = "PROCESSING"
+    RUNNING = "RUNNING"   # maps to Prisma ScanJobStatus.RUNNING in kms_scan_jobs
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"

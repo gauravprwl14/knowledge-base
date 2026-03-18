@@ -73,3 +73,19 @@ class QueuePublishError(KMSWorkerError):
             retryable=True,
         )
         self.queue = queue
+
+
+class ScanJobFailedError(KMSWorkerError):
+    """Raised when a scan job cannot be executed due to a terminal configuration error.
+
+    Args:
+        reason: Short description of why the job cannot proceed.
+        retryable: Defaults to False — configuration errors are terminal.
+    """
+
+    def __init__(self, reason: str, retryable: bool = False) -> None:
+        super().__init__(
+            f"Scan job failed: {reason}",
+            code="KBWRK0104",
+            retryable=retryable,
+        )

@@ -89,3 +89,21 @@ class Neo4jWriteError(GraphWorkerError):
             retryable=retryable,
         )
         self.operation = operation
+
+
+class StatusUpdateError(GraphWorkerError):
+    """Raised when updating the kms_files status in PostgreSQL fails.
+
+    Args:
+        file_id: The file whose status could not be updated.
+        reason: Short description of the database failure.
+        retryable: Defaults to True — connection errors are typically transient.
+    """
+
+    def __init__(self, file_id: str, reason: str, retryable: bool = True) -> None:
+        super().__init__(
+            f"Failed to update status for file {file_id}: {reason}",
+            code="KBWRK0304",
+            retryable=retryable,
+        )
+        self.file_id = file_id

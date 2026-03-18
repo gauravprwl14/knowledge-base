@@ -1,9 +1,12 @@
 from app.connectors.base import BaseConnector
 from app.connectors.local import LocalFileConnector
+from app.connectors.google_drive import GoogleDriveConnector
 from app.models.messages import SourceType
 
 _REGISTRY: dict[str, type[BaseConnector]] = {
     SourceType.LOCAL: LocalFileConnector,
+    SourceType.OBSIDIAN: LocalFileConnector,   # Obsidian vault = local filesystem
+    SourceType.GOOGLE_DRIVE: GoogleDriveConnector,
 }
 
 

@@ -5,7 +5,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from app.schemas.run import CreateRunRequest, RunResponse, RunStatus
-from app.services.run_store import RunStore
+from app.services.run_store import RedisRunStore as RunStore
 from app.services.orchestrator import rag_graph
 from app.errors import RunNotFoundError, QueryTooLongError
 import redis.asyncio as aioredis

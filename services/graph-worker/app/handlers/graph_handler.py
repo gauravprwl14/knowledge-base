@@ -1,7 +1,9 @@
 """
-Graph handler — processes GraphBuildMessage messages from the kms.graph queue.
+Graph handler — processes graph-build messages from the kms.graph queue.
 
-Flow:
+Two message variants are supported:
+
+GraphBuildMessage (legacy)
   1. Parse the incoming AMQP message body as GraphBuildMessage.
   2. Load chunk content from PostgreSQL (kms_chunks) using asyncpg.
   3. Run NER extraction on each chunk via _extract_entities_stub().
@@ -11,6 +13,15 @@ Flow:
        - MERGE (:File)-[:MENTIONS]->(:Entity)
        - MERGE (:Entity)-[:CO_OCCURS_WITH {weight}]->(:Entity) for same-chunk co-occurrences
   5. Ack on success; nack/reject on error according to retryability.
+
+GraphJobMessage (inline-chunks)
+  1. Parse the incoming AMQP message body as GraphJobMessage.
+  2. Use inline chunk text directly (no PostgreSQL round-trip for content).
+  3. Extract named entities using EntityExtractor (spaCy).
+  4. For Markdown files, also extract [[wiki links]] and create REFERENCES edges.
+  5. Write all nodes and relationships via Neo4jService.
+  6. Update kms_files status to GRAPH_INDEXED in PostgreSQL.
+  7. Ack on success; nack/reject on error according to retryability.
 
 NER note: _extract_entities_stub() returns hard-coded fake entities.  Replace
 with a real spaCy pipeline call once the model is available in the image.
@@ -25,8 +36,16 @@ import asyncpg
 import structlog
 from neo4j import AsyncDriver
 
-from app.models.messages import GraphBuildMessage
-from app.utils.errors import ChunkLoadError, KMSWorkerError, NERExtractionError, Neo4jWriteError
+from app.extractors.entity_extractor import EntityExtractor
+from app.db.neo4j_service import Neo4jService
+from app.models.messages import GraphBuildMessage, GraphJobMessage
+from app.utils.errors import (
+    ChunkLoadError,
+    KMSWorkerError,
+    NERExtractionError,
+    Neo4jWriteError,
+    StatusUpdateError,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -376,3 +395,214 @@ class GraphHandler:
             await session.run(cypher, name_a=name_a, name_b=name_b, weight=weight)
         except Exception as exc:
             raise Neo4jWriteError(operation="MERGE CO_OCCURS_WITH", reason=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_MARKDOWN_MIME_TYPES = frozenset({"text/markdown", "text/x-markdown", "text/md"})
+_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown", ".mdx"})
+
+
+def _is_markdown(mime_type: str, filename: str) -> bool:
+    """Return True when the file should be treated as Markdown.
+
+    Checks both the MIME type and the file extension so that files with a
+    generic ``text/plain`` MIME type but an ``.md`` extension are still
+    processed for wiki-links.
+
+    Args:
+        mime_type: MIME type string from the job message.
+        filename: Original filename (used for extension fallback).
+
+    Returns:
+        bool: True when wiki-link extraction should be applied.
+    """
+    if mime_type.lower() in _MARKDOWN_MIME_TYPES:
+        return True
+    return any(filename.lower().endswith(ext) for ext in _MARKDOWN_EXTENSIONS)
+
+
+# ---------------------------------------------------------------------------
+# GraphJobHandler — inline-chunks variant
+# ---------------------------------------------------------------------------
+
+
+class GraphJobHandler:
+    """Consumes GraphJobMessage from kms.graph and writes to Neo4j.
+
+    This handler processes the inline-chunks message format where chunk text
+    is embedded directly in the AMQP message body. It uses EntityExtractor for
+    NER and Neo4jService for all graph writes, then updates the file status in
+    PostgreSQL to GRAPH_INDEXED on success.
+
+    Attributes:
+        _db_pool: asyncpg connection pool for updating kms_files status.
+        _neo4j_service: High-level Neo4j service for graph writes.
+        _extractor: EntityExtractor instance (shared, thread-safe after init).
+    """
+
+    def __init__(
+        self,
+        db_pool: asyncpg.Pool,
+        neo4j_service: Neo4jService,
+        extractor: EntityExtractor | None = None,
+    ) -> None:
+        """Initialise the handler with shared I/O resources.
+
+        Args:
+            db_pool: asyncpg connection pool for PostgreSQL status updates.
+            neo4j_service: Initialised Neo4jService for graph writes.
+            extractor: Optional EntityExtractor; a default instance is created
+                when not provided (useful for testing with a pre-configured mock).
+        """
+        self._db_pool = db_pool
+        self._neo4j_service = neo4j_service
+        self._extractor = extractor or EntityExtractor()
+
+    async def handle(self, message: aio_pika.IncomingMessage) -> None:
+        """Entry point called by aio_pika for each message delivered on kms.graph.
+
+        Parses the message body as a GraphJobMessage, runs the full graph-build
+        pipeline, then acks or nacks the message based on the outcome.
+
+        Args:
+            message: Raw AMQP message from the kms.graph queue.
+        """
+        try:
+            payload = json.loads(message.body)
+            job = GraphJobMessage.model_validate(payload)
+        except Exception as exc:
+            logger.error(
+                "Invalid graph job message — dead-lettering",
+                error=str(exc),
+                body=message.body[:200],
+            )
+            await message.reject(requeue=False)
+            return
+
+        log = logger.bind(
+            file_id=job.file_id,
+            user_id=job.user_id,
+            source_id=job.source_id,
+            filename=job.filename,
+            chunk_count=len(job.chunks),
+        )
+        log.info("Processing graph job", mime_type=job.mime_type)
+
+        try:
+            await self._run_graph_job(job, log)
+            await message.ack()
+
+        except KMSWorkerError as exc:
+            log.error(
+                "Graph job failed",
+                code=exc.code,
+                retryable=exc.retryable,
+                error=str(exc),
+            )
+            if exc.retryable:
+                await message.nack(requeue=True)
+            else:
+                await message.reject(requeue=False)
+
+        except Exception as exc:
+            log.error("Unexpected error during graph job", error=str(exc))
+            await message.nack(requeue=True)
+
+    async def _run_graph_job(
+        self, job: GraphJobMessage, log: structlog.BoundLogger
+    ) -> None:
+        """Execute the full graph-build pipeline for a GraphJobMessage.
+
+        Steps:
+          1. Upsert the File node in Neo4j.
+          2. For each chunk, extract entities and upsert Entity nodes + MENTIONS edges.
+          3. If the file is Markdown, extract wiki-links and create REFERENCES edges.
+          4. Update kms_files status to GRAPH_INDEXED in PostgreSQL.
+
+        Args:
+            job: Validated graph job message with inline chunk text.
+            log: Bound structlog logger carrying per-message context fields.
+
+        Raises:
+            Neo4jWriteError: When a Neo4j write fails (retryable by default).
+            StatusUpdateError: When the PostgreSQL status update fails.
+        """
+        await self._neo4j_service.upsert_file_node(
+            file_id=job.file_id,
+            filename=job.filename,
+            user_id=job.user_id,
+            mime_type=job.mime_type,
+        )
+        log.debug("File node upserted")
+
+        is_md = _is_markdown(job.mime_type, job.filename)
+        total_entities = 0
+        total_links = 0
+
+        for chunk in job.chunks:
+            # Named entity extraction
+            try:
+                entities = self._extractor.extract_entities(chunk)
+            except Exception as exc:
+                raise NERExtractionError(file_id=job.file_id, reason=str(exc)) from exc
+
+            for entity in entities:
+                await self._neo4j_service.upsert_entity_node(
+                    entity_text=entity["text"],
+                    entity_label=entity["label"],
+                    user_id=job.user_id,
+                )
+                await self._neo4j_service.link_file_to_entity(
+                    file_id=job.file_id,
+                    entity_text=entity["text"],
+                    user_id=job.user_id,
+                )
+            total_entities += len(entities)
+
+            # Wiki-link extraction (Markdown only)
+            if is_md:
+                links = self._extractor.extract_wiki_links(chunk)
+                for link_target in links:
+                    await self._neo4j_service.link_wiki_references(
+                        source_filename=job.filename,
+                        target_name=link_target,
+                        user_id=job.user_id,
+                    )
+                total_links += len(links)
+
+        log.info(
+            "Graph job complete",
+            total_entities=total_entities,
+            total_wiki_links=total_links,
+            is_markdown=is_md,
+        )
+
+        await self._update_file_status(job.file_id, log)
+
+    async def _update_file_status(
+        self, file_id: str, log: structlog.BoundLogger
+    ) -> None:
+        """Update the kms_files status to GRAPH_INDEXED in PostgreSQL.
+
+        Args:
+            file_id: UUID string of the file to update.
+            log: Bound structlog logger for contextual error output.
+
+        Raises:
+            StatusUpdateError: If the asyncpg query fails.
+        """
+        sql = """
+            UPDATE kms_files
+               SET status = 'GRAPH_INDEXED',
+                   updated_at = NOW()
+             WHERE id = $1::uuid
+        """
+        try:
+            async with self._db_pool.acquire() as conn:
+                await conn.execute(sql, file_id)
+            log.debug("File status updated to GRAPH_INDEXED", file_id=file_id)
+        except Exception as exc:
+            raise StatusUpdateError(file_id=file_id, reason=str(exc)) from exc
