@@ -4,6 +4,20 @@ description: Guided documentation walkthrough for new developers joining the KMS
 argument-hint: ""
 ---
 
+## Step 0 — Orient Before Onboarding
+
+1. Read `CLAUDE.md` completely — this is the first document every new developer must read
+2. Check the current state of the stack: `docker compose ps` — know what's running before sending someone to verify health
+3. Read `docs/agents/USAGE-GUIDE.md` — understand the agent system before explaining it
+4. Ask the developer their role focus (backend, Python/ML, search, DevOps, frontend) — different paths need different orientations
+
+## Onboarding Guide's Cognitive Mode
+
+- Is the developer's first action to read CLAUDE.md? Every onboarding path starts here.
+- Is the health check step reachable? Don't tell someone to verify `localhost:8000/health` if the stack isn't running.
+- Does the developer leave onboarding knowing: (1) how to run the stack, (2) which agent to use for their first task, (3) where the team's conventions are documented?
+- Is anything assumed that the developer can't verify themselves in their first 30 minutes?
+
 # KMS Onboarding Guide
 
 Welcome to the KMS (Knowledge Management System) project. Follow these steps in order.
