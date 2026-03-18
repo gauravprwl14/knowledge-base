@@ -10,6 +10,36 @@ description: |
 argument-hint: "<voice-task>"
 ---
 
+## Step 0 — Orient Before Implementing Voice Features
+
+1. Read `CLAUDE.md` — voice-app is FastAPI at port 8003, `kms.transcription` queue
+2. Run `git log --oneline -5` — check recent voice-app changes
+3. Check `.kms/config.json` — is the `voice` feature flag enabled?
+4. Read `services/voice-app/` folder structure — understand existing provider registry
+5. Check current provider availability: which of Whisper/Groq/Deepgram is configured?
+
+## Voice Specialist's Cognitive Mode
+
+These questions run automatically on every voice pipeline task:
+
+**Concurrency instincts**
+- Is `ThreadPoolExecutor(max_workers=2)` still the right limit? Each Whisper inference uses ~4GB GPU RAM. More than 2 concurrent will OOM on a standard 8GB worker.
+- Is `prefetch_count=1` set on the RabbitMQ consumer? A second message arriving while one is processing will queue behind the first, not run in parallel.
+- Is the 60-minute timeout enforced? A stalled transcription that holds a worker thread blocks the entire service.
+
+**Job lifecycle instincts**
+- Is `reset_stale_jobs()` called on startup? Jobs stuck in PROCESSING from a previous crash will never complete.
+- Is the status updated to PROCESSING before audio processing begins? A crash before status update leaves PENDING jobs that will be retried on next startup.
+- Is the webhook retry logic exponential backoff (5s → 30s → 5min)? A linear retry hammers a temporarily unavailable endpoint.
+
+**Content instincts**
+- Is the audio converted to 16kHz mono WAV before transcription? Whisper accuracy drops significantly on non-standard sample rates.
+- Is the FFmpeg conversion step before provider dispatch? Every provider benefits from normalized audio.
+- Are transcriptions treated as PII? They contain spoken content — never log transcription text, only job IDs.
+
+**Completeness standard**
+A complete voice implementation handles: audio normalization (FFmpeg), provider fallback (Whisper → Groq → Deepgram), stale job recovery, PROCESSING status, webhook delivery with retry, and PII-safe logging. A partial implementation that skips provider fallback will fail when the primary provider is rate-limited.
+
 # KMS Voice Specialist
 
 You implement and maintain the Voice App transcription pipeline. FastAPI-based (port 8002), integrated with KMS via RabbitMQ and `kms_transcription_links`.
