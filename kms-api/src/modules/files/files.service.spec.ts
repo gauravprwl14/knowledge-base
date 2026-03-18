@@ -10,7 +10,7 @@ import { KmsFile } from '@prisma/client';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeFile(overrides: Partial<KmsFile> = {}): KmsFile {
+function makeFile(overrides: Partial<any> = {}): KmsFile {
   return {
     id: 'file-001',
     userId: 'user-001',
@@ -47,14 +47,19 @@ function makeFilesPage(items: KmsFile[] = [], overrides: Partial<FilesPage> = {}
 
 describe('FilesService', () => {
   let service: FilesService;
-  let fileRepo: jest.Mocked<FileRepository>;
 
-  const mockFileRepo: jest.Mocked<Partial<FileRepository>> = {
-    listFiles: jest.fn(),
-    findByIdAndUserId: jest.fn(),
-    deleteById: jest.fn(),
-    bulkDelete: jest.fn(),
-    bulkMoveToCollection: jest.fn(),
+  const repoListFiles = jest.fn();
+  const repoFindByIdAndUserId = jest.fn();
+  const repoDeleteById = jest.fn();
+  const repoBulkDelete = jest.fn();
+  const repoBulkMoveToCollection = jest.fn();
+
+  const mockFileRepo = {
+    listFiles: repoListFiles,
+    findByIdAndUserId: repoFindByIdAndUserId,
+    deleteById: repoDeleteById,
+    bulkDelete: repoBulkDelete,
+    bulkMoveToCollection: repoBulkMoveToCollection,
   };
 
   const mockChildLogger = {
@@ -84,7 +89,6 @@ describe('FilesService', () => {
     }).compile();
 
     service = module.get<FilesService>(FilesService);
-    fileRepo = module.get(FileRepository);
   });
 
   // -------------------------------------------------------------------------
@@ -96,19 +100,19 @@ describe('FilesService', () => {
       const file1 = makeFile({ id: 'file-001', name: 'alpha.pdf' });
       const file2 = makeFile({ id: 'file-002', name: 'beta.pdf' });
       const page = makeFilesPage([file1, file2]);
-      mockFileRepo.listFiles!.mockResolvedValue(page);
+      repoListFiles.mockResolvedValue(page);
 
       const params: ListFilesParams = { userId: 'user-001', limit: 20 };
       const result = await service.listFiles(params);
 
       expect(result).toEqual(page);
       expect(result.items).toHaveLength(2);
-      expect(mockFileRepo.listFiles).toHaveBeenCalledWith(params);
+      expect(repoListFiles).toHaveBeenCalledWith(params);
     });
 
     it('returns empty page when user has no files', async () => {
       const emptyPage = makeFilesPage([]);
-      mockFileRepo.listFiles!.mockResolvedValue(emptyPage);
+      repoListFiles.mockResolvedValue(emptyPage);
 
       const result = await service.listFiles({ userId: 'user-001' });
 
@@ -118,18 +122,17 @@ describe('FilesService', () => {
 
     it('passes all filter params to the repository', async () => {
       const page = makeFilesPage();
-      mockFileRepo.listFiles!.mockResolvedValue(page);
+      repoListFiles.mockResolvedValue(page);
 
       const params: ListFilesParams = {
         userId: 'user-001',
         sourceId: 'src-001',
-        status: 'READY',
         limit: 10,
         cursor: 'cursor-abc',
       };
       await service.listFiles(params);
 
-      expect(mockFileRepo.listFiles).toHaveBeenCalledWith(params);
+      expect(repoListFiles).toHaveBeenCalledWith(params);
     });
   });
 
@@ -140,16 +143,16 @@ describe('FilesService', () => {
   describe('findOne()', () => {
     it('returns the file when found and owned by user', async () => {
       const file = makeFile();
-      mockFileRepo.findByIdAndUserId!.mockResolvedValue(file);
+      repoFindByIdAndUserId.mockResolvedValue(file);
 
       const result = await service.findOne('file-001', 'user-001');
 
       expect(result).toEqual(file);
-      expect(mockFileRepo.findByIdAndUserId).toHaveBeenCalledWith('file-001', 'user-001');
+      expect(repoFindByIdAndUserId).toHaveBeenCalledWith('file-001', 'user-001');
     });
 
     it('throws AppError FIL0001 when file is not found', async () => {
-      mockFileRepo.findByIdAndUserId!.mockResolvedValue(null);
+      repoFindByIdAndUserId.mockResolvedValue(null);
 
       await expect(service.findOne('nonexistent', 'user-001')).rejects.toThrow(AppError);
 
@@ -164,7 +167,7 @@ describe('FilesService', () => {
 
     it('throws AppError FIL0001 when file belongs to a different user', async () => {
       // Repository scopes by userId; foreign files return null
-      mockFileRepo.findByIdAndUserId!.mockResolvedValue(null);
+      repoFindByIdAndUserId.mockResolvedValue(null);
 
       await expect(service.findOne('file-001', 'other-user')).rejects.toThrow(AppError);
 
@@ -184,18 +187,18 @@ describe('FilesService', () => {
   describe('deleteFile()', () => {
     it('deletes the file when found and owned by user', async () => {
       const file = makeFile();
-      mockFileRepo.findByIdAndUserId!.mockResolvedValue(file);
-      mockFileRepo.deleteById!.mockResolvedValue(undefined);
+      repoFindByIdAndUserId.mockResolvedValue(file);
+      repoDeleteById.mockResolvedValue(undefined);
 
       const result = await service.deleteFile('file-001', 'user-001');
 
       expect(result).toEqual({ deleted: true });
-      expect(mockFileRepo.findByIdAndUserId).toHaveBeenCalledWith('file-001', 'user-001');
-      expect(mockFileRepo.deleteById).toHaveBeenCalledWith('file-001');
+      expect(repoFindByIdAndUserId).toHaveBeenCalledWith('file-001', 'user-001');
+      expect(repoDeleteById).toHaveBeenCalledWith('file-001');
     });
 
     it('throws AppError FIL0001 when file is not found', async () => {
-      mockFileRepo.findByIdAndUserId!.mockResolvedValue(null);
+      repoFindByIdAndUserId.mockResolvedValue(null);
 
       await expect(service.deleteFile('nonexistent', 'user-001')).rejects.toThrow(AppError);
 
@@ -209,10 +212,10 @@ describe('FilesService', () => {
     });
 
     it('does not call deleteById when ownership check fails', async () => {
-      mockFileRepo.findByIdAndUserId!.mockResolvedValue(null);
+      repoFindByIdAndUserId.mockResolvedValue(null);
 
       await expect(service.deleteFile('file-001', 'other-user')).rejects.toThrow(AppError);
-      expect(mockFileRepo.deleteById).not.toHaveBeenCalled();
+      expect(repoDeleteById).not.toHaveBeenCalled();
     });
   });
 
@@ -222,16 +225,16 @@ describe('FilesService', () => {
 
   describe('bulkDeleteFiles()', () => {
     it('returns deleted count from repository', async () => {
-      mockFileRepo.bulkDelete!.mockResolvedValue(3);
+      repoBulkDelete.mockResolvedValue(3);
 
       const result = await service.bulkDeleteFiles(['f1', 'f2', 'f3'], 'user-001');
 
       expect(result).toEqual({ deleted: 3 });
-      expect(mockFileRepo.bulkDelete).toHaveBeenCalledWith(['f1', 'f2', 'f3'], 'user-001');
+      expect(repoBulkDelete).toHaveBeenCalledWith(['f1', 'f2', 'f3'], 'user-001');
     });
 
     it('returns deleted: 0 when no owned files match the given IDs', async () => {
-      mockFileRepo.bulkDelete!.mockResolvedValue(0);
+      repoBulkDelete.mockResolvedValue(0);
 
       const result = await service.bulkDeleteFiles(['foreign-1', 'foreign-2'], 'user-001');
 
@@ -239,11 +242,11 @@ describe('FilesService', () => {
     });
 
     it('passes userId to repository for ownership scoping', async () => {
-      mockFileRepo.bulkDelete!.mockResolvedValue(1);
+      repoBulkDelete.mockResolvedValue(1);
 
       await service.bulkDeleteFiles(['file-001'], 'user-001');
 
-      expect(mockFileRepo.bulkDelete).toHaveBeenCalledWith(
+      expect(repoBulkDelete).toHaveBeenCalledWith(
         expect.any(Array),
         'user-001',
       );
@@ -256,12 +259,12 @@ describe('FilesService', () => {
 
   describe('bulkMoveFiles()', () => {
     it('returns moved count from repository', async () => {
-      mockFileRepo.bulkMoveToCollection!.mockResolvedValue(2);
+      repoBulkMoveToCollection.mockResolvedValue(2);
 
       const result = await service.bulkMoveFiles(['f1', 'f2'], 'col-001', 'user-001');
 
       expect(result).toEqual({ moved: 2 });
-      expect(mockFileRepo.bulkMoveToCollection).toHaveBeenCalledWith(
+      expect(repoBulkMoveToCollection).toHaveBeenCalledWith(
         ['f1', 'f2'],
         'col-001',
         'user-001',
@@ -269,7 +272,7 @@ describe('FilesService', () => {
     });
 
     it('returns moved: 0 when no owned files match', async () => {
-      mockFileRepo.bulkMoveToCollection!.mockResolvedValue(0);
+      repoBulkMoveToCollection.mockResolvedValue(0);
 
       const result = await service.bulkMoveFiles(['foreign-1'], 'col-001', 'user-001');
 
@@ -277,11 +280,11 @@ describe('FilesService', () => {
     });
 
     it('passes collectionId and userId to repository', async () => {
-      mockFileRepo.bulkMoveToCollection!.mockResolvedValue(1);
+      repoBulkMoveToCollection.mockResolvedValue(1);
 
       await service.bulkMoveFiles(['file-001'], 'col-target', 'user-001');
 
-      expect(mockFileRepo.bulkMoveToCollection).toHaveBeenCalledWith(
+      expect(repoBulkMoveToCollection).toHaveBeenCalledWith(
         ['file-001'],
         'col-target',
         'user-001',

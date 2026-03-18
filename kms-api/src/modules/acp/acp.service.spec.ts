@@ -47,22 +47,25 @@ function makePromptDto(text: string): PromptSessionDto {
 
 describe('AcpService', () => {
   let service: AcpService;
-  let sessionStore: jest.Mocked<AcpSessionStore>;
-  let toolRegistry: jest.Mocked<AcpToolRegistry>;
-  let anthropicAdapter: jest.Mocked<AnthropicAdapter>;
 
-  const mockSessionStore: jest.Mocked<Partial<AcpSessionStore>> = {
-    create: jest.fn(),
-    get: jest.fn(),
-    delete: jest.fn(),
+  const sessionStoreCreate = jest.fn();
+  const sessionStoreGet = jest.fn();
+  const sessionStoreDelete = jest.fn();
+  const toolRegistryKmsSearch = jest.fn();
+  const anthropicStreamAnswer = jest.fn();
+
+  const mockSessionStore = {
+    create: sessionStoreCreate,
+    get: sessionStoreGet,
+    delete: sessionStoreDelete,
   };
 
-  const mockToolRegistry: jest.Mocked<Partial<AcpToolRegistry>> = {
-    kmsSearch: jest.fn(),
+  const mockToolRegistry = {
+    kmsSearch: toolRegistryKmsSearch,
   };
 
-  const mockAnthropicAdapter: jest.Mocked<Partial<AnthropicAdapter>> = {
-    streamAnswer: jest.fn(),
+  const mockAnthropicAdapter = {
+    streamAnswer: anthropicStreamAnswer,
   };
 
   const mockChildLogger = {
@@ -94,9 +97,6 @@ describe('AcpService', () => {
     }).compile();
 
     service = module.get<AcpService>(AcpService);
-    sessionStore = module.get(AcpSessionStore);
-    toolRegistry = module.get(AcpToolRegistry);
-    anthropicAdapter = module.get(AnthropicAdapter);
   });
 
   // -------------------------------------------------------------------------
@@ -107,18 +107,18 @@ describe('AcpService', () => {
     it('delegates to sessionStore.create and returns the session', async () => {
       const dto: CreateSessionDto = { cwd: '/home/dev' };
       const session = makeSession();
-      mockSessionStore.create!.mockResolvedValue(session);
+      sessionStoreCreate.mockResolvedValue(session);
 
       const result = await service.createSession('user-001', dto);
 
       expect(result).toEqual(session);
-      expect(mockSessionStore.create).toHaveBeenCalledWith('user-001', dto.cwd);
+      expect(sessionStoreCreate).toHaveBeenCalledWith('user-001', dto.cwd);
     });
 
     it('returns sessionId in the created session', async () => {
       const dto: CreateSessionDto = {};
       const session = makeSession();
-      mockSessionStore.create!.mockResolvedValue(session);
+      sessionStoreCreate.mockResolvedValue(session);
 
       const result = await service.createSession('user-001', dto);
 
@@ -132,15 +132,15 @@ describe('AcpService', () => {
 
   describe('closeSession()', () => {
     it('delegates to sessionStore.delete', async () => {
-      mockSessionStore.delete!.mockResolvedValue(undefined);
+      sessionStoreDelete.mockResolvedValue(undefined);
 
       await service.closeSession('sess-001');
 
-      expect(mockSessionStore.delete).toHaveBeenCalledWith('sess-001');
+      expect(sessionStoreDelete).toHaveBeenCalledWith('sess-001');
     });
 
     it('resolves without throwing when deletion succeeds', async () => {
-      mockSessionStore.delete!.mockResolvedValue(undefined);
+      sessionStoreDelete.mockResolvedValue(undefined);
 
       await expect(service.closeSession('sess-001')).resolves.not.toThrow();
     });
@@ -153,9 +153,9 @@ describe('AcpService', () => {
   describe('runPrompt()', () => {
     it('returns an Observable immediately (does not block)', () => {
       const session = makeSession();
-      mockSessionStore.get!.mockResolvedValue(session);
-      mockToolRegistry.kmsSearch!.mockResolvedValue(makeSearchResponse());
-      mockAnthropicAdapter.streamAnswer!.mockResolvedValue(undefined);
+      sessionStoreGet.mockResolvedValue(session);
+      toolRegistryKmsSearch.mockResolvedValue(makeSearchResponse());
+      anthropicStreamAnswer.mockResolvedValue(undefined);
 
       const observable = service.runPrompt('sess-001', makePromptDto('hello'), 'user-001');
 
@@ -165,7 +165,7 @@ describe('AcpService', () => {
     });
 
     it('emits error event when session is not found (store throws)', async () => {
-      mockSessionStore.get!.mockRejectedValue(
+      sessionStoreGet.mockRejectedValue(
         new AppError({ code: ERROR_CODES.EXT.ACP_SESSION_NOT_FOUND.code }),
       );
 
@@ -184,7 +184,7 @@ describe('AcpService', () => {
     it('emits error event when callerId does not match session.userId', async () => {
       // Session belongs to user-001 but caller is user-999
       const session = makeSession({ userId: 'user-001' });
-      mockSessionStore.get!.mockResolvedValue(session);
+      sessionStoreGet.mockResolvedValue(session);
 
       const observable = service.runPrompt('sess-001', makePromptDto('hello'), 'user-999');
 
@@ -199,7 +199,7 @@ describe('AcpService', () => {
 
     it('emits error event when prompt contains no text content', async () => {
       const session = makeSession();
-      mockSessionStore.get!.mockResolvedValue(session);
+      sessionStoreGet.mockResolvedValue(session);
 
       // Empty prompt array → no text content
       const emptyDto: PromptSessionDto = { prompt: [] };
@@ -214,16 +214,16 @@ describe('AcpService', () => {
 
     it('calls toolRegistry.kmsSearch with the correct query for a valid prompt', async () => {
       const session = makeSession();
-      mockSessionStore.get!.mockResolvedValue(session);
-      mockToolRegistry.kmsSearch!.mockResolvedValue(makeSearchResponse());
-      mockAnthropicAdapter.streamAnswer!.mockResolvedValue(undefined);
+      sessionStoreGet.mockResolvedValue(session);
+      toolRegistryKmsSearch.mockResolvedValue(makeSearchResponse());
+      anthropicStreamAnswer.mockResolvedValue(undefined);
 
       const observable = service.runPrompt('sess-001', makePromptDto('What is BGE-M3?'), 'user-001');
 
       // Drain the observable to let the async pipeline execute
       await firstValueFrom(observable.pipe(toArray()));
 
-      expect(mockToolRegistry.kmsSearch).toHaveBeenCalledWith(
+      expect(toolRegistryKmsSearch).toHaveBeenCalledWith(
         'What is BGE-M3?',
         'user-001',
         'hybrid',
@@ -234,15 +234,15 @@ describe('AcpService', () => {
     it('calls anthropicAdapter.streamAnswer after kmsSearch completes', async () => {
       const session = makeSession();
       const searchResp = makeSearchResponse({ results: [], total: 0 });
-      mockSessionStore.get!.mockResolvedValue(session);
-      mockToolRegistry.kmsSearch!.mockResolvedValue(searchResp);
-      mockAnthropicAdapter.streamAnswer!.mockResolvedValue(undefined);
+      sessionStoreGet.mockResolvedValue(session);
+      toolRegistryKmsSearch.mockResolvedValue(searchResp);
+      anthropicStreamAnswer.mockResolvedValue(undefined);
 
       const observable = service.runPrompt('sess-001', makePromptDto('hello'), 'user-001');
 
       await firstValueFrom(observable.pipe(toArray()));
 
-      expect(mockAnthropicAdapter.streamAnswer).toHaveBeenCalledWith(
+      expect(anthropicStreamAnswer).toHaveBeenCalledWith(
         'hello',
         searchResp.results,
         expect.any(Object),

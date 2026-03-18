@@ -26,12 +26,15 @@ function makeSession(overrides: Partial<AcpSession> = {}): AcpSession {
 
 describe('AcpSessionStore', () => {
   let store: AcpSessionStore;
-  let cache: jest.Mocked<CacheService>;
 
-  const mockCache: jest.Mocked<Partial<CacheService>> = {
-    get: jest.fn(),
-    set: jest.fn(),
-    del: jest.fn(),
+  const cacheGet = jest.fn();
+  const cacheSet = jest.fn();
+  const cacheDel = jest.fn();
+
+  const mockCache = {
+    get: cacheGet,
+    set: cacheSet,
+    del: cacheDel,
   };
 
   const mockConfig = {
@@ -66,7 +69,6 @@ describe('AcpSessionStore', () => {
     }).compile();
 
     store = module.get<AcpSessionStore>(AcpSessionStore);
-    cache = module.get(CacheService);
   });
 
   // -------------------------------------------------------------------------
@@ -75,7 +77,7 @@ describe('AcpSessionStore', () => {
 
   describe('create()', () => {
     it('stores session in Redis and returns session with userId and sessionId', async () => {
-      mockCache.set!.mockResolvedValue(undefined);
+      cacheSet.mockResolvedValue(undefined);
 
       const result = await store.create('user-001', '/home/dev');
 
@@ -84,7 +86,7 @@ describe('AcpSessionStore', () => {
       expect(result.sessionId).toBeDefined();
       expect(result.createdAt).toBeDefined();
       expect(result.lastTouchedAt).toBeDefined();
-      expect(mockCache.set).toHaveBeenCalledWith(
+      expect(cacheSet).toHaveBeenCalledWith(
         expect.stringContaining('kms:acp:session:'),
         expect.objectContaining({ userId: 'user-001' }),
         3600,
@@ -92,7 +94,7 @@ describe('AcpSessionStore', () => {
     });
 
     it('creates session without cwd when not provided', async () => {
-      mockCache.set!.mockResolvedValue(undefined);
+      cacheSet.mockResolvedValue(undefined);
 
       const result = await store.create('user-002');
 
@@ -102,7 +104,7 @@ describe('AcpSessionStore', () => {
     });
 
     it('generates a unique sessionId for each call', async () => {
-      mockCache.set!.mockResolvedValue(undefined);
+      cacheSet.mockResolvedValue(undefined);
 
       const [a, b] = await Promise.all([
         store.create('user-001'),
@@ -120,24 +122,24 @@ describe('AcpSessionStore', () => {
   describe('get()', () => {
     it('returns session when it exists in cache', async () => {
       const session = makeSession();
-      mockCache.get!.mockResolvedValue(session);
-      mockCache.set!.mockResolvedValue(undefined);
+      cacheGet.mockResolvedValue(session);
+      cacheSet.mockResolvedValue(undefined);
 
       const result = await store.get('sess-001');
 
       expect(result.sessionId).toBe('sess-001');
       expect(result.userId).toBe('user-001');
-      expect(mockCache.get).toHaveBeenCalledWith('kms:acp:session:sess-001');
+      expect(cacheGet).toHaveBeenCalledWith('kms:acp:session:sess-001');
     });
 
     it('slides the TTL on every get() call (rolling window)', async () => {
       const session = makeSession();
-      mockCache.get!.mockResolvedValue(session);
-      mockCache.set!.mockResolvedValue(undefined);
+      cacheGet.mockResolvedValue(session);
+      cacheSet.mockResolvedValue(undefined);
 
       await store.get('sess-001');
 
-      expect(mockCache.set).toHaveBeenCalledWith(
+      expect(cacheSet).toHaveBeenCalledWith(
         'kms:acp:session:sess-001',
         expect.any(Object),
         3600,
@@ -145,17 +147,18 @@ describe('AcpSessionStore', () => {
     });
 
     it('updates lastTouchedAt on every get()', async () => {
-      const session = makeSession({ lastTouchedAt: new Date('2024-01-01').toISOString() });
-      mockCache.get!.mockResolvedValue(session);
-      mockCache.set!.mockResolvedValue(undefined);
+      const oldTs = new Date('2024-01-01').toISOString();
+      const session = makeSession({ lastTouchedAt: oldTs });
+      cacheGet.mockResolvedValue(session);
+      cacheSet.mockResolvedValue(undefined);
 
       const result = await store.get('sess-001');
 
-      expect(result.lastTouchedAt).not.toBe(new Date('2024-01-01').toISOString());
+      expect(result.lastTouchedAt).not.toBe(oldTs);
     });
 
     it('throws AppError EXT0012 when session does not exist', async () => {
-      mockCache.get!.mockResolvedValue(null);
+      cacheGet.mockResolvedValue(null);
 
       await expect(store.get('nonexistent')).rejects.toThrow(AppError);
 
@@ -170,7 +173,7 @@ describe('AcpSessionStore', () => {
 
     it('throws AppError EXT0012 for an expired session (cache returns null)', async () => {
       // Expired sessions are evicted by Redis TTL; cache returns null
-      mockCache.get!.mockResolvedValue(null);
+      cacheGet.mockResolvedValue(null);
 
       await expect(store.get('expired-session')).rejects.toThrow(AppError);
 
@@ -189,15 +192,15 @@ describe('AcpSessionStore', () => {
 
   describe('delete()', () => {
     it('removes session from Redis', async () => {
-      mockCache.del!.mockResolvedValue(1);
+      cacheDel.mockResolvedValue(1);
 
       await store.delete('sess-001');
 
-      expect(mockCache.del).toHaveBeenCalledWith('kms:acp:session:sess-001');
+      expect(cacheDel).toHaveBeenCalledWith('kms:acp:session:sess-001');
     });
 
     it('does not throw when deleting a non-existent session', async () => {
-      mockCache.del!.mockResolvedValue(0);
+      cacheDel.mockResolvedValue(0);
 
       await expect(store.delete('nonexistent')).resolves.not.toThrow();
     });
