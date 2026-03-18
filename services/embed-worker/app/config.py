@@ -14,10 +14,14 @@ class Settings(BaseSettings):
     # Chunking
     chunk_size: int = 512
     chunk_overlap: int = 64
-    # Qdrant (future)
+    # Qdrant
     qdrant_url: str = Field(default="http://qdrant:6333", env="QDRANT_URL")
-    qdrant_collection: str = "kms_files"
-    embedding_enabled: bool = Field(default=False, env="EMBEDDING_ENABLED")
+    qdrant_collection: str = "kms_chunks"
+    embedding_enabled: bool = Field(default=True, env="EMBEDDING_ENABLED")
+    # Mock flags — default True so dev/CI works without BGE-M3 or Qdrant running.
+    # Set to false in production (docker-compose.kms.yml or .env).
+    mock_embedding: bool = Field(default=True, env="MOCK_EMBEDDING")
+    mock_qdrant: bool = Field(default=True, env="MOCK_QDRANT")
 
     model_config = {"env_file": ".env", "case_sensitive": False}
 
