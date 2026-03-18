@@ -27,6 +27,9 @@ Files follow the naming convention: `NNNN-kebab-case-title.md`
 | [0015](./0015-documentation-standards.md) | MADR + Mermaid + TSDoc + Google Docstrings | Accepted | documentation |
 | [0016](./0016-openapi-source-of-truth.md) | OpenAPI 3.1 YAML as Source of Truth | Accepted | api, contracts |
 | [0017](./0017-shared-error-codes.md) | Shared error-codes.json | Accepted | errors |
+| [0025](./0025-langgraph-postgres-checkpointer.md) | LangGraph PostgreSQL Checkpointer | Accepted | agents, langgraph, database |
+| [0026](./0026-llm-provider-abstraction.md) | LLM Provider Abstraction (Anthropic-primary) | Accepted | ai, llm, agents |
+| [0027](./0027-file-tagging-system.md) | File Tagging System — dual-source (manual + AI) | Accepted | files, tags, ai |
 
 ## Process
 
