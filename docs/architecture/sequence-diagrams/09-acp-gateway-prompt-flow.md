@@ -2,6 +2,15 @@
 
 ## Overview
 
+> **Implementation note (2026-03-18):** This diagram shows `kms-api` proxying the
+> prompt to `rag-service` (LangGraph), which then emits tool calls back to `kms-api`
+> for dispatch.  The **current implementation** in `AcpService` is simpler:
+> `kms-api` handles the entire pipeline locally — `AcpToolRegistry.kmsSearch()` calls
+> `search-api` directly (HTTP GET), and `AnthropicAdapter.streamAnswer()` calls the
+> Anthropic API for generation.  There is no hop to `rag-service`.  This diagram
+> reflects the target architecture.  See `FOR-e2e-flows.md` Flow 1 for the current
+> actual hop-by-hop path.
+
 An external ACP client (e.g., Zed editor, Claude Desktop) connects to KMS over HTTP using the Agent Communication Protocol (JSON-RPC 2.0 over HTTP with NDJSON SSE). `kms-api` acts as the ACP gateway: it authenticates the client via JWT, manages session state in Redis, and proxies the prompt to `rag-service` which runs the LangGraph orchestrator. Tool calls emitted by LangGraph are dispatched back through `kms-api`'s ACP tool router. Streaming tokens are forwarded to the client as `agent_message_chunk` SSE events until a `done` event closes the stream.
 
 See [ADR-0012](../decisions/0012-acp-protocol.md) for the ACP protocol adoption decision and [ADR-0013](../decisions/0013-orchestrator-pattern.md) for why orchestration lives in `rag-service`.

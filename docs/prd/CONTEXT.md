@@ -23,7 +23,8 @@ user stories, scope, task breakdown per layer (NestJS / Python / Frontend / DB /
 | RAG chat, agent orchestration, SSE streaming | `PRD-M10-rag-chat.md` |
 | RAG tiered retrieval addendum — how M10 changes with tiered retrieval + LLM Guard | `PRD-M10-rag-chat-tiered-addendum.md` |
 | Web UI, design system, all 14 pages | `PRD-M11-web-ui.md` |
-| Obsidian plugin integration | `PRD-M12-obsidian.md` |
+| Obsidian plugin integration | `PRD-M12-obsidian.md` (**file missing** — create before M12 kickoff) |
+| Google Drive connector — OAuth, token refresh, incremental sync details | `PRD-google-drive-integration.md` |
 | **ACP Integration — KMS as ACP knowledge agent, tool registry, RAG pipeline refactor** | `PRD-M13-acp-integration.md` |
 | **Agentic Workflows — Workflow Engine, multi-agent, YouTube URL ingest, sub-agent spawning** | `PRD-M14-agentic-workflows.md` |
 | **External Agent Integration — KMS connects to Claude Code, Codex, Gemini; RAG context pipeline; MCP server** | `PRD-M15-external-agent-integration.md` |

@@ -2,6 +2,14 @@
 
 ## Overview
 
+> **Implementation note (2026-03-18):** This diagram documents the **planned future state**
+> where `kms-api` proxies chat requests to `rag-service` (LangGraph) and `rag-service`
+> calls `search-api`.  The **current implementation** in `AcpService` / `AcpToolRegistry`
+> has `kms-api` calling `search-api` directly (no hop to `rag-service` in the ACP prompt
+> flow) and then calling `AnthropicAdapter` for generation.  Update this diagram once the
+> rag-service orchestration refactor is complete.  See `FOR-e2e-flows.md` for the
+> current actual flow.
+
 A user sends a chat query. `kms-api` validates the JWT and proxies to `rag-service` — it performs no orchestration. `rag-service` runs a **LangGraph StateGraph** that orchestrates all sub-agents internally: hybrid retrieval via `search-api`, optional graph expansion via Neo4j, relevance grading, query rewriting, and LLM generation. Response is streamed token-by-token via SSE through `kms-api` to the browser.
 
 See [ADR-0013](../decisions/0013-orchestrator-pattern.md) for why orchestration lives in Python, and [ADR-0012](../decisions/0012-acp-protocol.md) for the run-lifecycle protocol.
