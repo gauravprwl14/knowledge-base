@@ -74,13 +74,13 @@ export function KmsSidebar() {
         className="
           fixed left-0 top-[var(--topbar-height)] bottom-0 z-40
           flex flex-col
-          bg-[var(--color-surface)] border-r border-[var(--color-border)]
+          bg-[#0D0D14] border-r border-white/5
           kms-sidebar-transition
           hidden md:flex
         "
       >
         {/* Nav items */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
           <ul className="flex flex-col gap-0.5 px-2">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
@@ -95,19 +95,19 @@ export function KmsSidebar() {
                     href={href}
                     title={collapsed ? item.label : undefined}
                     className={`
-                      flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium
-                      transition-colors duration-100
+                      relative flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium
+                      transition-all duration-150
                       ${
                         isActive
-                          ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
-                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-primary)]'
+                          ? 'bg-gradient-to-r from-violet-600/20 to-purple-600/10 text-violet-300 border-l-2 border-violet-400 pl-[9px]'
+                          : 'text-slate-400 hover:bg-white/5 hover:text-slate-200 border-l-2 border-transparent pl-[9px]'
                       }
                       ${collapsed ? 'justify-center' : ''}
                     `}
                   >
                     <Icon
-                      className={`shrink-0 ${isActive ? 'text-[var(--color-accent)]' : ''}`}
-                      size={16}
+                      className={`shrink-0 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}
+                      size={20}
                       strokeWidth={isActive ? 2 : 1.5}
                     />
                     {!collapsed && (
@@ -121,15 +121,15 @@ export function KmsSidebar() {
         </nav>
 
         {/* Collapse toggle — bottom of sidebar */}
-        <div className="border-t border-[var(--color-border)] p-2">
+        <div className="border-t border-white/5 p-2">
           <button
             type="button"
             onClick={toggle}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="
               flex items-center justify-center w-full h-8 rounded-lg
-              text-[var(--color-text-muted)]
-              hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-primary)]
+              text-slate-500
+              hover:bg-white/5 hover:text-slate-300
               transition-colors
             "
           >
@@ -147,7 +147,7 @@ export function KmsSidebar() {
         className="
           fixed bottom-0 left-0 right-0 z-50
           flex md:hidden
-          bg-[var(--color-surface)] border-t border-[var(--color-border)]
+          bg-[#0D0D14]/95 backdrop-blur-xl border-t border-white/5
         "
         aria-label="Mobile navigation"
       >
@@ -167,8 +167,8 @@ export function KmsSidebar() {
                 text-xs font-medium transition-colors
                 ${
                   isActive
-                    ? 'text-[var(--color-accent)]'
-                    : 'text-[var(--color-text-secondary)]'
+                    ? 'text-violet-400'
+                    : 'text-slate-500'
                 }
               `}
             >

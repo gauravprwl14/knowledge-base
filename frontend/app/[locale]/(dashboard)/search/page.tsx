@@ -83,14 +83,13 @@ export default function SearchPage() {
           onChange={(e) => handleQueryChange(e.target.value)}
           placeholder="Search your knowledge base…"
           aria-label="Search query"
-          // autoFocus so the user can start typing immediately on page arrival
           autoFocus
           className="
             w-full text-xl px-5 py-4
-            border-2 border-gray-200 rounded-xl
-            focus:border-indigo-500 focus:outline-none
-            bg-white text-gray-900 placeholder:text-gray-400
-            transition-colors duration-150
+            border border-white/10 rounded-xl
+            focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/20
+            bg-white/5 text-slate-200 placeholder:text-slate-600
+            transition-all duration-150
           "
         />
       </div>
@@ -121,9 +120,21 @@ export default function SearchPage() {
           Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="h-32 bg-gray-100 rounded-lg animate-pulse"
+              className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3 animate-pulse"
               aria-hidden="true"
-            />
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-8 w-8 rounded-md bg-white/10 shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-white/10 rounded w-3/5" />
+                  <div className="h-3 bg-white/[0.06] rounded w-2/5" />
+                </div>
+              </div>
+              <div className="space-y-1.5 pl-11">
+                <div className="h-3 bg-white/[0.06] rounded w-full" />
+                <div className="h-3 bg-white/[0.05] rounded w-4/5" />
+              </div>
+            </div>
           ))}
 
         {/* Result cards — rendered once data is available and not loading.   */}

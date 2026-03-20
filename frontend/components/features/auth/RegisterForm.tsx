@@ -62,11 +62,11 @@ function getPasswordStrength(password: string): number {
 }
 
 function getStrengthColor(strength: number): string {
-  if (strength <= 1) return 'bg-[var(--color-status-error)]';
-  if (strength <= 2) return 'bg-[var(--color-status-warning)]';
+  if (strength <= 1) return 'bg-red-500';
+  if (strength <= 2) return 'bg-amber-500';
   if (strength <= 3) return 'bg-amber-400';
-  if (strength <= 4) return 'bg-[var(--color-status-success)]';
-  return 'bg-[var(--color-status-success)]';
+  if (strength <= 4) return 'bg-emerald-500';
+  return 'bg-emerald-500';
 }
 
 function getStrengthLabel(strength: number): string {
@@ -123,13 +123,13 @@ export function RegisterForm({
 
   return (
     <div className="w-full max-w-md">
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl shadow-black/10 p-8">
+      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl shadow-black/40 p-8">
         {/* Heading */}
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-1.5">
+          <h1 className="text-2xl font-bold text-slate-100 mb-1.5">
             Create your account
           </h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
+          <p className="text-sm text-slate-500">
             Start managing your knowledge base today
           </p>
         </div>
@@ -138,13 +138,13 @@ export function RegisterForm({
         {error && (
           <div
             role="alert"
-            className="flex items-start gap-2.5 mb-6 px-4 py-3 rounded-lg bg-[var(--color-status-error-bg)] border border-[var(--color-status-error)]/20"
+            className="flex items-start gap-2.5 mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20"
           >
             <AlertCircle
-              className="w-4 h-4 shrink-0 mt-0.5 text-[var(--color-status-error)]"
+              className="w-4 h-4 shrink-0 mt-0.5 text-red-400"
               aria-hidden="true"
             />
-            <p className="text-sm text-[var(--color-status-error)]">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
 
@@ -158,7 +158,7 @@ export function RegisterForm({
             <div>
               <label
                 htmlFor="firstName"
-                className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5"
+                className="block text-sm font-medium text-slate-400 mb-1.5"
               >
                 First name
               </label>
@@ -174,16 +174,16 @@ export function RegisterForm({
                 })}
                 className={cn(
                   'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all',
-                  'bg-[var(--color-bg-secondary)] border',
-                  'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
-                  'focus:ring-2 focus:ring-[var(--color-accent)]/30',
+                  'bg-white/5 border',
+                  'text-slate-200 placeholder:text-slate-600',
+                  'focus:ring-2 focus:ring-violet-500/20',
                   errors.firstName
-                    ? 'border-[var(--color-status-error)]'
-                    : 'border-[var(--color-border)] focus:border-[var(--color-accent)]',
+                    ? 'border-red-500/50 focus:border-red-500/70'
+                    : 'border-white/10 focus:border-violet-400/60',
                 )}
               />
               {errors.firstName && (
-                <p className="mt-1 text-xs text-[var(--color-status-error)]">
+                <p className="mt-1 text-xs text-red-400">
                   {errors.firstName.message}
                 </p>
               )}
@@ -191,7 +191,7 @@ export function RegisterForm({
             <div>
               <label
                 htmlFor="lastName"
-                className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5"
+                className="block text-sm font-medium text-slate-400 mb-1.5"
               >
                 Last name
               </label>
@@ -204,16 +204,16 @@ export function RegisterForm({
                 {...register('lastName', { required: 'Required' })}
                 className={cn(
                   'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all',
-                  'bg-[var(--color-bg-secondary)] border',
-                  'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
-                  'focus:ring-2 focus:ring-[var(--color-accent)]/30',
+                  'bg-white/5 border',
+                  'text-slate-200 placeholder:text-slate-600',
+                  'focus:ring-2 focus:ring-violet-500/20',
                   errors.lastName
-                    ? 'border-[var(--color-status-error)]'
-                    : 'border-[var(--color-border)] focus:border-[var(--color-accent)]',
+                    ? 'border-red-500/50 focus:border-red-500/70'
+                    : 'border-white/10 focus:border-violet-400/60',
                 )}
               />
               {errors.lastName && (
-                <p className="mt-1 text-xs text-[var(--color-status-error)]">
+                <p className="mt-1 text-xs text-red-400">
                   {errors.lastName.message}
                 </p>
               )}
@@ -224,7 +224,7 @@ export function RegisterForm({
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5"
+              className="block text-sm font-medium text-slate-400 mb-1.5"
             >
               Email address
             </label>
@@ -243,16 +243,16 @@ export function RegisterForm({
               })}
               className={cn(
                 'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all',
-                'bg-[var(--color-bg-secondary)] border',
-                'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
-                'focus:ring-2 focus:ring-[var(--color-accent)]/30',
+                'bg-white/5 border',
+                'text-slate-200 placeholder:text-slate-600',
+                'focus:ring-2 focus:ring-violet-500/20',
                 errors.email
-                  ? 'border-[var(--color-status-error)]'
-                  : 'border-[var(--color-border)] focus:border-[var(--color-accent)]',
+                  ? 'border-red-500/50 focus:border-red-500/70'
+                  : 'border-white/10 focus:border-violet-400/60',
               )}
             />
             {errors.email && (
-              <p className="mt-1.5 text-xs text-[var(--color-status-error)]">
+              <p className="mt-1.5 text-xs text-red-400">
                 {errors.email.message}
               </p>
             )}
@@ -262,7 +262,7 @@ export function RegisterForm({
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5"
+              className="block text-sm font-medium text-slate-400 mb-1.5"
             >
               Password
             </label>
@@ -282,12 +282,12 @@ export function RegisterForm({
                 })}
                 className={cn(
                   'w-full h-10 px-3 pr-10 rounded-lg text-sm outline-none transition-all',
-                  'bg-[var(--color-bg-secondary)] border',
-                  'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
-                  'focus:ring-2 focus:ring-[var(--color-accent)]/30',
+                  'bg-white/5 border',
+                  'text-slate-200 placeholder:text-slate-600',
+                  'focus:ring-2 focus:ring-violet-500/20',
                   errors.password
-                    ? 'border-[var(--color-status-error)]'
-                    : 'border-[var(--color-border)] focus:border-[var(--color-accent)]',
+                    ? 'border-red-500/50 focus:border-red-500/70'
+                    : 'border-white/10 focus:border-violet-400/60',
                 )}
               />
               <button
@@ -295,7 +295,7 @@ export function RegisterForm({
                 tabIndex={-1}
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -309,7 +309,7 @@ export function RegisterForm({
             {passwordValue && (
               <div className="mt-2 space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1 rounded-full bg-[var(--color-border)] overflow-hidden">
+                  <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
                     <div
                       className={cn(
                         'h-full rounded-full transition-all duration-300',
@@ -318,7 +318,7 @@ export function RegisterForm({
                       style={{ width: strengthWidth }}
                     />
                   </div>
-                  <span className="text-xs text-[var(--color-text-muted)] w-16 text-right">
+                  <span className="text-xs text-slate-600 w-16 text-right">
                     {getStrengthLabel(strength)}
                   </span>
                 </div>
@@ -332,8 +332,8 @@ export function RegisterForm({
                         className={cn(
                           'flex items-center gap-1.5 text-xs',
                           met
-                            ? 'text-[var(--color-status-success)]'
-                            : 'text-[var(--color-text-muted)]',
+                            ? 'text-emerald-500'
+                            : 'text-slate-600',
                         )}
                       >
                         {met ? (
@@ -350,7 +350,7 @@ export function RegisterForm({
             )}
 
             {errors.password && (
-              <p className="mt-1.5 text-xs text-[var(--color-status-error)]">
+              <p className="mt-1.5 text-xs text-red-400">
                 {errors.password.message}
               </p>
             )}
@@ -360,7 +360,7 @@ export function RegisterForm({
           <div>
             <label
               htmlFor="confirmPassword"
-              className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5"
+              className="block text-sm font-medium text-slate-400 mb-1.5"
             >
               Confirm password
             </label>
@@ -378,12 +378,12 @@ export function RegisterForm({
                 })}
                 className={cn(
                   'w-full h-10 px-3 pr-10 rounded-lg text-sm outline-none transition-all',
-                  'bg-[var(--color-bg-secondary)] border',
-                  'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
-                  'focus:ring-2 focus:ring-[var(--color-accent)]/30',
+                  'bg-white/5 border',
+                  'text-slate-200 placeholder:text-slate-600',
+                  'focus:ring-2 focus:ring-violet-500/20',
                   errors.confirmPassword
-                    ? 'border-[var(--color-status-error)]'
-                    : 'border-[var(--color-border)] focus:border-[var(--color-accent)]',
+                    ? 'border-red-500/50 focus:border-red-500/70'
+                    : 'border-white/10 focus:border-violet-400/60',
                 )}
               />
               <button
@@ -391,7 +391,7 @@ export function RegisterForm({
                 tabIndex={-1}
                 onClick={() => setShowConfirm((v) => !v)}
                 aria-label={showConfirm ? 'Hide password' : 'Show password'}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
               >
                 {showConfirm ? (
                   <EyeOff className="w-4 h-4" />
@@ -401,7 +401,7 @@ export function RegisterForm({
               </button>
             </div>
             {errors.confirmPassword && (
-              <p className="mt-1.5 text-xs text-[var(--color-status-error)]">
+              <p className="mt-1.5 text-xs text-red-400">
                 {errors.confirmPassword.message}
               </p>
             )}
@@ -416,16 +416,16 @@ export function RegisterForm({
               {...register('acceptTerms', {
                 required: 'You must accept the terms to continue',
               })}
-              className="mt-0.5 w-4 h-4 rounded border-[var(--color-border)] accent-[var(--color-accent)] cursor-pointer"
+              className="mt-0.5 w-4 h-4 rounded border-white/10 accent-violet-500 cursor-pointer"
             />
             <label
               htmlFor="acceptTerms"
-              className="text-sm text-[var(--color-text-secondary)] leading-snug cursor-pointer"
+              className="text-sm text-slate-400 leading-snug cursor-pointer"
             >
               I agree to the{' '}
               <a
                 href="/terms"
-                className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] underline-offset-2 hover:underline"
+                className="text-violet-400 hover:text-violet-300 underline-offset-2 hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -434,7 +434,7 @@ export function RegisterForm({
               and{' '}
               <a
                 href="/privacy"
-                className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] underline-offset-2 hover:underline"
+                className="text-violet-400 hover:text-violet-300 underline-offset-2 hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -443,7 +443,7 @@ export function RegisterForm({
             </label>
           </div>
           {errors.acceptTerms && (
-            <p className="-mt-3 text-xs text-[var(--color-status-error)]">
+            <p className="-mt-3 text-xs text-red-400">
               {errors.acceptTerms.message}
             </p>
           )}
@@ -455,9 +455,11 @@ export function RegisterForm({
             aria-busy={isLoading}
             className={cn(
               'w-full h-10 rounded-lg text-sm font-semibold transition-all',
-              'bg-[var(--color-accent)] text-white',
-              'hover:bg-[var(--color-accent-hover)] active:scale-[0.98]',
-              'focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50',
+              'bg-gradient-to-r from-violet-600 to-purple-600',
+              'hover:from-violet-500 hover:to-purple-500',
+              'text-white shadow-lg shadow-violet-500/20',
+              'active:scale-[0.98]',
+              'focus-visible:ring-2 focus-visible:ring-violet-500/50',
               'disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100',
               'flex items-center justify-center gap-2',
             )}
@@ -474,11 +476,11 @@ export function RegisterForm({
         </form>
 
         {/* Login link */}
-        <p className="mt-6 text-center text-sm text-[var(--color-text-secondary)]">
+        <p className="mt-6 text-center text-sm text-slate-400">
           Already have an account?{' '}
           <Link
             href={loginHref}
-            className="font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+            className="font-medium text-violet-400 hover:text-violet-300 transition-colors"
           >
             Sign in
           </Link>

@@ -59,14 +59,14 @@ export function LoginForm({
 
   return (
     <div className="w-full max-w-md">
-      {/* Card */}
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl shadow-black/10 p-8">
+      {/* Card — glassmorphism */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl shadow-black/40 p-8">
         {/* Heading */}
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-1.5">
+          <h1 className="text-2xl font-bold text-slate-100 mb-1.5">
             Welcome back
           </h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
+          <p className="text-sm text-slate-500">
             Sign in to your knowledge base
           </p>
         </div>
@@ -75,13 +75,13 @@ export function LoginForm({
         {error && (
           <div
             role="alert"
-            className="flex items-start gap-2.5 mb-6 px-4 py-3 rounded-lg bg-[var(--color-status-error-bg)] border border-[var(--color-status-error)]/20"
+            className="flex items-start gap-2.5 mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20"
           >
             <AlertCircle
-              className="w-4 h-4 shrink-0 mt-0.5 text-[var(--color-status-error)]"
+              className="w-4 h-4 shrink-0 mt-0.5 text-red-400"
               aria-hidden="true"
             />
-            <p className="text-sm text-[var(--color-status-error)]">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
 
@@ -91,7 +91,7 @@ export function LoginForm({
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5"
+              className="block text-sm font-medium text-slate-400 mb-1.5"
             >
               Email address
             </label>
@@ -112,24 +112,24 @@ export function LoginForm({
                 })}
                 className={cn(
                   'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all',
-                  'bg-[var(--color-bg-secondary)] border',
-                  'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
-                  'focus:ring-2 focus:ring-[var(--color-accent)]/30',
+                  'bg-white/5 border',
+                  'text-slate-200 placeholder:text-slate-600',
+                  'focus:ring-2 focus:ring-violet-500/20',
                   errors.email
-                    ? 'border-[var(--color-status-error)] focus:border-[var(--color-status-error)]'
-                    : 'border-[var(--color-border)] focus:border-[var(--color-accent)]',
+                    ? 'border-red-500/50 focus:border-red-500/70'
+                    : 'border-white/10 focus:border-violet-400/60',
                 )}
               />
               {/* Validation indicator dot */}
               {isSubmitted && !errors.email && emailValue && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[var(--color-status-success)]" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-500" />
               )}
             </div>
             {errors.email && (
               <p
                 id="email-error"
                 role="alert"
-                className="mt-1.5 text-xs text-[var(--color-status-error)]"
+                className="mt-1.5 text-xs text-red-400"
               >
                 {errors.email.message}
               </p>
@@ -141,13 +141,13 @@ export function LoginForm({
             <div className="flex items-center justify-between mb-1.5">
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-[var(--color-text-secondary)]"
+                className="block text-sm font-medium text-slate-400"
               >
                 Password
               </label>
               <Link
                 href={forgotPasswordHref}
-                className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+                className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
               >
                 Forgot password?
               </Link>
@@ -169,12 +169,12 @@ export function LoginForm({
                 })}
                 className={cn(
                   'w-full h-10 px-3 pr-10 rounded-lg text-sm outline-none transition-all',
-                  'bg-[var(--color-bg-secondary)] border',
-                  'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
-                  'focus:ring-2 focus:ring-[var(--color-accent)]/30',
+                  'bg-white/5 border',
+                  'text-slate-200 placeholder:text-slate-600',
+                  'focus:ring-2 focus:ring-violet-500/20',
                   errors.password
-                    ? 'border-[var(--color-status-error)] focus:border-[var(--color-status-error)]'
-                    : 'border-[var(--color-border)] focus:border-[var(--color-accent)]',
+                    ? 'border-red-500/50 focus:border-red-500/70'
+                    : 'border-white/10 focus:border-violet-400/60',
                 )}
               />
               <button
@@ -182,7 +182,7 @@ export function LoginForm({
                 tabIndex={-1}
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -195,7 +195,7 @@ export function LoginForm({
               <p
                 id="password-error"
                 role="alert"
-                className="mt-1.5 text-xs text-[var(--color-status-error)]"
+                className="mt-1.5 text-xs text-red-400"
               >
                 {errors.password.message}
               </p>
@@ -209,9 +209,11 @@ export function LoginForm({
             aria-busy={isLoading}
             className={cn(
               'w-full h-10 rounded-lg text-sm font-semibold transition-all',
-              'bg-[var(--color-accent)] text-white',
-              'hover:bg-[var(--color-accent-hover)] active:scale-[0.98]',
-              'focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50',
+              'bg-gradient-to-r from-violet-600 to-purple-600',
+              'hover:from-violet-500 hover:to-purple-500',
+              'text-white shadow-lg shadow-violet-500/20',
+              'active:scale-[0.98]',
+              'focus-visible:ring-2 focus-visible:ring-violet-500/50',
               'disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100',
               'flex items-center justify-center gap-2',
             )}
@@ -230,10 +232,10 @@ export function LoginForm({
         {/* Divider */}
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[var(--color-border)]" />
+            <div className="w-full border-t border-white/10" />
           </div>
           <div className="relative flex justify-center text-xs">
-            <span className="px-3 bg-[var(--color-surface)] text-[var(--color-text-muted)]">
+            <span className="px-3 bg-transparent text-slate-600">
               or
             </span>
           </div>
@@ -245,9 +247,9 @@ export function LoginForm({
           onClick={onGoogleLogin}
           disabled={isLoading}
           className={cn(
-            'w-full h-10 rounded-lg border border-[var(--color-border)] text-sm font-medium',
-            'bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]',
-            'hover:bg-[var(--color-bg-elevated)] hover:border-[var(--color-border-strong)]',
+            'w-full h-10 rounded-lg border border-white/10 text-sm font-medium',
+            'bg-white/5 text-slate-300',
+            'hover:bg-white/[0.08] hover:border-white/20',
             'transition-all active:scale-[0.98]',
             'flex items-center justify-center gap-2.5',
             'disabled:opacity-60 disabled:cursor-not-allowed',
@@ -284,11 +286,11 @@ export function LoginForm({
         </button>
 
         {/* Register link */}
-        <p className="mt-6 text-center text-sm text-[var(--color-text-secondary)]">
+        <p className="mt-6 text-center text-sm text-slate-500">
           Don&apos;t have an account?{' '}
           <Link
             href={registerHref}
-            className="font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+            className="font-medium text-violet-400 hover:text-violet-300 transition-colors"
           >
             Create account
           </Link>

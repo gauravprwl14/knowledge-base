@@ -16,13 +16,28 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-bg-primary)]">
-      {/* Subtle gradient overlay */}
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#0A0A0F] via-[#12091F] to-[#0A0A0F] relative overflow-hidden">
+      {/* Ambient orbs — CSS-only, no JS */}
       <div
-        className="fixed inset-0 pointer-events-none"
+        className="orb orb-violet fixed w-[600px] h-[600px] -top-48 -left-48"
+        aria-hidden="true"
+      />
+      <div
+        className="orb orb-purple fixed w-[500px] h-[500px] top-1/2 -right-48 -translate-y-1/2"
+        aria-hidden="true"
+      />
+      <div
+        className="orb orb-cyan fixed w-[400px] h-[400px] -bottom-32 left-1/3"
+        aria-hidden="true"
+      />
+
+      {/* Subtle dot-grid texture overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-30"
         style={{
-          background:
-            'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.15) 0%, transparent 60%)',
+          backgroundImage:
+            'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
         }}
         aria-hidden="true"
       />
@@ -31,16 +46,16 @@ export default function AuthLayout({
       <header className="relative z-10 flex justify-center pt-10 pb-6">
         <a
           href="/"
-          className="flex items-center gap-2.5 text-[var(--color-text-primary)] hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
           aria-label="KMS — Knowledge Base home"
         >
-          {/* Logo mark */}
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[var(--color-accent)] shadow-lg shadow-[var(--color-accent)]/20">
+          {/* Logo mark — gradient */}
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-purple-500 shadow-lg shadow-violet-500/30">
             <span className="text-white font-bold text-sm leading-none select-none">
-              KMS
+              K
             </span>
           </div>
-          <span className="font-semibold text-lg tracking-tight">
+          <span className="font-semibold text-lg tracking-tight gradient-text">
             Knowledge Base
           </span>
         </a>
@@ -53,7 +68,7 @@ export default function AuthLayout({
 
       {/* Footer */}
       <footer className="relative z-10 flex justify-center pb-8">
-        <p className="text-xs text-[var(--color-text-muted)]">
+        <p className="text-xs text-slate-700">
           &copy; {new Date().getFullYear()} Knowledge Base System. All rights
           reserved.
         </p>

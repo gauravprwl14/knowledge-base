@@ -117,6 +117,28 @@ const config: Config = {
           800: '#3730a3',
           900: '#312e81',
         },
+
+        // KMS premium design palette — violet/purple gradient, deep surfaces
+        kms2: {
+          // Primary gradient anchors
+          'violet-600': '#7C3AED',
+          'violet-500': '#8B5CF6',
+          'purple-500': '#A855F7',
+          'purple-400': '#C084FC',
+          // Cyan/teal accent
+          'cyan-500': '#06B6D4',
+          'cyan-600': '#0891B2',
+          // Deep surface backgrounds
+          'bg-base': '#0A0A0F',
+          'bg-raised': '#12121A',
+          'bg-elevated': '#1A1A2E',
+          'surface': '#0D0D14',
+          'surface-raised': '#161622',
+          // Text scale
+          'text-primary': '#F8F8FF',
+          'text-secondary': '#A0A0B0',
+          'text-muted': '#6B6B80',
+        },
       },
 
       // -----------------------------------------------------------------------

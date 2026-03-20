@@ -31,19 +31,19 @@ interface Job {
 }
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
-  pending: <Clock className="w-5 h-5 text-yellow-500" />,
-  processing: <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />,
-  completed: <CheckCircle className="w-5 h-5 text-green-500" />,
-  failed: <XCircle className="w-5 h-5 text-red-500" />,
-  cancelled: <XCircle className="w-5 h-5 text-gray-500" />,
+  pending: <Clock className="w-4 h-4 text-amber-400" />,
+  processing: <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />,
+  completed: <CheckCircle className="w-4 h-4 text-emerald-400" />,
+  failed: <XCircle className="w-4 h-4 text-red-400" />,
+  cancelled: <XCircle className="w-4 h-4 text-slate-500" />,
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  processing: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  failed: 'bg-red-100 text-red-800',
-  cancelled: 'bg-gray-100 text-gray-800',
+  pending: 'bg-amber-500/15 text-amber-400 border border-amber-500/20',
+  processing: 'bg-violet-500/15 text-violet-400 border border-violet-500/20',
+  completed: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
+  failed: 'bg-red-500/15 text-red-400 border border-red-500/20',
+  cancelled: 'bg-slate-500/15 text-slate-400 border border-slate-500/20',
 };
 
 export default function JobsPage() {
@@ -384,26 +384,26 @@ export default function JobsPage() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Jobs</h1>
-            <p className="text-gray-400">View and manage your transcription jobs</p>
+            <h1 className="text-2xl font-bold text-slate-100 mb-1">Jobs</h1>
+            <p className="text-slate-500 text-sm">View and manage your transcription jobs</p>
           </div>
           {totalJobs > 0 && (
-            <div className="text-sm text-gray-400 bg-dark-surface px-4 py-2 rounded-lg border border-dark-border">
-              Showing <span className="font-semibold text-white">{jobs.length}</span> of{' '}
-              <span className="font-semibold text-white">{totalJobs}</span> jobs
+            <div className="text-sm text-slate-400 bg-white/5 px-4 py-2 rounded-lg border border-white/10">
+              Showing <span className="font-semibold text-slate-200">{jobs.length}</span> of{' '}
+              <span className="font-semibold text-slate-200">{totalJobs}</span> jobs
             </div>
           )}
         </div>
 
         {/* Action Bar */}
-        <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-4">
+        <div className="flex items-center justify-between bg-white/5 rounded-lg border border-white/10 p-4">
           <div className="flex items-center gap-3">
             {selectedJobs.size > 0 && (
               <>
                 <button
                   onClick={handleBulkCopy}
                   disabled={copying}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-lg text-white font-medium transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 disabled:opacity-60 rounded-lg text-white font-medium transition-all shadow-sm"
                 >
                   <Copy className="w-4 h-4" />
                   {copying ? 'Copying...' : `Copy ${selectedJobs.size} Selected`}
@@ -411,17 +411,17 @@ export default function JobsPage() {
                 <button
                   onClick={handleBulkDelete}
                   disabled={Array.from(selectedJobs).some(id => deleting.has(id))}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 rounded-lg text-white font-medium transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600/80 hover:bg-red-600 disabled:opacity-60 rounded-lg text-white font-medium transition-all shadow-sm"
                 >
                   <Trash2 className="w-4 h-4" />
-                  {Array.from(selectedJobs).some(id => deleting.has(id)) 
-                    ? 'Deleting...' 
+                  {Array.from(selectedJobs).some(id => deleting.has(id))
+                    ? 'Deleting...'
                     : `Delete ${selectedJobs.size} Selected`
                   }
                 </button>
                 <button
                   onClick={() => setSelectedJobs(new Set())}
-                  className="text-sm text-gray-600 hover:text-gray-800"
+                  className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
                 >
                   Clear selection
                 </button>
@@ -430,12 +430,12 @@ export default function JobsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
               <input
                 type="checkbox"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-white/20 accent-violet-500"
               />
               <span className="font-medium">Auto-refresh</span>
             </label>
@@ -446,7 +446,7 @@ export default function JobsPage() {
                 fetchJobs(1, false);
               }}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 disabled:bg-gray-50 rounded-lg text-gray-700 font-medium transition-colors border border-gray-200"
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/[0.08] disabled:opacity-60 rounded-lg text-slate-300 font-medium transition-colors border border-white/10"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
@@ -456,20 +456,20 @@ export default function JobsPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-400 rounded-lg p-4">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
           <div className="flex items-center gap-2">
             <XCircle className="w-5 h-5 text-red-400" />
-            <p className="text-red-700 font-medium">{error}</p>
+            <p className="text-red-400 font-medium">{error}</p>
           </div>
         </div>
       )}
 
       {/* Jobs Table */}
       {jobs.length > 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden flex-1 flex flex-col min-h-0">
           <div className="overflow-auto flex-1">
-            <table className="w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="w-full divide-y divide-white/[0.05]">
+              <thead className="bg-white/[0.03]">
                 <tr>
                   <th className="px-6 py-4 text-left">
                     <input
@@ -479,49 +479,49 @@ export default function JobsPage() {
                         selectedJobs.size === jobs.filter((j) => j.status === 'completed').length
                       }
                       onChange={handleSelectAll}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-white/20 accent-violet-500"
                       title="Select all completed jobs"
                     />
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Job ID
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     File
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Provider
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Progress
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
+              <tbody className="divide-y divide-white/[0.04]">
                 {jobs.map((job) => (
-                  <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={job.id} className="hover:bg-white/[0.03] transition-colors">
                     <td className="px-6 py-4">
                       {job.status === 'completed' && (
                         <input
                           type="checkbox"
                           checked={selectedJobs.has(job.id)}
                           onChange={() => handleToggleSelect(job.id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-white/20 accent-violet-500"
                         />
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <code className="text-xs text-gray-700 font-mono bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                        <code className="text-xs text-slate-400 font-mono bg-white/5 px-2 py-1 rounded border border-white/10">
                           {job.id.slice(0, 8)}...
                         </code>
                         <button
@@ -529,7 +529,7 @@ export default function JobsPage() {
                             navigator.clipboard.writeText(job.id);
                             showToast('Job ID copied to clipboard', 'success');
                           }}
-                          className="text-gray-400 hover:text-gray-600 transition-colors"
+                          className="text-slate-600 hover:text-slate-400 transition-colors"
                           title="Copy full Job ID"
                         >
                           <Copy className="w-3 h-3" />
@@ -550,34 +550,34 @@ export default function JobsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <p className="font-medium text-gray-900 truncate max-w-xs" title={job.original_filename || 'Unknown'}>
+                        <FileText className="w-4 h-4 text-slate-600 flex-shrink-0" />
+                        <p className="font-medium text-slate-300 truncate max-w-xs" title={job.original_filename || 'Unknown'}>
                           {job.original_filename || 'Unknown'}
                         </p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
+                    <td className="px-6 py-4 text-sm text-slate-400">
                       <div className="font-medium">{job.provider}</div>
-                      <div className="text-xs text-gray-500">{job.model_name || 'default'}</div>
+                      <div className="text-xs text-slate-600">{job.model_name || 'default'}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="w-36">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                             <div
                               className={`h-full transition-all duration-300 ${
-                                job.progress === 100 ? 'bg-green-500' : 'bg-blue-500'
+                                job.progress === 100 ? 'bg-emerald-500' : 'bg-violet-500'
                               }`}
                               style={{ width: `${job.progress}%` }}
                             />
                           </div>
-                          <span className="text-sm font-medium text-gray-700 min-w-[3rem] text-right">
+                          <span className="text-sm font-medium text-slate-400 min-w-[3rem] text-right">
                             {job.progress}%
                           </span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                    <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
                       {formatDate(job.created_at)}
                     </td>
                     <td className="px-6 py-4">
@@ -585,14 +585,14 @@ export default function JobsPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleViewResult(job.id)}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 transition-colors"
+                            className="text-violet-400 hover:text-violet-300 text-sm font-medium flex items-center gap-1 transition-colors"
                           >
                             <FileText className="w-4 h-4" />
                             View
                           </button>
                           <button
                             onClick={() => handleCopySingle(job.id)}
-                            className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-100 transition-colors"
+                            className="text-slate-500 hover:text-slate-300 p-1 rounded hover:bg-white/5 transition-colors"
                             title="Copy transcription"
                           >
                             <Copy className="w-4 h-4" />
@@ -600,7 +600,7 @@ export default function JobsPage() {
                           <button
                             onClick={() => handleDeleteClick(job.id, job.original_filename)}
                             disabled={deleting.has(job.id)}
-                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+                            className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                             title="Delete job"
                           >
                             {deleting.has(job.id) ? (
@@ -613,13 +613,13 @@ export default function JobsPage() {
                       )}
                       {job.status === 'failed' && (
                         <div className="flex items-center gap-2">
-                          <span className="text-red-600 text-xs bg-red-50 px-2 py-1 rounded flex-1 truncate max-w-xs" title={job.error_message || ''}>
+                          <span className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 px-2 py-1 rounded flex-1 truncate max-w-xs" title={job.error_message || ''}>
                             {job.error_message?.slice(0, 50)}...
                           </span>
                           <button
                             onClick={() => handleDeleteClick(job.id, job.original_filename)}
                             disabled={deleting.has(job.id)}
-                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+                            className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                             title="Delete job"
                           >
                             {deleting.has(job.id) ? (
@@ -634,7 +634,7 @@ export default function JobsPage() {
                         <button
                           onClick={() => handleDeleteClick(job.id, job.original_filename)}
                           disabled={deleting.has(job.id)}
-                          className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                          className="text-slate-500 hover:text-slate-300 p-1 rounded hover:bg-white/5 disabled:opacity-50 transition-colors"
                           title="Delete job"
                         >
                           {deleting.has(job.id) ? (
@@ -650,43 +650,45 @@ export default function JobsPage() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Infinite scroll trigger */}
-          <div ref={observerTarget} className="h-16 flex items-center justify-center border-t border-gray-200 bg-gray-50">
+          <div ref={observerTarget} className="h-14 flex items-center justify-center border-t border-white/[0.05] bg-white/[0.02]">
             {hasMore && !loading && (
-              <p className="text-sm text-gray-500">Scroll to load more...</p>
+              <p className="text-sm text-slate-600">Scroll to load more...</p>
             )}
             {loading && hasMore && (
-              <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-5 h-5 animate-spin" />
+              <div className="flex items-center gap-2 text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
                 <span className="text-sm">Loading more jobs...</span>
               </div>
             )}
             {!hasMore && jobs.length > 0 && (
-              <p className="text-sm text-gray-400">All jobs loaded</p>
+              <p className="text-sm text-slate-700">All jobs loaded</p>
             )}
           </div>
         </div>
       ) : loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex-1">
-          <div className="p-6 space-y-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden flex-1">
+          <div className="p-6 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg animate-pulse">
-                <div className="w-10 h-10 bg-gray-200 rounded" />
+              <div key={i} className="flex items-center gap-4 p-4 rounded-lg border border-white/[0.05] bg-white/[0.02] animate-pulse">
+                <div className="w-10 h-10 bg-white/10 rounded-lg shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-3/4" />
-                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  <div className="h-4 bg-white/10 rounded w-3/4" />
+                  <div className="h-3 bg-white/[0.06] rounded w-1/2" />
                 </div>
-                <div className="w-20 h-8 bg-gray-200 rounded" />
+                <div className="w-20 h-8 bg-white/10 rounded-lg" />
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-200 shadow-sm">
-          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 font-medium mb-2">No jobs found</p>
-          <p className="text-gray-400 text-sm">Start by uploading a file to transcribe</p>
+        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed border-white/10 bg-white/[0.02]">
+          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600/20 to-purple-500/10 border border-violet-500/20 mb-4">
+            <FileText className="w-6 h-6 text-violet-400" />
+          </div>
+          <p className="text-slate-300 font-semibold mb-1">No jobs found</p>
+          <p className="text-slate-600 text-sm">Start by uploading a file to transcribe</p>
         </div>
       )}
       

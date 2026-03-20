@@ -38,25 +38,25 @@ function StatCard({ icon: Icon, label, value, description, href }: StatCardProps
   return (
     <Link
       href={href}
-      className="group flex flex-col gap-3 p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-raised)] transition-all"
+      className="group flex flex-col gap-3 p-5 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm hover:border-white/20 hover:bg-white/[0.07] transition-all"
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--color-accent-muted)]">
-          <Icon className="text-[var(--color-accent)]" size={18} aria-hidden="true" />
+        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-violet-600/25 to-purple-500/15 border border-violet-500/20">
+          <Icon className="text-violet-400" size={18} aria-hidden="true" />
         </div>
         <ArrowRight
-          className="w-4 h-4 text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"
+          className="w-4 h-4 text-slate-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"
           aria-hidden="true"
         />
       </div>
       <div>
-        <p className="text-2xl font-bold text-[var(--color-text-primary)] tabular-nums">
+        <p className="text-2xl font-bold text-slate-100 tabular-nums">
           {value}
         </p>
-        <p className="text-sm font-medium text-[var(--color-text-secondary)] mt-0.5">
+        <p className="text-sm font-medium text-slate-400 mt-0.5">
           {label}
         </p>
-        <p className="text-xs text-[var(--color-text-muted)] mt-1">{description}</p>
+        <p className="text-xs text-slate-600 mt-1">{description}</p>
       </div>
     </Link>
   );
@@ -78,10 +78,10 @@ function QuickAction({ icon: Icon, label, href, variant = 'secondary' }: QuickAc
     <Link
       href={href}
       className={cn(
-        'inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+        'inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.98]',
         variant === 'primary'
-          ? 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)]'
-          : 'border border-[var(--color-border)] text-[var(--color-text-primary)] bg-[var(--color-surface)] hover:bg-[var(--color-bg-secondary)] hover:border-[var(--color-border-strong)]',
+          ? 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-lg shadow-violet-500/20'
+          : 'border border-white/10 text-slate-300 bg-white/5 hover:bg-white/[0.08] hover:border-white/20',
       )}
     >
       <Icon className="w-4 h-4" aria-hidden="true" />
@@ -137,15 +137,27 @@ export default function DashboardPage() {
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
-          {greeting}, {firstName}
-        </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Here&apos;s an overview of your knowledge base.
-        </p>
-      </div>
+      {/* Welcome banner — gradient */}
+      <section
+        aria-label="Welcome"
+        className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-violet-600/20 via-purple-600/10 to-transparent p-6"
+      >
+        {/* Ambient glow */}
+        <div
+          className="absolute -top-10 -left-10 w-48 h-48 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%)' }}
+          aria-hidden="true"
+        />
+        <div className="relative">
+          <h1 className="text-2xl font-bold text-slate-100">
+            {greeting},{' '}
+            <span className="gradient-text">{firstName}</span>
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Here&apos;s an overview of your knowledge base.
+          </p>
+        </div>
+      </section>
 
       {/* Stats grid */}
       <section aria-labelledby="stats-heading">
@@ -162,20 +174,20 @@ export default function DashboardPage() {
       {/* CTA banner */}
       <section
         aria-label="Get started"
-        className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-accent-muted)]"
+        className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 rounded-xl border border-violet-500/20 bg-violet-600/10 backdrop-blur-sm"
       >
         <div className="flex-1">
-          <h3 className="font-semibold text-[var(--color-text-primary)] text-sm mb-1">
+          <h3 className="font-semibold text-slate-200 text-sm mb-1">
             Connect your first source
           </h3>
-          <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+          <p className="text-xs text-slate-400 leading-relaxed">
             Sync Google Drive, upload files, or connect a local folder to start
             building your knowledge base.
           </p>
         </div>
         <Link
           href={`/${locale}/sources`}
-          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-lg shadow-violet-500/20 transition-all active:scale-[0.98]"
         >
           <Database className="w-4 h-4" aria-hidden="true" />
           Connect a source
@@ -187,30 +199,30 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-4">
           <h2
             id="activity-heading"
-            className="font-semibold text-[var(--color-text-primary)] text-sm"
+            className="font-semibold text-slate-300 text-sm"
           >
             Recent activity
           </h2>
         </div>
-        {/* Empty state */}
-        <div className="flex flex-col items-center justify-center gap-3 py-14 rounded-xl border border-dashed border-[var(--color-border)] text-center">
-          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[var(--color-bg-secondary)]">
+        {/* Empty state — premium onboarding card */}
+        <div className="flex flex-col items-center justify-center gap-4 py-16 rounded-xl border border-dashed border-white/10 text-center bg-white/[0.02]">
+          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600/20 to-purple-500/10 border border-violet-500/20">
             <Activity
-              className="w-5 h-5 text-[var(--color-text-muted)]"
+              className="w-6 h-6 text-violet-400"
               aria-hidden="true"
             />
           </div>
-          <div>
-            <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-slate-300">
               No activity yet
             </p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-              Your recent actions will appear here
+            <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed">
+              Connect a data source to start indexing your files and building your knowledge base.
             </p>
           </div>
           <Link
             href={`/${locale}/sources`}
-            className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] inline-flex items-center gap-1 transition-colors mt-1"
+            className="text-xs text-violet-400 hover:text-violet-300 inline-flex items-center gap-1 transition-colors mt-1 font-medium"
           >
             Connect your first source
             <ArrowRight className="w-3 h-3" aria-hidden="true" />
@@ -222,7 +234,7 @@ export default function DashboardPage() {
       <section aria-labelledby="actions-heading">
         <h2
           id="actions-heading"
-          className="font-semibold text-[var(--color-text-primary)] text-sm mb-4"
+          className="font-semibold text-slate-400 text-xs uppercase tracking-wider mb-4"
         >
           Quick actions
         </h2>
