@@ -1,146 +1,27 @@
 /**
- * Unit tests for main upload page
+ * Unit tests for root page (redirect to dashboard)
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+jest.mock('next/navigation', () => ({
+  redirect: jest.fn(),
+}))
+
+import { redirect } from 'next/navigation'
+import { render } from '@testing-library/react'
 import '@testing-library/jest-dom'
-import HomePage from '@/app/page'
+import RootPage from '@/app/page'
 
-// Mock FileUpload component
-jest.mock('@/components/FileUpload', () => {
-  return function MockFileUpload({ onUpload, isUploading }: any) {
-    return (
-      <div data-testid="file-upload">
-        <button
-          onClick={() => onUpload([new File(['test'], 'test.wav')])}
-          disabled={isUploading}
-        >
-          Upload
-        </button>
-        {isUploading && <div>Uploading...</div>}
-      </div>
-    )
-  }
-})
-
-describe('HomePage', () => {
+describe('RootPage', () => {
   beforeEach(() => {
-    global.fetch = jest.fn()
+    jest.clearAllMocks()
   })
 
-  afterEach(() => {
-    jest.resetAllMocks()
+  it('redirects to /dashboard', () => {
+    render(<RootPage />)
+    expect(redirect).toHaveBeenCalledWith('/dashboard')
   })
 
-  it('renders upload page with title', () => {
-    render(<HomePage />)
-
-    expect(screen.getByText('Upload Audio/Video')).toBeInTheDocument()
-    expect(screen.getByText(/upload your files to transcribe/i)).toBeInTheDocument()
-  })
-
-  it('renders settings section', () => {
-    render(<HomePage />)
-
-    expect(screen.getByText('Settings')).toBeInTheDocument()
-    expect(screen.getByLabelText(/provider/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/model/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/language/i)).toBeInTheDocument()
-  })
-
-  it('allows user to select provider', () => {
-    render(<HomePage />)
-
-    const providerSelect = screen.getByLabelText(/provider/i) as HTMLSelectElement
-    fireEvent.change(providerSelect, { target: { value: 'groq' } })
-
-    expect(providerSelect.value).toBe('groq')
-  })
-
-  it('allows user to select model', () => {
-    render(<HomePage />)
-
-    const modelSelect = screen.getByLabelText(/model/i) as HTMLSelectElement
-    fireEvent.change(modelSelect, { target: { value: 'small' } })
-
-    expect(modelSelect.value).toBe('small')
-  })
-
-  it('allows user to select language', () => {
-    render(<HomePage />)
-
-    const languageSelect = screen.getByLabelText(/language/i) as HTMLSelectElement
-    fireEvent.change(languageSelect, { target: { value: 'es' } })
-
-    expect(languageSelect.value).toBe('es')
-  })
-
-  it('uploads file successfully', async () => {
-    const mockResponse = {
-      job_id: 'test-job-123',
-      filename: 'test.wav',
-      status: 'queued',
-    }
-
-    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockResponse,
-    })
-
-    render(<HomePage />)
-
-    // Click upload
-    const uploadButton = screen.getByText('Upload')
-    fireEvent.click(uploadButton)
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/v1/upload',
-        expect.objectContaining({
-          method: 'POST',
-        })
-      )
-    })
-  })
-
-  it('displays uploaded files', async () => {
-    const mockResponse = {
-      job_id: 'test-job-123',
-      filename: 'test.wav',
-      status: 'queued',
-    }
-
-    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockResponse,
-    })
-
-    render(<HomePage />)
-
-    const uploadButton = screen.getByText('Upload')
-    fireEvent.click(uploadButton)
-
-    await waitFor(() => {
-      expect(screen.getByText('Uploaded Files')).toBeInTheDocument()
-      expect(screen.getByText(/test-job-123/)).toBeInTheDocument()
-    })
-  })
-
-  it('handles upload error correctly', async () => {
-    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      statusText: 'Forbidden',
-      json: async () => ({ detail: 'API key required' }),
-      headers: new Headers({ 'content-type': 'application/json' }),
-    })
-
-    render(<HomePage />)
-
-    const uploadButton = screen.getByText('Upload')
-    fireEvent.click(uploadButton)
-
-    await waitFor(() => {
-      expect(screen.getByText(/api key required/i)).toBeInTheDocument()
-    })
+  it('calls redirect exactly once', () => {
+    render(<RootPage />)
+    expect(redirect).toHaveBeenCalledTimes(1)
   })
 })
