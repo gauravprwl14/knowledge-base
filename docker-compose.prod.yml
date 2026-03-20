@@ -140,7 +140,7 @@ services:
       context: ./kms-api
       dockerfile: Dockerfile
       target: production
-    command: ["npx", "prisma", "migrate", "deploy"]
+    command: ["npx", "prisma", "migrate", "deploy", "--config", "prisma/config.ts"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
@@ -268,7 +268,7 @@ services:
       search-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8002/health/live || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health/live')\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -388,9 +388,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: runner
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+        NEXT_PUBLIC_SEARCH_API_URL: ${PUBLIC_URL}
+        NEXT_PUBLIC_RAG_API_URL: ${PUBLIC_URL}
     restart: always
     ports:
-      - "127.0.0.1:3000:3000"   # Nginx reverse proxy connects here
+      - "127.0.0.1:3003:3000"   # Nginx reverse proxy connects here (host port 3000 in use by another process)
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
