@@ -1,10 +1,34 @@
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+# Install all deps (dev+prod) — needed for both dev hot-reload and production build
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma/
+RUN npm install --legacy-peer-deps
+
+# ---- development stage (hot reload via volume mount) ----
+FROM node:20-alpine AS development
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma/
+
+EXPOSE 8001
+ENV NODE_ENV=development
+
+# Source code is mounted as volume — enables hot reload without rebuild
+CMD ["npm", "run", "start:dev"]
+
+# ---- builder: compile TypeScript ----
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies first (layer cache)
-COPY package.json ./
-RUN npm install
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma/
+RUN npx prisma generate
 
 # Copy source and compile
 COPY . .

@@ -46,6 +46,33 @@ const initialState: AuthState = {
 export const authStore = new Store<AuthState>(initialState);
 
 // ---------------------------------------------------------------------------
+// Cookie helpers — sync access token with middleware
+// ---------------------------------------------------------------------------
+
+// Middleware reads 'kms-access-token' cookie to detect authenticated sessions.
+// This token is in-memory only for API calls, but the cookie is needed so
+// Next.js middleware (which runs server-side) can see the auth state.
+// TTL matches the refresh token (7 days) so the session cookie outlives any
+// single access token. The cookie value is not used for actual API auth.
+
+const SESSION_COOKIE = 'kms-access-token';
+const SESSION_COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
+
+function setSessionCookie(token: string): void {
+  if (typeof document === 'undefined') return;
+  // path=/ so the cookie is sent to both /kms/* routes AND the Next.js
+  // middleware (which intercepts all paths). SameSite=Lax is safe for
+  // OAuth redirect flows. Secure flag works because the app runs over HTTPS.
+  document.cookie = `${SESSION_COOKIE}=${token}; path=/; SameSite=Lax; Secure; max-age=${SESSION_COOKIE_MAX_AGE}`;
+}
+
+function clearSessionCookie(): void {
+  if (typeof document === 'undefined') return;
+  // Expire on both path=/ to ensure removal regardless of how it was set.
+  document.cookie = `${SESSION_COOKIE}=; path=/; SameSite=Lax; Secure; max-age=0`;
+}
+
+// ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
 
@@ -56,16 +83,19 @@ export function login(user: AuthUser, accessToken: string): void {
     accessToken,
     isAuthenticated: true,
   }));
+  setSessionCookie(accessToken);
 }
 
 /** Clear all auth state on logout. */
 export function logout(): void {
   authStore.setState(() => initialState);
+  clearSessionCookie();
 }
 
 /** Update the access token in-place (called after silent refresh). */
 export function setAccessToken(token: string): void {
   authStore.setState((prev) => ({ ...prev, accessToken: token }));
+  setSessionCookie(token);
 }
 
 // ---------------------------------------------------------------------------

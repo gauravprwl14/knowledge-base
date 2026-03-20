@@ -284,6 +284,45 @@ class Retriever:
         return extra_chunks
 
 
+class ContextRetriever:
+    """Thin wrapper around Retriever for use by the chat endpoint.
+
+    Accepts an asyncpg pool (kept for future metadata enrichment) and exposes a
+    simplified ``retrieve(question, top_k)`` interface that returns a
+    ``(context_text, citations)`` tuple consumed by LLMGenerator.
+
+    Args:
+        db: asyncpg connection pool (stored for future use; not used in current retrieval path).
+    """
+
+    def __init__(self, db) -> None:
+        self._db = db
+        self._retriever = Retriever()
+
+    async def retrieve(
+        self,
+        question: str,
+        top_k: int = 10,
+        user_id: str = "anonymous",
+    ) -> tuple[str, list[str]]:
+        """Retrieve context chunks and format them for the LLM.
+
+        Args:
+            question: Natural-language question from the user.
+            top_k: Maximum number of chunks to retrieve.
+            user_id: Optional user scope for Qdrant payload filtering.
+
+        Returns:
+            Tuple of (context_text, citations) where context_text is a
+            newline-joined string of chunk content and citations is a
+            list of source filenames.
+        """
+        chunks = await self._retriever.retrieve(question, user_id=user_id, top_k=top_k)
+        context_text = "\n\n".join(c.content for c in chunks)
+        citations = list(dict.fromkeys(c.filename for c in chunks))
+        return context_text, citations
+
+
 def _deduplicate(chunks: list[RetrievedChunk], top_k: int) -> list[RetrievedChunk]:
     """Deduplicate chunks by chunk_id and sort by score descending.
 

@@ -20,10 +20,31 @@ import type {
 
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
+// Shape returned by the real /auth/login endpoint
+interface LoginApiResponse {
+  tokens: {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+    tokenType: string;
+  };
+  user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    role: string;
+  };
+}
+
 /** POST /auth/login */
 export async function login(credentials: LoginRequest): Promise<AuthResponse> {
   if (USE_MOCK) return mockAuth.mockLogin(credentials);
-  return apiClient.post<AuthResponse>('/auth/login', credentials);
+  const res = await apiClient.post<LoginApiResponse>('/auth/login', credentials);
+  return {
+    accessToken: res.tokens.accessToken,
+    expiresIn: res.tokens.expiresIn,
+  };
 }
 
 /** POST /auth/register */
@@ -42,10 +63,27 @@ export async function logout(): Promise<void> {
   return apiClient.post<void>('/auth/logout');
 }
 
-/** GET /auth/me — also seeds the auth store in mock mode. */
+// Shape returned by the real /users/me endpoint
+interface MeApiResponse {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  role: string;
+  emailVerified: boolean;
+  createdAt: string;
+}
+
+/** GET /users/me — returns the authenticated user's profile. */
 export async function getMe(): Promise<User> {
   if (USE_MOCK) return mockAuth.mockGetMe();
-  return apiClient.get<User>('/auth/me');
+  const res = await apiClient.get<MeApiResponse>('/users/me');
+  return {
+    id: res.id,
+    email: res.email,
+    name: [res.firstName, res.lastName].filter(Boolean).join(' ') || res.email,
+    roles: [res.role],
+  };
 }
 
 /** GET /auth/api-keys */

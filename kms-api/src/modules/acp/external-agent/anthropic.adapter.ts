@@ -31,7 +31,7 @@ Rules:
 @Injectable()
 export class AnthropicAdapter {
   private readonly logger: AppLogger;
-  private readonly client: Anthropic;
+  private readonly client: Anthropic | undefined;
   private readonly model: string;
 
   constructor(
@@ -41,10 +41,9 @@ export class AnthropicAdapter {
     this.logger = logger.child({ context: AnthropicAdapter.name });
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
     if (!apiKey) {
-      throw new AppError({
-        code: ERROR_CODES.SRV.CONFIGURATION_ERROR.code,
-        message: 'ANTHROPIC_API_KEY is not configured',
-      });
+      this.logger.warn('ANTHROPIC_API_KEY is not configured — AnthropicAdapter disabled');
+      this.model = DEFAULT_MODEL;
+      return;
     }
     this.client = new Anthropic({ apiKey });
     this.model = this.config.get<string>('ANTHROPIC_MODEL') ?? DEFAULT_MODEL;
@@ -62,6 +61,12 @@ export class AnthropicAdapter {
     results: KmsSearchResult[],
     emitter: AcpEventEmitter,
   ): Promise<void> {
+    if (!this.client) {
+      throw new AppError({
+        code: ERROR_CODES.SRV.CONFIGURATION_ERROR.code,
+        message: 'ANTHROPIC_API_KEY is not configured',
+      });
+    }
     const contextText =
       results.length === 0
         ? 'No relevant documents found in the knowledge base.'

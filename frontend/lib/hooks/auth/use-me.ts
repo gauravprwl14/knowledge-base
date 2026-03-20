@@ -13,7 +13,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { getMe } from '@/lib/api/auth.api';
-import { login as storeLogin, useCurrentUser } from '@/lib/stores/auth.store';
+import { login as storeLogin, useCurrentUser, authStore } from '@/lib/stores/auth.store';
 import type { User } from '@/lib/types/auth.types';
 
 export const ME_QUERY_KEY = ['auth', 'me'] as const;
@@ -42,8 +42,7 @@ export function useMe(): UseMeReturn {
           roles: user.roles,
           avatarUrl: user.avatarUrl,
         },
-        // Token is already in store — we don't get it from /me
-        '',
+        authStore.state.accessToken ?? '',
       );
       return user;
     },

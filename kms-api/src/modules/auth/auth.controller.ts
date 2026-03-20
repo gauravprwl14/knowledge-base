@@ -7,7 +7,9 @@ import {
   HttpStatus,
   UseGuards,
   Req,
+  Res,
 } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -170,21 +172,49 @@ export class AuthController {
   }
 
   /**
-   * Google OAuth callback — exchanges code for tokens and returns JWT tokens
+   * Google OAuth callback — exchanges code for tokens and redirects to the
+   * frontend callback page.
+   *
+   * After Passport validates the Google profile, this handler issues JWT tokens
+   * and redirects the browser to `/kms/en/auth/callback?accessToken=...` so the
+   * frontend can bootstrap the auth store without an extra API round-trip.
+   *
+   * NOTE: `@Res({ passthrough: false })` gives direct access to the Fastify
+   * reply so we can call `reply.redirect()` ourselves.  NestJS will NOT attempt
+   * to write a second response because we own the reply.
    */
   @Public()
   @UseGuards(GoogleAuthGuard)
   @Get('google/callback')
   @ApiEndpoint({
     summary: 'Google OAuth callback',
-    description: 'Handles the Google OAuth callback and returns JWT tokens',
-    responseType: LoginResponseDto,
+    description: 'Handles the Google OAuth callback and redirects to the frontend with JWT tokens',
     responses: [
+      { status: HttpStatus.FOUND, description: 'Redirects to frontend callback page' },
       { status: HttpStatus.UNAUTHORIZED, description: 'OAuth authentication failed' },
     ],
   })
-  async googleCallback(@Req() req: { user: import('@prisma/client').User }): Promise<{ tokens: import('./dto/auth.dto').AuthTokens; user: { id: string; email: string; firstName: string | null; lastName: string | null; role: string } }> {
-    // req.user is set by GoogleAuthGuard → GoogleStrategy.validate()
-    return this.authService.googleLogin(req.user);
+  async googleCallback(
+    @Req() req: { user: import('@prisma/client').User },
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    try {
+      // req.user is populated by GoogleAuthGuard → GoogleStrategy.validate()
+      console.error('[GoogleCallback] req.user:', JSON.stringify(req?.user ?? null));
+      const result = await this.authService.googleLogin(req.user);
+
+      // Redirect browser to the frontend OAuth callback page.
+      const params = new URLSearchParams({
+        accessToken: result.tokens.accessToken,
+        refreshToken: result.tokens.refreshToken,
+      });
+      const redirectUrl = `/kms/en/auth/callback?${params.toString()}`;
+      console.error('[GoogleCallback] redirecting to:', redirectUrl.substring(0, 60));
+      reply.redirect(redirectUrl, 302);
+    } catch (err) {
+      const e = err as Error;
+      console.error('[GoogleCallback] ERROR:', e?.message, e?.stack);
+      throw err;
+    }
   }
 }

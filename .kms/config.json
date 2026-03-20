@@ -78,6 +78,10 @@
       "maxFileSizeMb": 500,
       "supportedFormats": ["mp3", "wav", "mp4", "mov", "m4a", "ogg", "webm"]
     },
+    "googleOAuthLogin": {
+      "enabled": true,
+      "comment": "Enables Google OAuth 2.0 login. Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars"
+    },
     "googleDrive": {
       "enabled": true,
       "syncIntervalMinutes": 60,
