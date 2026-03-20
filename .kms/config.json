@@ -61,7 +61,7 @@
       "comment": "Requires semanticSearch.enabled=true"
     },
     "rag": {
-      "enabled": true,
+      "enabled": false,
       "streamingEnabled": true,
       "maxContextChunks": 10,
       "comment": "Requires embedding.enabled=true + llm.enabled=true"
@@ -104,8 +104,8 @@
   },
 
   "llm": {
-    "enabled": true,
-    "provider": "anthropic",
+    "enabled": false,
+    "provider": "ollama",
     "ollamaBaseUrl": "http://localhost:11434",
     "ollamaModel": "llama3.2:3b",
     "openrouterBaseUrl": "https://openrouter.ai/api/v1",
@@ -156,7 +156,7 @@
       "comment": "Auto-disabled when graph.enabled=false"
     },
     "ragAgent": {
-      "enabled": true,
+      "enabled": false,
       "comment": "Auto-disabled when rag.enabled=false"
     }
   },
