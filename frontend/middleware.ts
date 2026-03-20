@@ -120,7 +120,11 @@ export default function middleware(request: NextRequest): NextResponse {
 
   // Redirect unauthenticated users away from protected routes
   if (isProtected && !authenticated) {
-    const loginUrl = new URL(`/${locale}/login`, request.url);
+    // Use request.nextUrl.clone() so that the basePath (e.g. /kms) is
+    // preserved in the Location header. new URL('/en/login', request.url)
+    // would resolve relative to the origin and drop the basePath entirely.
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = `/${locale}/login`;
     // Preserve the intended destination for post-login redirect
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
@@ -128,7 +132,10 @@ export default function middleware(request: NextRequest): NextResponse {
 
   // Redirect authenticated users away from auth pages
   if (isAuthRoute && authenticated) {
-    const dashboardUrl = new URL(`/${locale}/dashboard`, request.url);
+    // Same basePath-safe approach for the dashboard redirect.
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = `/${locale}/dashboard`;
+    dashboardUrl.search = '';
     return NextResponse.redirect(dashboardUrl);
   }
 
