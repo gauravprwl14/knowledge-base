@@ -170,6 +170,10 @@ class EmbedHandler:
             ExtractionError: Wraps any exception raised by the extractor
                 (e.g. corrupt PDF, encoding error).
         """
+        # If content was provided inline (e.g. Obsidian plugin push), skip disk read
+        if msg.inline_content:
+            return msg.inline_content
+
         extractor = get_extractor(msg.mime_type)
         if not extractor:
             # No extractor registered for this MIME type — skip silently

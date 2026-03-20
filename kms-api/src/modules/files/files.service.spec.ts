@@ -1,10 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FilesService } from './files.service';
 import { FileRepository, ListFilesParams, FilesPage } from '../../database/repositories/file.repository';
+import { ScanJobRepository } from '../../database/repositories/scan-job.repository';
 import { AppLogger } from '../../logger/logger.service';
 import { AppError } from '../../errors/types/app-error';
 import { ERROR_CODES } from '../../errors/error-codes';
 import { KmsFile } from '@prisma/client';
+import { PrismaService } from '../../database/prisma/prisma.service';
+import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
+import { ScanJobPublisher } from '../../queue/publishers/scan-job.publisher';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -62,6 +66,31 @@ describe('FilesService', () => {
     bulkMoveToCollection: repoBulkMoveToCollection,
   };
 
+  // PrismaService mocks
+  const prismaKmsSourceFindFirst = jest.fn();
+  const prismaKmsSourceCreate = jest.fn();
+  const prismaKmsFileCreate = jest.fn();
+  const mockPrisma = {
+    kmsSource: { findFirst: prismaKmsSourceFindFirst, create: prismaKmsSourceCreate },
+    kmsFile: { create: prismaKmsFileCreate },
+  };
+
+  // EmbedJobPublisher mock
+  const mockPublishEmbedJob = jest.fn().mockResolvedValue(undefined);
+
+  // ScanJobRepository mocks
+  const scanJobFindActive = jest.fn();
+  const scanJobCreate = jest.fn();
+  const scanJobFindBySourceId = jest.fn();
+  const mockScanJobRepo = {
+    findActiveBySourceId: scanJobFindActive,
+    createJob: scanJobCreate,
+    findBySourceId: scanJobFindBySourceId,
+  };
+
+  // ScanJobPublisher mock
+  const mockPublishScanJob = jest.fn().mockResolvedValue(undefined);
+
   const mockChildLogger = {
     info: jest.fn(),
     warn: jest.fn(),
@@ -85,6 +114,10 @@ describe('FilesService', () => {
         FilesService,
         { provide: FileRepository, useValue: mockFileRepo },
         { provide: AppLogger, useValue: mockLogger },
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: EmbedJobPublisher, useValue: { publishEmbedJob: mockPublishEmbedJob } },
+        { provide: ScanJobRepository, useValue: mockScanJobRepo },
+        { provide: ScanJobPublisher, useValue: { publishScanJob: mockPublishScanJob } },
       ],
     }).compile();
 
@@ -289,6 +322,144 @@ describe('FilesService', () => {
         'col-target',
         'user-001',
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // triggerScan()
+  // -------------------------------------------------------------------------
+
+  describe('triggerScan()', () => {
+    const mockSource = {
+      id: 'src-001',
+      userId: 'user-001',
+      type: 'GOOGLE_DRIVE',
+      configJson: { driveId: 'drive-123' },
+    };
+
+    const mockJob = {
+      id: 'job-001',
+      sourceId: 'src-001',
+      userId: 'user-001',
+      status: 'QUEUED',
+      type: 'FULL',
+    };
+
+    it('creates a job and publishes to scan queue', async () => {
+      prismaKmsSourceFindFirst.mockResolvedValue(mockSource);
+      scanJobFindActive.mockResolvedValue(null);
+      scanJobCreate.mockResolvedValue(mockJob);
+
+      const result = await service.triggerScan('src-001', 'user-001', 'FULL');
+
+      expect(result).toEqual(mockJob);
+      expect(scanJobCreate).toHaveBeenCalledWith('src-001', 'user-001', 'FULL');
+      expect(mockPublishScanJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scan_job_id: 'job-001',
+          source_id: 'src-001',
+          user_id: 'user-001',
+          scan_type: 'FULL',
+        }),
+      );
+    });
+
+    it('returns existing active job without creating a duplicate', async () => {
+      prismaKmsSourceFindFirst.mockResolvedValue(mockSource);
+      scanJobFindActive.mockResolvedValue(mockJob);
+
+      const result = await service.triggerScan('src-001', 'user-001');
+
+      expect(result).toEqual(mockJob);
+      expect(scanJobCreate).not.toHaveBeenCalled();
+      expect(mockPublishScanJob).not.toHaveBeenCalled();
+    });
+
+    it('throws AppError when source is not found or not owned by user', async () => {
+      prismaKmsSourceFindFirst.mockResolvedValue(null);
+
+      await expect(service.triggerScan('src-999', 'user-001')).rejects.toThrow(AppError);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // getScanHistory()
+  // -------------------------------------------------------------------------
+
+  describe('getScanHistory()', () => {
+    const mockSource = {
+      id: 'src-001',
+      userId: 'user-001',
+      type: 'GOOGLE_DRIVE',
+      configJson: {},
+    };
+
+    it('returns scan jobs for a source', async () => {
+      const jobs = [{ id: 'job-001' }, { id: 'job-002' }];
+      prismaKmsSourceFindFirst.mockResolvedValue(mockSource);
+      scanJobFindBySourceId.mockResolvedValue(jobs);
+
+      const result = await service.getScanHistory('src-001', 'user-001');
+
+      expect(result).toEqual(jobs);
+      expect(scanJobFindBySourceId).toHaveBeenCalledWith('src-001', 'user-001');
+    });
+
+    it('throws AppError when source is not found', async () => {
+      prismaKmsSourceFindFirst.mockResolvedValue(null);
+
+      await expect(service.getScanHistory('src-999', 'user-001')).rejects.toThrow(AppError);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ingestNote()
+  // -------------------------------------------------------------------------
+
+  describe('ingestNote()', () => {
+    const mockObsidianSource = { id: 'obs-src-001', userId: 'user-001', type: 'OBSIDIAN' };
+
+    it('upserts source, creates file, publishes embed job, and returns ids', async () => {
+      prismaKmsSourceFindFirst.mockResolvedValue(mockObsidianSource);
+      prismaKmsFileCreate.mockResolvedValue({});
+
+      const result = await service.ingestNote(
+        { title: 'My Note', content: '# Hello' },
+        'user-001',
+      );
+
+      expect(result).toHaveProperty('fileId');
+      expect(result.sourceId).toBe('obs-src-001');
+      expect(mockPublishEmbedJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source_type: 'obsidian',
+          inline_content: '# Hello',
+        }),
+      );
+    });
+
+    it('creates an OBSIDIAN source if none exists', async () => {
+      prismaKmsSourceFindFirst.mockResolvedValue(null);
+      prismaKmsSourceCreate.mockResolvedValue(mockObsidianSource);
+      prismaKmsFileCreate.mockResolvedValue({});
+
+      await service.ingestNote({ title: 'New Note', content: 'content' }, 'user-001');
+
+      expect(prismaKmsSourceCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ type: 'OBSIDIAN', userId: 'user-001' }),
+        }),
+      );
+    });
+
+    it('throws AppError when embed job publishing fails', async () => {
+      prismaKmsSourceFindFirst.mockResolvedValue(mockObsidianSource);
+      prismaKmsFileCreate.mockResolvedValue({});
+      mockPublishEmbedJob.mockRejectedValue(new Error('RabbitMQ unavailable'));
+
+      await expect(
+        service.ingestNote({ title: 'Note', content: 'content' }, 'user-001'),
+      ).rejects.toThrow(AppError);
     });
   });
 });

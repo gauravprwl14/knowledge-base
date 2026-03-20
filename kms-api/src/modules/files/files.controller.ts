@@ -28,6 +28,7 @@ import { ListFilesQueryDto } from './dto/list-files-query.dto';
 import { ListFilesResponseDto } from './dto/list-files-response.dto';
 import { BulkDeleteDto } from './dto/bulk-delete.dto';
 import { BulkMoveDto } from './dto/bulk-move.dto';
+import { IngestNoteDto } from './dto/ingest-note.dto';
 
 /**
  * FilesController — REST endpoints for querying and managing KMS files.
@@ -45,6 +46,37 @@ import { BulkMoveDto } from './dto/bulk-move.dto';
 @Controller('files')
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
+
+  // ---------------------------------------------------------------------------
+  // INGEST — must be declared BEFORE :id routes to avoid param capture
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Ingests an Obsidian note directly into the KMS indexing pipeline.
+   *
+   * Creates or reuses an OBSIDIAN source for the authenticated user, writes a
+   * `kms_files` row with PENDING status, and publishes an embed job message
+   * directly to `kms.embed` — bypassing the scan-worker stage.
+   *
+   * The note content travels inline inside the AMQP message so the embed-worker
+   * never attempts a disk read.
+   *
+   * @param dto - Validated ingest request body.
+   * @param req - Fastify request carrying `req.user.id`.
+   * @returns The UUID of the newly created file and its Obsidian source.
+   */
+  @Post('ingest')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Ingest an Obsidian note directly into the KMS pipeline' })
+  @ApiResponse({ status: 201, description: 'Note queued for indexing' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async ingestNote(
+    @Body() dto: IngestNoteDto,
+    @Request() req: any,
+  ): Promise<{ fileId: string; sourceId: string }> {
+    return this.filesService.ingestNote(dto, req.user.id);
+  }
 
   // ---------------------------------------------------------------------------
   // BULK ACTIONS — must be declared BEFORE :id routes to avoid param capture

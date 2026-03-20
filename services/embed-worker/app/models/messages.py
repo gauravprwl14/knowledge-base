@@ -4,7 +4,14 @@ from uuid import UUID
 import datetime
 
 class FileDiscoveredMessage(BaseModel):
-    """Received from kms.embed queue (published by scan-worker)."""
+    """Received from kms.embed queue (published by scan-worker or kms-api ingest).
+
+    The ``inline_content`` field is set when the Obsidian plugin (or any direct
+    ingest caller) pushes note content without writing it to disk first.  When
+    present, the embed-worker skips the disk-read step and uses this string as
+    the extracted text directly.
+    """
+
     scan_job_id: UUID
     source_id: UUID
     user_id: UUID
@@ -16,6 +23,7 @@ class FileDiscoveredMessage(BaseModel):
     checksum_sha256: Optional[str] = None
     source_type: str
     source_metadata: dict = Field(default_factory=dict)
+    inline_content: Optional[str] = None
 
 class TextChunk(BaseModel):
     chunk_index: int

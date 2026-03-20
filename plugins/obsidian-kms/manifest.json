@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-kms",
+  "name": "KMS Integration",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Send notes to and query your Knowledge Management System from Obsidian.",
+  "author": "KMS",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}

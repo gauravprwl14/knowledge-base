@@ -1,8 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { AppLogger } from '../../logger/logger.service';
 import { AppError } from '../../errors/types/app-error';
 import { ERROR_CODES } from '../../errors/error-codes';
+import { Prisma, ScanJobType } from '@prisma/client';
 import { FileRepository, ListFilesParams, FilesPage } from '../../database/repositories/file.repository';
+import { ScanJobRepository } from '../../database/repositories/scan-job.repository';
+import { PrismaService } from '../../database/prisma/prisma.service';
+import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
+import { ScanJobPublisher } from '../../queue/publishers/scan-job.publisher';
+import { IngestNoteDto } from './dto/ingest-note.dto';
 
 /**
  * FilesService — business logic for KMS file management.
@@ -22,6 +29,10 @@ export class FilesService {
   constructor(
     private readonly fileRepo: FileRepository,
     logger: AppLogger,
+    private readonly prisma: PrismaService,
+    private readonly embedJobPublisher: EmbedJobPublisher,
+    private readonly scanJobRepo: ScanJobRepository,
+    private readonly scanJobPublisher: ScanJobPublisher,
   ) {
     // Bind context name so every log line carries `context: FilesService`
     this.logger = logger.child({ context: FilesService.name });
@@ -138,6 +149,75 @@ export class FilesService {
   }
 
   // ---------------------------------------------------------------------------
+  // TRIGGER SCAN
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Creates a KmsScanJob record and publishes it to the `kms.scan` queue.
+   *
+   * If a QUEUED or RUNNING job already exists for the source, the existing job
+   * is returned without creating a duplicate.
+   *
+   * @param sourceId - Source UUID.
+   * @param userId   - Authenticated user UUID.
+   * @param scanType - 'FULL' | 'INCREMENTAL' (default: 'FULL').
+   * @returns The new or existing KmsScanJob record.
+   */
+  async triggerScan(
+    sourceId: string,
+    userId: string,
+    scanType: 'FULL' | 'INCREMENTAL' = 'FULL',
+  ) {
+    // Verify the source belongs to this user
+    const source = await this.prisma.kmsSource.findFirst({ where: { id: sourceId, userId } });
+    if (!source) {
+      throw new AppError({ code: ERROR_CODES.DAT.NOT_FOUND.code });
+    }
+
+    // Return existing active job rather than creating a duplicate
+    const existing = await this.scanJobRepo.findActiveBySourceId(sourceId, userId);
+    if (existing) {
+      this.logger.info('scan job already active — returning existing', { sourceId, jobId: existing.id, userId });
+      return existing;
+    }
+
+    const job = await this.scanJobRepo.createJob(sourceId, userId, scanType as ScanJobType);
+
+    await this.scanJobPublisher.publishScanJob({
+      scan_job_id: job.id,
+      source_id: sourceId,
+      source_type: source.type.toLowerCase(),
+      user_id: userId,
+      scan_type: scanType,
+      config: (source.configJson as Record<string, unknown>) ?? {},
+    });
+
+    this.logger.info('scan job created and published', { jobId: job.id, sourceId, scanType, userId });
+    return job;
+  }
+
+  // ---------------------------------------------------------------------------
+  // SCAN HISTORY
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns all scan jobs for a source, newest first.
+   *
+   * @param sourceId - Source UUID.
+   * @param userId   - Authenticated user UUID.
+   * @returns Array of KmsScanJob records.
+   */
+  async getScanHistory(sourceId: string, userId: string) {
+    // Verify source ownership
+    const source = await this.prisma.kmsSource.findFirst({ where: { id: sourceId, userId } });
+    if (!source) {
+      throw new AppError({ code: ERROR_CODES.DAT.NOT_FOUND.code });
+    }
+
+    return this.scanJobRepo.findBySourceId(sourceId, userId);
+  }
+
+  // ---------------------------------------------------------------------------
   // UPDATE TAGS (legacy patch endpoint — kept for backward compat)
   // ---------------------------------------------------------------------------
 
@@ -151,5 +231,98 @@ export class FilesService {
       code: ERROR_CODES.GEN.NOT_IMPLEMENTED.code,
       message: 'FilesService.updateTags — use TagsModule endpoints',
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // INGEST (Obsidian plugin direct push)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Ingests an Obsidian note directly into the KMS indexing pipeline.
+   *
+   * Upserts an OBSIDIAN source for the user, creates a `kms_files` row, and
+   * publishes an embed job message directly to `kms.embed` so the note is
+   * embedded without going through the scan-worker file-discovery stage.
+   *
+   * The note content is carried in the `inline_content` field of the embed
+   * message, which tells the embed-worker to skip the disk-read step.
+   *
+   * @param dto - Validated ingest request body.
+   * @param userId - Authenticated user UUID (from JWT).
+   * @returns An object containing the new file UUID and the Obsidian source UUID.
+   * @throws AppError with `GEN.INTERNAL_ERROR` if publishing to RabbitMQ fails.
+   */
+  async ingestNote(
+    dto: IngestNoteDto,
+    userId: string,
+  ): Promise<{ fileId: string; sourceId: string }> {
+    // ── Step 1: Upsert the OBSIDIAN source for this user ───────────────────
+    let obsidianSource = await this.prisma.kmsSource.findFirst({
+      where: { userId, type: 'OBSIDIAN' },
+    });
+
+    if (!obsidianSource) {
+      obsidianSource = await this.prisma.kmsSource.create({
+        data: {
+          userId,
+          type: 'OBSIDIAN',
+          name: 'Obsidian Vault',
+          status: 'IDLE',
+        },
+      });
+    }
+
+    // ── Step 2: Derive filename and size ───────────────────────────────────
+    const name = dto.title.endsWith('.md') ? dto.title : `${dto.title}.md`;
+    const filePath = dto.path ?? dto.title;
+    const sizeBytes = Buffer.byteLength(dto.content, 'utf8');
+    const fileId = randomUUID();
+
+    // ── Step 3: Create the kms_files row ───────────────────────────────────
+    await this.prisma.kmsFile.create({
+      data: {
+        id: fileId,
+        userId,
+        sourceId: obsidianSource.id,
+        name,
+        path: filePath,
+        mimeType: 'text/markdown',
+        sizeBytes: BigInt(sizeBytes),
+        status: 'PENDING',
+        metadata: { source: 'obsidian' } as Prisma.InputJsonValue,
+      },
+    });
+
+    // ── Step 4: Publish embed job message to kms.embed ─────────────────────
+    try {
+      await this.embedJobPublisher.publishEmbedJob({
+        scan_job_id: fileId,
+        source_id: obsidianSource.id,
+        user_id: userId,
+        file_path: `obsidian://${filePath}`,
+        original_filename: name,
+        mime_type: 'text/markdown',
+        file_size_bytes: sizeBytes,
+        source_type: 'obsidian',
+        source_metadata: {},
+        inline_content: dto.content,
+      });
+    } catch (err) {
+      this.logger.error('Failed to publish embed job for Obsidian ingest', {
+        fileId,
+        userId,
+        error: String(err),
+      });
+      throw new AppError({
+        code: ERROR_CODES.GEN.INTERNAL_ERROR.code,
+        message: 'Failed to queue note for indexing',
+        cause: err instanceof Error ? err : undefined,
+      });
+    }
+
+    // ── Step 5: Log success ────────────────────────────────────────────────
+    this.logger.info('file ingested from obsidian', { fileId, userId });
+
+    return { fileId, sourceId: obsidianSource.id };
   }
 }
