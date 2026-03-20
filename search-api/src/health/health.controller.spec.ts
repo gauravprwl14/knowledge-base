@@ -1,87 +1,143 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { HealthController } from './health.controller';
-import { PrismaService } from '../prisma/prisma.service';
+
+// ---------------------------------------------------------------------------
+// Mock ConfigService
+// ---------------------------------------------------------------------------
+
+const mockConfigService = {
+  get: jest.fn(),
+};
+
+// ---------------------------------------------------------------------------
+// Module setup
+// ---------------------------------------------------------------------------
 
 describe('HealthController', () => {
   let controller: HealthController;
-  let prismaService: jest.Mocked<Pick<PrismaService, 'isHealthy'>>;
 
   beforeEach(async () => {
-    const prismaMock = {
-      isHealthy: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
       providers: [
-        {
-          provide: PrismaService,
-          useValue: prismaMock,
-        },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     controller = module.get<HealthController>(HealthController);
-    prismaService = module.get(PrismaService);
-    jest.clearAllMocks();
   });
 
-  describe('liveness() — GET /health', () => {
-    it('should return { status: "ok" }', () => {
-      const result = controller.liveness();
+  afterEach(() => jest.clearAllMocks());
+
+  // =========================================================================
+  // Controller instantiation
+  // =========================================================================
+
+  describe('controller instantiation', () => {
+    it('is defined', () => {
+      expect(controller).toBeDefined();
+    });
+  });
+
+  // =========================================================================
+  // GET /health — liveness probe
+  // =========================================================================
+
+  describe('health() — GET /health', () => {
+    it('returns 200 with status "ok"', () => {
+      mockConfigService.get.mockReturnValue(undefined);
+
+      const result = controller.health();
+
       expect(result.status).toBe('ok');
     });
 
-    it('should return service name "search-api"', () => {
-      const result = controller.liveness();
+    it('returns service name "search-api"', () => {
+      mockConfigService.get.mockReturnValue(undefined);
+
+      const result = controller.health();
+
       expect(result.service).toBe('search-api');
     });
 
-    it('should return a valid ISO-8601 timestamp', () => {
-      const result = controller.liveness();
-      const ts = new Date(result.timestamp as string);
-      expect(ts.toISOString()).toBe(result.timestamp);
+    it('returns a numeric uptime value', () => {
+      mockConfigService.get.mockReturnValue(undefined);
+
+      const result = controller.health();
+
+      expect(typeof result.uptime).toBe('number');
+      expect(result.uptime as number).toBeGreaterThanOrEqual(0);
     });
 
-    it('should not require database access', () => {
-      controller.liveness();
-      expect(prismaService.isHealthy).not.toHaveBeenCalled();
-    });
-  });
+    it('returns version "1.0.0"', () => {
+      mockConfigService.get.mockReturnValue(undefined);
 
-  describe('readiness() — GET /health/ready', () => {
-    it('should return { status: "ok", database: true } when database is healthy', async () => {
-      (prismaService.isHealthy as jest.Mock).mockResolvedValueOnce(true);
+      const result = controller.health();
 
-      const result = await controller.readiness();
-
-      expect(result.status).toBe('ok');
-      expect(result.database).toBe(true);
+      expect(result.version).toBe('1.0.0');
     });
 
-    it('should return { status: "degraded", database: false } when database is unhealthy', async () => {
-      (prismaService.isHealthy as jest.Mock).mockResolvedValueOnce(false);
+    it('defaults mockBm25 to true when MOCK_BM25 env var is not set', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'MOCK_BM25') return undefined;
+        if (key === 'MOCK_SEMANTIC') return undefined;
+        return undefined;
+      });
 
-      const result = await controller.readiness();
+      const result = controller.health();
 
-      expect(result.status).toBe('degraded');
-      expect(result.database).toBe(false);
+      // Default is true when config returns undefined
+      expect(result.mockBm25).toBe(true);
     });
 
-    it('should call prismaService.isHealthy()', async () => {
-      (prismaService.isHealthy as jest.Mock).mockResolvedValueOnce(true);
+    it('defaults mockSemantic to true when MOCK_SEMANTIC env var is not set', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'MOCK_BM25') return undefined;
+        if (key === 'MOCK_SEMANTIC') return undefined;
+        return undefined;
+      });
 
-      await controller.readiness();
+      const result = controller.health();
 
-      expect(prismaService.isHealthy).toHaveBeenCalledTimes(1);
+      expect(result.mockSemantic).toBe(true);
     });
 
-    it('should return a valid ISO-8601 timestamp', async () => {
-      (prismaService.isHealthy as jest.Mock).mockResolvedValueOnce(true);
+    it('reflects MOCK_BM25=false when config returns false', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'MOCK_BM25') return false;
+        return undefined;
+      });
 
-      const result = await controller.readiness();
-      const ts = new Date(result.timestamp as string);
-      expect(ts.toISOString()).toBe(result.timestamp);
+      const result = controller.health();
+
+      expect(result.mockBm25).toBe(false);
+    });
+
+    it('reflects MOCK_SEMANTIC=false when config returns false', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'MOCK_SEMANTIC') return false;
+        return undefined;
+      });
+
+      const result = controller.health();
+
+      expect(result.mockSemantic).toBe(false);
+    });
+
+    it('reads mock flags from ConfigService', () => {
+      mockConfigService.get.mockReturnValue(undefined);
+
+      controller.health();
+
+      expect(mockConfigService.get).toHaveBeenCalledWith('MOCK_BM25');
+      expect(mockConfigService.get).toHaveBeenCalledWith('MOCK_SEMANTIC');
+    });
+
+    it('does not throw when all config values are undefined', () => {
+      mockConfigService.get.mockReturnValue(undefined);
+
+      expect(() => controller.health()).not.toThrow();
     });
   });
 });

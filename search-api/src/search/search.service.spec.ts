@@ -1,41 +1,40 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { HttpException } from '@nestjs/common';
 import { SearchService } from './search.service';
-import { KeywordService } from './keyword.service';
+import { Bm25Service } from './bm25.service';
 import { SemanticService } from './semantic.service';
 import { RrfService } from './rrf.service';
-import { SearchQueryDto } from './dto/search-query.dto';
-import { SearchResultItemDto } from './dto/search-result.dto';
-import { AppError, ERROR_CODES } from '../errors/app-error';
+import { SearchRequestDto, SearchType } from './dto/search-request.dto';
+import { SearchResult } from './dto/search-response.dto';
 import { getLoggerToken } from 'nestjs-pino';
-import { PrismaService } from '../prisma/prisma.service';
 
-/** Helper to create a minimal SearchResultItemDto. */
-function makeResult(fileId: string, score: number): SearchResultItemDto {
+/** Helper to create a minimal SearchResult. */
+function makeResult(id: string, score: number): SearchResult {
   return {
-    fileId,
-    filename: `${fileId}.pdf`,
-    mimeType: 'application/pdf',
-    sourceId: 'src-001',
+    id,
+    fileId: `file-${id}`,
+    filename: `${id}.md`,
+    content: `Content for ${id}`,
     score,
-    snippet: `Snippet for ${fileId}`,
     chunkIndex: 0,
+    metadata: {},
   };
 }
 
-/** Helper to build a valid SearchQueryDto. */
-function makeDto(overrides: Partial<SearchQueryDto> = {}): SearchQueryDto {
-  const dto = new SearchQueryDto();
-  dto.q = 'machine learning';
-  dto.userId = '550e8400-e29b-41d4-a716-446655440000';
-  dto.limit = 20;
-  dto.offset = 0;
-  dto.mode = 'hybrid';
+/** Helper to build a valid SearchRequestDto. */
+function makeDto(overrides: Partial<SearchRequestDto> = {}): SearchRequestDto {
+  const dto = new SearchRequestDto();
+  dto.query = 'machine learning';
+  dto.limit = 10;
+  dto.searchType = SearchType.HYBRID;
   return Object.assign(dto, overrides);
 }
 
+const USER_ID = '550e8400-e29b-41d4-a716-446655440000';
+
 describe('SearchService', () => {
   let service: SearchService;
-  let keywordService: jest.Mocked<KeywordService>;
+  let bm25Service: jest.Mocked<Bm25Service>;
   let semanticService: jest.Mocked<SemanticService>;
   let rrfService: jest.Mocked<RrfService>;
 
@@ -48,139 +47,122 @@ describe('SearchService', () => {
   };
 
   beforeEach(async () => {
-    const keywordMock = { search: jest.fn() };
+    const bm25Mock = { search: jest.fn() };
     const semanticMock = { search: jest.fn() };
-    const rrfMock = { merge: jest.fn() };
-    // PrismaService mock — SearchService uses it only in seedMockData(), not in search()
-    const prismaMock = { $executeRaw: jest.fn(), $queryRaw: jest.fn() };
+    const rrfMock = { fuse: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SearchService,
-        { provide: KeywordService, useValue: keywordMock },
+        { provide: Bm25Service, useValue: bm25Mock },
         { provide: SemanticService, useValue: semanticMock },
         { provide: RrfService, useValue: rrfMock },
-        { provide: PrismaService, useValue: prismaMock },
         { provide: getLoggerToken(SearchService.name), useValue: mockLogger },
       ],
     }).compile();
 
     service = module.get<SearchService>(SearchService);
-    keywordService = module.get(KeywordService);
+    bm25Service = module.get(Bm25Service);
     semanticService = module.get(SemanticService);
     rrfService = module.get(RrfService);
     jest.clearAllMocks();
   });
 
   describe('search() — mode routing', () => {
-    it('should call only keywordService when mode is "keyword"', async () => {
-      const results = [makeResult('file-k', 0.9)];
-      keywordService.search.mockResolvedValueOnce(results);
+    it('should call only bm25Service when searchType is "keyword"', async () => {
+      const results = [makeResult('chunk-k', 0.9)];
+      bm25Service.search.mockResolvedValueOnce(results);
 
-      const dto = makeDto({ mode: 'keyword' });
-      const response = await service.search(dto);
+      const dto = makeDto({ searchType: SearchType.KEYWORD });
+      const response = await service.search(dto, USER_ID);
 
-      expect(keywordService.search).toHaveBeenCalledTimes(1);
+      expect(bm25Service.search).toHaveBeenCalledTimes(1);
       expect(semanticService.search).not.toHaveBeenCalled();
-      expect(rrfService.merge).not.toHaveBeenCalled();
+      expect(rrfService.fuse).not.toHaveBeenCalled();
       expect(response.results).toEqual(results);
-      expect(response.mode).toBe('keyword');
+      expect(response.searchType).toBe(SearchType.KEYWORD);
     });
 
-    it('should call only semanticService when mode is "semantic"', async () => {
-      const results = [makeResult('file-s', 0.85)];
+    it('should call only semanticService when searchType is "semantic"', async () => {
+      const results = [makeResult('chunk-s', 0.85)];
       semanticService.search.mockResolvedValueOnce(results);
 
-      const dto = makeDto({ mode: 'semantic' });
-      const response = await service.search(dto);
+      const dto = makeDto({ searchType: SearchType.SEMANTIC });
+      const response = await service.search(dto, USER_ID);
 
       expect(semanticService.search).toHaveBeenCalledTimes(1);
-      expect(keywordService.search).not.toHaveBeenCalled();
-      expect(rrfService.merge).not.toHaveBeenCalled();
+      expect(bm25Service.search).not.toHaveBeenCalled();
+      expect(rrfService.fuse).not.toHaveBeenCalled();
       expect(response.results).toEqual(results);
-      expect(response.mode).toBe('semantic');
+      expect(response.searchType).toBe(SearchType.SEMANTIC);
     });
 
-    it('should call both services and merge results when mode is "hybrid"', async () => {
-      const kResults = [makeResult('file-k', 0.8)];
-      const sResults = [makeResult('file-s', 0.7)];
-      const merged = [makeResult('file-k', 0.016), makeResult('file-s', 0.015)];
+    it('should call both services and fuse results when searchType is "hybrid"', async () => {
+      const bm25Results = [makeResult('chunk-k', 0.8)];
+      const semanticResults = [makeResult('chunk-s', 0.7)];
+      const fused = [makeResult('chunk-k', 0.016), makeResult('chunk-s', 0.015)];
 
-      keywordService.search.mockResolvedValueOnce(kResults);
-      semanticService.search.mockResolvedValueOnce(sResults);
-      rrfService.merge.mockReturnValueOnce(merged);
+      bm25Service.search.mockResolvedValueOnce(bm25Results);
+      semanticService.search.mockResolvedValueOnce(semanticResults);
+      rrfService.fuse.mockReturnValueOnce(fused);
 
-      const dto = makeDto({ mode: 'hybrid' });
-      const response = await service.search(dto);
+      const dto = makeDto({ searchType: SearchType.HYBRID, limit: 10 });
+      const response = await service.search(dto, USER_ID);
 
-      expect(keywordService.search).toHaveBeenCalledTimes(1);
+      expect(bm25Service.search).toHaveBeenCalledTimes(1);
       expect(semanticService.search).toHaveBeenCalledTimes(1);
-      expect(rrfService.merge).toHaveBeenCalledWith(kResults, sResults);
+      expect(rrfService.fuse).toHaveBeenCalledWith(
+        [bm25Results, semanticResults],
+        10,
+      );
       expect(response.results).toHaveLength(2);
-      expect(response.mode).toBe('hybrid');
+      expect(response.searchType).toBe(SearchType.HYBRID);
     });
 
-    it('should apply limit/offset after RRF merge in hybrid mode', async () => {
-      const merged = Array.from({ length: 10 }, (_, i) => makeResult(`file-${i}`, 0.9 - i * 0.05));
-      rrfService.merge.mockReturnValueOnce(merged);
-      keywordService.search.mockResolvedValueOnce([]);
+    it('should default to hybrid when searchType is omitted', async () => {
+      bm25Service.search.mockResolvedValueOnce([]);
       semanticService.search.mockResolvedValueOnce([]);
+      rrfService.fuse.mockReturnValueOnce([]);
 
-      // Ask for 3 results starting at offset 2
-      const dto = makeDto({ mode: 'hybrid', limit: 3, offset: 2 });
-      const response = await service.search(dto);
+      const dto = makeDto({ searchType: undefined });
+      const response = await service.search(dto, USER_ID);
 
-      expect(response.results).toHaveLength(3);
-      expect(response.results[0].fileId).toBe('file-2');
+      expect(rrfService.fuse).toHaveBeenCalledTimes(1);
+      expect(response.searchType).toBe(SearchType.HYBRID);
     });
   });
 
   describe('search() — validation', () => {
-    it('should throw AppError KBSCH0001 when query is empty', async () => {
-      const dto = makeDto({ q: '' });
-      await expect(service.search(dto)).rejects.toMatchObject({
-        code: ERROR_CODES.SCH.QUERY_REQUIRED.code,
-      });
+    it('should throw 400 when query is empty', async () => {
+      const dto = makeDto({ query: '' });
+      await expect(service.search(dto, USER_ID)).rejects.toBeInstanceOf(HttpException);
     });
 
-    it('should throw AppError KBSCH0001 when query is whitespace only', async () => {
-      const dto = makeDto({ q: '   ' });
-      await expect(service.search(dto)).rejects.toMatchObject({
-        code: ERROR_CODES.SCH.QUERY_REQUIRED.code,
-      });
+    it('should throw 400 when query is whitespace only', async () => {
+      const dto = makeDto({ query: '   ' });
+      await expect(service.search(dto, USER_ID)).rejects.toBeInstanceOf(HttpException);
     });
   });
 
-  describe('search() — error handling', () => {
-    it('should throw AppError KBSCH0002 when keyword search throws an unexpected error', async () => {
-      keywordService.search.mockRejectedValueOnce(new Error('DB down'));
-
-      const dto = makeDto({ mode: 'keyword' });
-      await expect(service.search(dto)).rejects.toMatchObject({
-        code: ERROR_CODES.SCH.SEARCH_FAILED.code,
-      });
-    });
-
-    it('should re-throw AppError as-is when thrown by a downstream service', async () => {
-      const appErr = new AppError({ code: ERROR_CODES.SCH.SEARCH_FAILED.code });
-      keywordService.search.mockRejectedValueOnce(appErr);
-
-      const dto = makeDto({ mode: 'keyword' });
-      await expect(service.search(dto)).rejects.toBe(appErr);
-    });
-
-    it('should include took_ms in the response', async () => {
-      keywordService.search.mockResolvedValueOnce([]);
-      const response = await service.search(makeDto({ mode: 'keyword' }));
-      expect(response.took_ms).toBeGreaterThanOrEqual(0);
-      expect(typeof response.took_ms).toBe('number');
+  describe('search() — response shape', () => {
+    it('should include took (ms) in the response', async () => {
+      bm25Service.search.mockResolvedValueOnce([]);
+      const response = await service.search(makeDto({ searchType: SearchType.KEYWORD }), USER_ID);
+      expect(typeof response.took).toBe('number');
+      expect(response.took).toBeGreaterThanOrEqual(0);
     });
 
     it('should include total matching results count', async () => {
-      const results = [makeResult('f1', 0.9), makeResult('f2', 0.8)];
-      keywordService.search.mockResolvedValueOnce(results);
-      const response = await service.search(makeDto({ mode: 'keyword' }));
+      const results = [makeResult('c1', 0.9), makeResult('c2', 0.8)];
+      bm25Service.search.mockResolvedValueOnce(results);
+      const response = await service.search(makeDto({ searchType: SearchType.KEYWORD }), USER_ID);
       expect(response.total).toBe(2);
+    });
+
+    it('should propagate a 500 when a search stage throws unexpectedly', async () => {
+      bm25Service.search.mockRejectedValueOnce(new Error('DB down'));
+      const dto = makeDto({ searchType: SearchType.KEYWORD });
+      await expect(service.search(dto, USER_ID)).rejects.toBeInstanceOf(HttpException);
     });
   });
 });
