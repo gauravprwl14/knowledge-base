@@ -66,3 +66,4 @@ test-vault/**/*.jpeg
 # Always track the markdown structure and CSVs
 !test-vault/**/*.md
 !test-vault/**/*.csv
+.env.prod
