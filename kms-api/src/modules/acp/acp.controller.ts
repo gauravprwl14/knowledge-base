@@ -11,6 +11,7 @@ import {
   MessageEvent,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Observable } from 'rxjs';
 import { Public } from '../../common/decorators/public.decorator';
 import { AcpService } from './acp.service';
@@ -35,10 +36,12 @@ export class AcpController {
 
   /**
    * ACP handshake endpoint. Returns supported protocol version and tool list.
-   * Public — no authentication required.
+   * Public — no authentication required. Rate-limited to 20 requests per minute
+   * to prevent capability enumeration and abuse from unauthenticated callers.
    */
   @Post('initialize')
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'ACP handshake — returns server capabilities' })
   @ApiResponse({ status: 200, description: 'Capabilities returned' })
@@ -53,8 +56,10 @@ export class AcpController {
 
   /**
    * Creates a new ACP session for the authenticated user.
+   * Rate-limited to 30 session-creation requests per minute per IP.
    */
   @Post('sessions')
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   @ApiBearerAuth('jwt')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new ACP session' })

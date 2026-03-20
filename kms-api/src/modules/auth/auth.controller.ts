@@ -9,6 +9,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import {
   LoginDto,
@@ -53,6 +54,7 @@ export class AuthController {
    * Register a new user
    */
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('register')
   @ApiEndpoint({
     summary: 'Register new user',
@@ -72,6 +74,7 @@ export class AuthController {
    * User login
    */
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiEndpoint({
@@ -90,6 +93,7 @@ export class AuthController {
    * Refresh access token
    */
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiEndpoint({
@@ -132,6 +136,7 @@ export class AuthController {
    * Logout — invalidates the user's refresh token(s)
    */
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('jwt')
