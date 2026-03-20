@@ -42,7 +42,7 @@
 
   "features": {
     "embedding": {
-      "enabled": false,
+      "enabled": true,
       "provider": "bge",
       "bgeModel": "BAAI/bge-m3",
       "ollamaModel": "nomic-embed-text",
@@ -52,16 +52,16 @@
       "chunkOverlap": 64
     },
     "semanticSearch": {
-      "enabled": false,
+      "enabled": true,
       "comment": "Auto-disabled when embedding.enabled=false"
     },
     "hybridSearch": {
-      "enabled": false,
+      "enabled": true,
       "rrfK": 60,
       "comment": "Requires semanticSearch.enabled=true"
     },
     "rag": {
-      "enabled": false,
+      "enabled": true,
       "streamingEnabled": true,
       "maxContextChunks": 10,
       "comment": "Requires embedding.enabled=true + llm.enabled=true"
@@ -73,13 +73,13 @@
       "comment": "Requires Neo4j. Auto-disables if neo4j unreachable."
     },
     "voiceTranscription": {
-      "enabled": true,
+      "enabled": false,
       "defaultProvider": "whisper",
       "maxFileSizeMb": 500,
       "supportedFormats": ["mp3", "wav", "mp4", "mov", "m4a", "ogg", "webm"]
     },
     "googleDrive": {
-      "enabled": false,
+      "enabled": true,
       "syncIntervalMinutes": 60,
       "maxFileSizeMb": 100,
       "comment": "Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars"
@@ -104,8 +104,8 @@
   },
 
   "llm": {
-    "enabled": false,
-    "provider": "ollama",
+    "enabled": true,
+    "provider": "anthropic",
     "ollamaBaseUrl": "http://localhost:11434",
     "ollamaModel": "llama3.2:3b",
     "openrouterBaseUrl": "https://openrouter.ai/api/v1",
@@ -121,7 +121,7 @@
       "batchSize": 50
     },
     "embedWorker": {
-      "enabled": false,
+      "enabled": true,
       "concurrency": 2,
       "batchSize": 20,
       "comment": "Auto-disabled when embedding.enabled=false"
@@ -136,7 +136,7 @@
       "concurrency": 2
     },
     "voiceWorker": {
-      "enabled": true,
+      "enabled": false,
       "concurrency": 2,
       "jobTimeoutMinutes": 60
     }
@@ -156,7 +156,7 @@
       "comment": "Auto-disabled when graph.enabled=false"
     },
     "ragAgent": {
-      "enabled": false,
+      "enabled": true,
       "comment": "Auto-disabled when rag.enabled=false"
     }
   },
