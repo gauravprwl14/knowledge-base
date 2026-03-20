@@ -1,6 +1,6 @@
 # KMS Master Roadmap
 
-Last Updated: 2026-03-18
+Last Updated: 2026-03-19
 
 ---
 
@@ -13,7 +13,7 @@ The following phases are complete and merged into `feat/design-web-ui`:
 | Phase 1 — ACP Foundation | COMPLETE |
 | Phase 2 — Core Knowledge Pipeline | COMPLETE |
 | Phase 3 — Content Workflows | COMPLETE |
-| Phase 4 — Full Agentic Platform | IN PROGRESS — Sprint 4 |
+| Phase 4 — Full Agentic Platform | COMPLETE |
 | Phase 5 — Production Hardening | IN PROGRESS — test coverage is the current blocker |
 
 What is fully implemented and working:
@@ -23,19 +23,27 @@ What is fully implemented and working:
 - Tiered retrieval — QueryClassifier (5 types), TierRouter (3 tiers), LLMGuard
 - url-agent service (port 8004) — YouTube + web extraction, YAML frontmatter
 - WorkflowEngine — BullMQ processor, url-agent call, Anthropic summary, ContentStore
-- Google Drive source — OAuth flow, token encryption, delta sync connector
+- Google Drive source — OAuth flow, token encryption, delta sync connector (incremental)
 - Local + Obsidian source registration
 - Collections, Files, Tags CRUD — NestJS modules, repositories, DTOs
 - Frontend chat UI — ACP SSE client, useChat hook, ChatMessage
 - Frontend Drive UI — file browser, bulk actions, source cards
 - ADR-0001 through ADR-0029 written
+- kms_spawn_agent tool — multi-agent orchestration with depth-2 limit (ADR-0022)
+- KMS MCP server — kms_search, kms_store, kms_graph_query tools for Claude Code
+- External agent adapters — Codex (OpenAI Responses API SSE), Gemini (alt=sse streaming)
+- Obsidian plugin — "Send to KMS" + "Ask KMS" commands, SSE streaming, auto-save responses
+- POST /files/ingest endpoint — inline Obsidian note indexing via embed queue
+- embed-worker inline_content support — skips disk read for API-pushed content
 
-What is NOT yet complete:
-- Test coverage (Gate 3 blocked — 20 spec files missing; see SPRINT-BOARD.md)
-- MCP server — not yet started
-- kms_spawn_agent tool — not yet started
-- Obsidian plugin — not yet started
-- External agent adapters (Codex, Gemini) — not yet started
+What is NOT yet complete (Phase 5):
+- Test coverage (Gate 3 — 80% threshold; spec files now written, CI run pending)
+- ADR-0025: PostgreSQL checkpointer for LangGraph
+- ADR-0026: LLM provider abstraction layer
+- Full OTel instrumentation (NestJS + Python traces + Grafana dashboards)
+- Integration tests for all ACP endpoints
+- Rate limiting on public endpoints
+- JWT refresh token rotation + auth audit logging
 
 This roadmap reflects reality, not aspiration.
 
@@ -201,7 +209,7 @@ A user can drop a YouTube URL in chat and receive a note in their Obsidian vault
 
 ## Phase 4 — Full Agentic Platform
 
-**Status: IN PROGRESS — Sprint 4**
+**Status: COMPLETE**
 
 Phase 4 completes the multi-agent vision: external agents can connect, sub-agents can be spawned, and Claude Code has live KMS context during coding.
 
