@@ -190,7 +190,11 @@ services:
       # VOICE_APP_URL is optional — only needed if voice-app transcription service is deployed
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./.kms/config.json:/app/.kms/config.json:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
