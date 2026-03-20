@@ -211,12 +211,24 @@ export class KmsApiClient {
   // -------------------------------------------------------------------------
 
   private async refresh(): Promise<string> {
-    // The refresh token lives in an httpOnly cookie — send credentials: 'include'
-    const response = await axios.post<{ accessToken: string }>(
-      `${BASE_URL}${API_VERSION}/auth/refresh`,
-      {},
-      { withCredentials: true },
-    );
+    // The refresh token lives in localStorage (kms_refresh_token)
+    const refreshToken =
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem('kms_refresh_token')
+        : null;
+    if (!refreshToken) throw new Error('No refresh token available');
+
+    // Backend expects { refreshToken } in the body and returns { accessToken, refreshToken, ... }
+    const response = await axios.post<{
+      accessToken: string;
+      refreshToken: string;
+    }>(`${BASE_URL}${API_VERSION}/auth/refresh`, { refreshToken });
+
+    // Persist the rotated refresh token
+    if (typeof localStorage !== 'undefined' && response.data.refreshToken) {
+      localStorage.setItem('kms_refresh_token', response.data.refreshToken);
+    }
+
     return response.data.accessToken;
   }
 

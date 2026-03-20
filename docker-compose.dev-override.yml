@@ -1,0 +1,60 @@
+# Dev override — source code volume mounts for hot reload (no rebuild on code changes)
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.dev-override.yml --env-file .env.prod up -d
+#
+# What changes from prod:
+#   - kms-api:    dev target + src/ mounted → nest start --watch (restarts on .ts change)
+#   - search-api: dev target + src/ mounted → nest start --watch (restarts on .ts change)
+#   - web-ui:     dev target + app/ mounted → next dev (HMR, no build step)
+#
+# What stays the same:
+#   - All infrastructure (postgres, redis, rabbitmq, qdrant, minio, neo4j) unchanged
+#   - All workers unchanged (they rarely need editing)
+#   - All ports and env vars unchanged
+#
+# After editing any TypeScript file in kms-api/src or search-api/src, the container
+# automatically recompiles and restarts within ~5 seconds.
+# After editing any file in frontend/app, Next.js HMR updates the browser instantly.
+
+services:
+
+  kms-api:
+    build:
+      context: ./kms-api
+      dockerfile: Dockerfile
+      target: development
+    command: npm run start:dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./kms-api/src:/app/src
+      - ./kms-api/prisma:/app/prisma
+      - ./.kms/config.json:/app/.kms/config.json:ro
+
+  search-api:
+    build:
+      context: ./search-api
+      dockerfile: Dockerfile
+      target: development
+    command: npm run start:dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./search-api:/app                # full source mount
+      - /app/node_modules                # keep image's node_modules (don't overwrite with host)
+
+  web-ui:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+    ports:
+      - "127.0.0.1:3003:3000"
+    volumes:
+      - ./frontend:/app                  # full source mount
+      - /app/node_modules                # keep image's node_modules (don't overwrite with host)
+      - ./.kms/config.json:/app/.kms/config.json:ro
