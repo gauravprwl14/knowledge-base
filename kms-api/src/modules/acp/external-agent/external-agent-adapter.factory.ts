@@ -5,6 +5,8 @@ import { ERROR_CODES } from '../../../errors/error-codes';
 import { IExternalAgentAdapter, ExternalAgentRegistryEntry } from './external-agent.interface';
 import { HttpAcpAdapter } from './http-acp.adapter';
 import { StdioAcpAdapter } from './stdio-acp.adapter';
+import { HttpCodexAdapter } from './codex.adapter';
+import { GeminiAdapter } from './gemini.adapter';
 
 /** Maximum concurrent stdio subprocess sessions per user (ADR-0023). */
 const MAX_STDIO_SESSIONS_PER_USER = 3;
@@ -23,17 +25,24 @@ const EXTERNAL_AGENT_REGISTRY: Record<string, ExternalAgentRegistryEntry> = {
     transport: 'stdio',
     command: 'npx -y @zed-industries/claude-agent-acp',
   },
+  /**
+   * Codex uses a dedicated HttpCodexAdapter that calls the OpenAI Responses API
+   * directly with SSE streaming. Transport is recorded as "http" so the stdio
+   * subprocess pool cap is not applied.
+   */
   codex: {
     agentId: 'codex',
-    name: 'OpenAI Codex (stdio)',
-    transport: 'stdio',
-    command: 'npx @zed-industries/codex-acp',
+    name: 'OpenAI Codex / o4-mini (HTTP)',
+    transport: 'http',
   },
+  /**
+   * Gemini uses a dedicated GeminiAdapter that calls the Generative Language API
+   * directly with SSE streaming. Transport is recorded as "http".
+   */
   gemini: {
     agentId: 'gemini',
-    name: 'Google Gemini (stdio)',
-    transport: 'stdio',
-    command: 'npx @zed-industries/gemini-acp',
+    name: 'Google Gemini (HTTP)',
+    transport: 'http',
   },
   'custom-acp': {
     agentId: 'custom-acp',
@@ -96,6 +105,16 @@ export class ExternalAgentAdapterFactory {
       transport: entry.transport,
       userId,
     });
+
+    // Dedicated adapters for Codex and Gemini — resolved before the generic
+    // HTTP/stdio dispatch so they use their own credential + streaming logic.
+    if (agentId === 'codex') {
+      return new HttpCodexAdapter(this.appLogger);
+    }
+
+    if (agentId === 'gemini') {
+      return new GeminiAdapter(this.appLogger);
+    }
 
     if (entry.transport === 'http') {
       return new HttpAcpAdapter(entry, this.appLogger);

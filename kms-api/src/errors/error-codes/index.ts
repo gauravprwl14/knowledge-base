@@ -817,6 +817,54 @@ export const EXT_ERROR_CODES = {
     retryable: true,
     userFacing: true,
   },
+  CODEX_SESSION_FAILED: {
+    code: 'EXT0014',
+    message: 'OpenAI Codex session could not be established',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  CODEX_PROMPT_FAILED: {
+    code: 'EXT0015',
+    message: 'OpenAI Codex prompt request failed',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  CODEX_STREAM_FAILED: {
+    code: 'EXT0016',
+    message: 'OpenAI Codex response stream interrupted',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  GEMINI_SESSION_FAILED: {
+    code: 'EXT0017',
+    message: 'Google Gemini session could not be established',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  GEMINI_PROMPT_FAILED: {
+    code: 'EXT0018',
+    message: 'Google Gemini prompt request failed',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  GEMINI_STREAM_FAILED: {
+    code: 'EXT0019',
+    message: 'Google Gemini response stream interrupted',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
@@ -848,6 +896,27 @@ export const WFL_ERROR_CODES = {
     httpStatus: 502,
     severity: 'WARNING',
     retryable: true,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
+
+/**
+ * Worker / Agent Error Codes (WRK0000 - WRK9999)
+ *
+ * Used by AcpToolRegistry and agent orchestration infrastructure.
+ */
+export const WRK_ERROR_CODES = {
+  /**
+   * KBWRK0020 — Agent spawn depth limit exceeded.
+   * Raised when kms_spawn_agent is called from an agent already at depth 2
+   * (the maximum per ADR-0022). Sub-agents at depth 2 cannot spawn further agents.
+   */
+  SPAWN_DEPTH_EXCEEDED: {
+    code: 'KBWRK0020',
+    message: 'Agent spawn depth limit exceeded',
+    httpStatus: 422,
+    severity: 'WARNING',
+    retryable: false,
     userFacing: true,
   },
 } as const satisfies Record<string, ErrorDefinition>;
@@ -908,6 +977,7 @@ export const ERROR_CODES = {
   SRV: SRV_ERROR_CODES,
   EXT: EXT_ERROR_CODES,
   WFL: WFL_ERROR_CODES,
+  WRK: WRK_ERROR_CODES,
   FIL: FIL_ERROR_CODES,
   TAG: TAG_ERROR_CODES,
 } as const;
@@ -924,6 +994,7 @@ export type ErrorCode =
   | (typeof SRV_ERROR_CODES)[keyof typeof SRV_ERROR_CODES]['code']
   | (typeof EXT_ERROR_CODES)[keyof typeof EXT_ERROR_CODES]['code']
   | (typeof WFL_ERROR_CODES)[keyof typeof WFL_ERROR_CODES]['code']
+  | (typeof WRK_ERROR_CODES)[keyof typeof WRK_ERROR_CODES]['code']
   | (typeof FIL_ERROR_CODES)[keyof typeof FIL_ERROR_CODES]['code']
   | (typeof TAG_ERROR_CODES)[keyof typeof TAG_ERROR_CODES]['code'];
 
@@ -944,6 +1015,7 @@ export type AnyErrorDefinition =
   | ExtractErrorDef<typeof SRV_ERROR_CODES>
   | ExtractErrorDef<typeof EXT_ERROR_CODES>
   | ExtractErrorDef<typeof WFL_ERROR_CODES>
+  | ExtractErrorDef<typeof WRK_ERROR_CODES>
   | ExtractErrorDef<typeof FIL_ERROR_CODES>
   | ExtractErrorDef<typeof TAG_ERROR_CODES>;
 

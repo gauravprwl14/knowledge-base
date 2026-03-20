@@ -4,6 +4,7 @@ import { AcpService } from './acp.service';
 import { AcpSessionStore, AcpSession } from './acp-session.store';
 import { AcpToolRegistry } from './acp-tool.registry';
 import { AnthropicAdapter } from './external-agent/anthropic.adapter';
+import { AcpEventEmitter } from './acp-event.emitter';
 import { AppLogger } from '../../logger/logger.service';
 import { AppError } from '../../errors/types/app-error';
 import { ERROR_CODES } from '../../errors/error-codes';
@@ -86,6 +87,14 @@ describe('AcpService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
+    // Default: streamAnswer calls emitter.emitDone() to complete the Observable
+    anthropicStreamAnswer.mockImplementation(
+      (_q: string, _results: unknown[], emitter: AcpEventEmitter) => {
+        emitter.emitDone();
+        return Promise.resolve();
+      },
+    );
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AcpService,
@@ -155,7 +164,6 @@ describe('AcpService', () => {
       const session = makeSession();
       sessionStoreGet.mockResolvedValue(session);
       toolRegistryKmsSearch.mockResolvedValue(makeSearchResponse());
-      anthropicStreamAnswer.mockResolvedValue(undefined);
 
       const observable = service.runPrompt('sess-001', makePromptDto('hello'), 'user-001');
 
@@ -216,7 +224,7 @@ describe('AcpService', () => {
       const session = makeSession();
       sessionStoreGet.mockResolvedValue(session);
       toolRegistryKmsSearch.mockResolvedValue(makeSearchResponse());
-      anthropicStreamAnswer.mockResolvedValue(undefined);
+      // anthropicStreamAnswer uses the beforeEach default (calls emitter.emitDone)
 
       const observable = service.runPrompt('sess-001', makePromptDto('What is BGE-M3?'), 'user-001');
 
@@ -236,7 +244,7 @@ describe('AcpService', () => {
       const searchResp = makeSearchResponse({ results: [], total: 0 });
       sessionStoreGet.mockResolvedValue(session);
       toolRegistryKmsSearch.mockResolvedValue(searchResp);
-      anthropicStreamAnswer.mockResolvedValue(undefined);
+      // anthropicStreamAnswer uses the beforeEach default (calls emitter.emitDone)
 
       const observable = service.runPrompt('sess-001', makePromptDto('hello'), 'user-001');
 
