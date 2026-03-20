@@ -1,188 +1,424 @@
-# Docker Compose Production Configuration
-# Optimized for VPS/EC2 deployment with security and reliability features
-#
+# =============================================================================
+# KMS Full Stack — Production
+# =============================================================================
 # Usage:
-#   Build:  docker-compose -f docker-compose.prod.yml build
-#   Start:  docker-compose -f docker-compose.prod.yml up -d
-#   Logs:   docker-compose -f docker-compose.prod.yml logs -f
-#   Stop:   docker-compose -f docker-compose.prod.yml down
+#   cp .env.kms.example .env.prod && nano .env.prod   # fill in all secrets
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 #
-# Prerequisites:
-#   - Create .env.prod with required secrets
-#   - Configure nginx.conf for reverse proxy
-#   - Set up SSL certificates
+# Notes:
+#   - All images are built for production (multi-stage, no hot-reload volumes)
+#   - No infrastructure ports are exposed to the host except kms-api:8000,
+#     rag-service:8002, and web-ui:3000 — Nginx (running on the host OS) routes
+#     inbound HTTPS to these three services.
+#   - search-api is internal-only (kms-api calls it via Docker network).
+#   - Workers have no exposed ports; they consume from RabbitMQ queues.
+#   - Observability stack is NOT included here — run separately or use a
+#     managed solution (Grafana Cloud, Datadog, etc.).
+# =============================================================================
+
+name: kms-prod
 
 services:
+
+  # ─── INFRASTRUCTURE ──────────────────────────────────────────────────────
+
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
+    restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-voiceapp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
-      POSTGRES_DB: ${POSTGRES_DB:-voiceapp}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - postgres_prod_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-voiceapp}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
-      retries: 5
-    restart: unless-stopped
+      retries: 10
+      start_period: 30s
     networks:
-      - backend_network
+      - backend
+    # No host port exposure — accessed only by services inside Docker network
+
+  redis:
+    image: redis:7.4-alpine
+    restart: always
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - backend
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:4.1-alpine
+    restart: always
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS required}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
     volumes:
-      - rabbitmq_prod_data:/var/lib/rabbitmq
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_running"]
-      interval: 10s
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - backend
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.1
+    restart: always
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && echo -e \"GET /healthz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && grep -q healthz <&3'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - backend
+
+  neo4j:
+    image: neo4j:5.26-community
+    restart: always
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+      NEO4J_dbms_memory_heap_max__size: 2G
+      NEO4J_dbms_memory_pagecache_size: 1G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - backend
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
       timeout: 5s
-      retries: 5
-    restart: unless-stopped
+      retries: 10
     networks:
-      - backend_network
+      - backend
 
-  backend:
+  # ─── MIGRATIONS ──────────────────────────────────────────────────────────
+  # Runs Prisma migrations once then exits. kms-api waits for this to complete.
+  # Uses the production image (prisma CLI is now in dependencies, not devDeps).
+  migrate:
     build:
-      context: ./backend
+      context: ./kms-api
+      dockerfile: Dockerfile
       target: production
-    image: voice-app-backend:latest
+    command: ["npx", "prisma", "migrate", "deploy"]
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-voiceapp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voiceapp}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS}@rabbitmq:5672/
-      - TEMP_UPLOAD_DIR=/app/temp/uploads
-      - TEMP_PROCESSED_DIR=/app/temp/processed
-      - MODELS_DIR=/app/models
-      - GROQ_API_KEY=${GROQ_API_KEY:-}
-      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - backend
+
+  # ─── APIS ────────────────────────────────────────────────────────────────
+
+  kms-api:
+    build:
+      context: ./kms-api
+      dockerfile: Dockerfile
+      target: production
+    restart: always
+    ports:
+      - "127.0.0.1:8000:8000"   # Nginx reverse proxy connects here
+    environment:
+      NODE_ENV: production
+      APP_NAME: kms-api
+      APP_PORT: 8000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: 0
+      QUEUE_HOST: rabbitmq
+      QUEUE_PORT: 5672
+      QUEUE_USER: ${RABBITMQ_USER}
+      QUEUE_PASSWORD: ${RABBITMQ_PASS}
+      JWT_ACCESS_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRATION: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      API_KEY_ENCRYPTION_SECRET: ${API_KEY_ENCRYPTION_SECRET}
+      THROTTLE_TTL: 60
+      THROTTLE_LIMIT: 100
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: kms-api
+      LOG_LEVEL: info
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      KMS_CONFIG_PATH: /app/.kms/config.json
+      SEARCH_API_URL: http://search-api:8001
+      # VOICE_APP_URL is optional — only needed if voice-app transcription service is deployed
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/api/v1/health/live || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - backend
+
+  search-api:
+    build:
+      context: ./search-api
+      dockerfile: Dockerfile
+      target: runner
+    restart: always
+    # Not exposed to host — kms-api calls it via Docker network
+    environment:
+      NODE_ENV: production
+      PORT: 8001
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      QDRANT_URL: http://qdrant:6333
+      MOCK_BM25: "false"
+      MOCK_SEMANTIC: "false"
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: search-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - backend
+
+  rag-service:
+    build:
+      context: ./services/rag-service
+      dockerfile: Dockerfile
+      target: production
+    restart: always
+    ports:
+      - "127.0.0.1:8002:8002"   # Nginx reverse proxy connects here
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      SEARCH_API_URL: http://search-api:8001/api/v1
+      LLM_ENABLED: ${LLM_ENABLED:-true}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: rag-service
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      search-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8002/health/live || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - backend
+
+  # ─── WORKERS ─────────────────────────────────────────────────────────────
+
+  scan-worker:
+    build:
+      context: ./services/scan-worker
+      dockerfile: Dockerfile
+      target: production
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+      KMS_API_URL: http://kms-api:8000
+      VAULT_PATH: /vault
+      API_KEY_ENCRYPTION_SECRET: ${API_KEY_ENCRYPTION_SECRET}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_SERVICE_NAME: scan-worker
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+
+  embed-worker:
+    build:
+      context: ./services/embed-worker
+      dockerfile: Dockerfile
+      target: production
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      QDRANT_URL: http://qdrant:6333
+      EMBEDDING_ENABLED: "true"
+      MOCK_EMBEDDING: "false"
+      MOCK_QDRANT: "false"
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_SERVICE_NAME: embed-worker
+      PYTHONUNBUFFERED: "1"
     volumes:
-      - ./temp:/app/temp
-      - ./models:/app/models
+      # Persist the BAAI/bge-m3 model across container restarts (1.4 GB download).
+      # Without this volume the model re-downloads on every container restart.
+      - hf_model_cache:/root/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
+      qdrant:
+        condition: service_healthy
     networks:
-      - backend_network
-      - frontend_network
+      - backend
 
-  worker:
+  dedup-worker:
     build:
-      context: ./backend
+      context: ./services/dedup-worker
+      dockerfile: Dockerfile
       target: production
-    image: voice-app-backend:latest
-    command: python -m app.workers.consumer
+    restart: always
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-voiceapp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voiceapp}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS}@rabbitmq:5672/
-      - TEMP_UPLOAD_DIR=/app/temp/uploads
-      - TEMP_PROCESSED_DIR=/app/temp/processed
-      - MODELS_DIR=/app/models
-      - GROQ_API_KEY=${GROQ_API_KEY:-}
-      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - WORKER_CONCURRENCY=2
-      - JOB_TIMEOUT_MINUTES=60
-      - PYTHONUNBUFFERED=1
-      - OMP_NUM_THREADS=2
-      - MKL_NUM_THREADS=2
-      - OPENBLAS_NUM_THREADS=2
-    volumes:
-      - ./temp:/app/temp
-      - ./models:/app/models
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_SERVICE_NAME: dedup-worker
+      PYTHONUNBUFFERED: "1"
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '4.0'
-          memory: 8G
-        reservations:
-          cpus: '2.0'
-          memory: 2G
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
+      redis:
+        condition: service_healthy
     networks:
-      - backend_network
+      - backend
 
-  dispatcher:
+  graph-worker:
     build:
-      context: ./backend
+      context: ./services/graph-worker
+      dockerfile: Dockerfile
       target: production
-    image: voice-app-backend:latest
-    command: python -m app.workers.job_dispatcher
+    restart: always
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-voiceapp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-voiceapp}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS}@rabbitmq:5672/
-      - PYTHONUNBUFFERED=1
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_SERVICE_NAME: graph-worker
+      PYTHONUNBUFFERED: "1"
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          memory: 256M
+      neo4j:
+        condition: service_healthy
     networks:
-      - backend_network
+      - backend
 
-  frontend:
+  # ─── FRONTEND ────────────────────────────────────────────────────────────
+
+  web-ui:
     build:
       context: ./frontend
+      dockerfile: Dockerfile
       target: runner
-    image: voice-app-frontend:latest
-    environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:8000}
-      - NEXT_PUBLIC_API_KEY=${API_KEY}
-      - API_KEY=${API_KEY:?API_KEY required}
-    depends_on:
-      - backend
-    restart: unless-stopped
-    networks:
-      - frontend_network
-
-  # Nginx reverse proxy (recommended for production)
-  nginx:
-    image: nginx:alpine
+    restart: always
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
+      - "127.0.0.1:3000:3000"   # Nginx reverse proxy connects here
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Public URL — used by browser for API calls (goes through Nginx → kms-api)
+      NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+      NEXT_PUBLIC_SEARCH_API_URL: ${PUBLIC_URL}
+      NEXT_PUBLIC_RAG_API_URL: ${PUBLIC_URL}
+      # Internal URL — used by Next.js SSR to call kms-api directly (Docker network)
+      KMS_API_URL: http://kms-api:8000
     depends_on:
-      - frontend
-      - backend
-    restart: unless-stopped
+      kms-api:
+        condition: service_healthy
     networks:
-      - frontend_network
+      - backend
+      - frontend
 
-volumes:
-  postgres_prod_data:
-  rabbitmq_prod_data:
+# ─── NETWORKS ──────────────────────────────────────────────────────────────
 
 networks:
-  backend_network:
+  backend:
     driver: bridge
-  frontend_network:
+  frontend:
     driver: bridge
+
+# ─── VOLUMES ───────────────────────────────────────────────────────────────
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  qdrant_data:
+  neo4j_data:
+  neo4j_logs:
+  minio_data:
+  hf_model_cache:    # BAAI/bge-m3 model — persisted to avoid 1.4 GB re-download on restart

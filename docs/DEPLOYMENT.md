@@ -1,666 +1,513 @@
-# Production Deployment Guide
+# KMS Production Deployment Guide
 
-This guide explains how to deploy Voice App to production on VPS/EC2 using Docker Compose.
+End-to-end instructions for deploying the Knowledge Management System (KMS) to a Linux VPS or cloud VM using Docker Compose and Nginx as the reverse proxy.
 
-## Prerequisites
+**Architecture overview:**
 
-### Server Requirements
+```
+Internet
+   │ HTTPS :443
+   ▼
+Nginx (host OS)
+   ├── /api/v1/chat|runs|agents  →  rag-service:8002  (SSE)
+   ├── /api/v1/*                 →  kms-api:8000
+   └── /*                        →  web-ui:3000
+         │  (Docker network: backend)
+         ├── kms-api:8000  ←→  search-api:8001 (internal)
+         ├── postgres:5432
+         ├── redis:6379
+         ├── rabbitmq:5672
+         ├── qdrant:6333
+         ├── neo4j:7687
+         └── workers (scan, embed, dedup, graph)
+```
 
-**Minimum Specifications**:
-- CPU: 4 cores (8 cores recommended for large-v3 Whisper model)
-- RAM: 8GB minimum (16GB recommended)
-- Storage: 50GB SSD (for models, temp files, database)
-- OS: Ubuntu 20.04+ or similar Linux distribution
+---
 
-**Software Requirements**:
-- Docker Engine 20.10+
-- Docker Compose V2
-- Git (for deployment)
+## Table of Contents
 
-### Domain and SSL
+1. [Prerequisites](#1-prerequisites)
+2. [Server Setup](#2-server-setup)
+3. [Clone and Configure](#3-clone-and-configure)
+4. [Environment Variables](#4-environment-variables)
+5. [Nginx Installation and Configuration](#5-nginx-installation-and-configuration)
+6. [SSL Certificate (Let's Encrypt)](#6-ssl-certificate-lets-encrypt)
+7. [Build and Start Services](#7-build-and-start-services)
+8. [Database Migrations](#8-database-migrations)
+9. [Verify the Deployment](#9-verify-the-deployment)
+10. [Monitoring and Logs](#10-monitoring-and-logs)
+11. [Backups](#11-backups)
+12. [Rolling Updates](#12-rolling-updates)
+13. [Troubleshooting](#13-troubleshooting)
 
-- Domain name pointing to your server IP
-- SSL certificate (Let's Encrypt recommended)
+---
 
-## Initial Server Setup
+## 1. Prerequisites
 
-### 1. Install Docker
+### Server requirements
+
+| Resource | Minimum | Recommended |
+|---|---|---|
+| CPU | 4 vCPUs | 8 vCPUs |
+| RAM | 8 GB | 16 GB |
+| Disk | 50 GB SSD | 200 GB SSD |
+| OS | Ubuntu 22.04 LTS | Ubuntu 24.04 LTS |
+
+> **BGE-M3 note:** The `embed-worker` loads the `BAAI/bge-m3` model (1.4 GB). On first start it downloads the model. Ensure the disk quota accommodates the model cache (mounted via a Docker volume or `/root/.cache/huggingface`).
+
+### Software on the host
+
+- Docker 24+ with Docker Compose V2 (`docker compose` not `docker-compose`)
+- Nginx 1.24+
+- Certbot (for Let's Encrypt SSL)
+- Git
 
 ```bash
-# Update system
-sudo apt-get update && sudo apt-get upgrade -y
+# Ubuntu / Debian
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx git
 
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Add user to docker group
+# Add your user to the docker group (re-login after this)
 sudo usermod -aG docker $USER
-newgrp docker
-
-# Install Docker Compose V2
-sudo apt-get install docker-compose-plugin
-
-# Verify installation
-docker --version
-docker compose version
 ```
 
-### 2. Clone Repository
+---
+
+## 2. Server Setup
+
+### Firewall
+
+Allow only the ports Nginx needs. Everything else stays internal.
 
 ```bash
-cd /opt
-sudo git clone https://github.com/yourusername/voice-app.git
-cd voice-app
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP (Let's Encrypt ACME challenge + redirect)
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw enable
+sudo ufw status
 ```
 
-### 3. Configure Environment Variables
+### DNS
 
-Create `.env.prod` file:
+Point your domain's A record to the server's public IP before running Certbot.
+
+---
+
+## 3. Clone and Configure
 
 ```bash
-cat > .env.prod << 'EOF'
-# Database Configuration
-POSTGRES_USER=voiceapp
-POSTGRES_PASSWORD=CHANGE_THIS_STRONG_PASSWORD
-POSTGRES_DB=voiceapp
-
-# RabbitMQ Configuration
-RABBITMQ_USER=voiceapp
-RABBITMQ_PASS=CHANGE_THIS_STRONG_PASSWORD
-
-# API Keys
-GROQ_API_KEY=your_groq_api_key_here
-DEEPGRAM_API_KEY=your_deepgram_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# Frontend Configuration
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com
-API_KEY=your_frontend_api_key_here
-
-# Worker Configuration
-WORKER_CONCURRENCY=2
-JOB_TIMEOUT_MINUTES=60
-EOF
-
-# Secure the file
-chmod 600 .env.prod
+# Clone the repository
+git clone https://github.com/your-org/knowledge-base.git /opt/kms
+cd /opt/kms
 ```
 
-### 4. Generate Strong Passwords
+---
+
+## 4. Environment Variables
 
 ```bash
-# Generate random passwords
-openssl rand -base64 32
-# Use output for POSTGRES_PASSWORD and RABBITMQ_PASS
+# Copy the example file
+cp .env.kms.example .env.prod
 ```
 
-## SSL Certificate Setup
-
-### Option 1: Let's Encrypt (Recommended)
+Edit `.env.prod` and fill in **all** required values:
 
 ```bash
-# Install Certbot
-sudo apt-get install certbot
-
-# Generate certificate (replace with your domain)
-sudo certbot certonly --standalone -d yourdomain.com -d api.yourdomain.com
-
-# Certificates will be in:
-# /etc/letsencrypt/live/yourdomain.com/fullchain.pem
-# /etc/letsencrypt/live/yourdomain.com/privkey.pem
-
-# Create SSL directory and copy certificates
-mkdir -p ssl
-sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem ssl/cert.pem
-sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem ssl/key.pem
-sudo chown $USER:$USER ssl/*
+nano .env.prod
 ```
 
-### Option 2: Self-Signed (Development Only)
+### Required variables
+
+| Variable | Description | Example |
+|---|---|---|
+| `POSTGRES_USER` | PostgreSQL username | `kms` |
+| `POSTGRES_PASSWORD` | PostgreSQL password — **strong, unique** | `S3cur3P@ss!` |
+| `POSTGRES_DB` | Database name | `kms` |
+| `REDIS_PASSWORD` | Redis AUTH password | `RedisP@ss!` |
+| `RABBITMQ_USER` | RabbitMQ username | `kms` |
+| `RABBITMQ_PASS` | RabbitMQ password | `RabbMQP@ss!` |
+| `JWT_SECRET` | JWT access token secret — **≥ 32 chars** | _(generate below)_ |
+| `JWT_REFRESH_SECRET` | JWT refresh token secret — **≥ 32 chars** | _(generate below)_ |
+| `API_KEY_ENCRYPTION_SECRET` | API key encryption key — **exactly 32 chars** | _(generate below)_ |
+| `MINIO_USER` | MinIO root user | `minioadmin` |
+| `MINIO_PASSWORD` | MinIO root password | `MinioP@ss!` |
+| `NEO4J_PASSWORD` | Neo4j password | `Neo4jP@ss!` |
+| `PUBLIC_URL` | Your public HTTPS URL | `https://kms.example.com` |
+| `CORS_ORIGINS` | Allowed CORS origins | `https://kms.example.com` |
+| `ANTHROPIC_API_KEY` | Anthropic Claude API key (for RAG + ACP) | `sk-ant-...` |
+
+### Optional variables
+
+| Variable | Description | Default |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | Google OAuth (Drive integration) | _(empty)_ |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth secret | _(empty)_ |
+| `LLM_ENABLED` | Enable LLM in RAG service | `true` |
+| `LLM_PROVIDER` | LLM provider (`anthropic` or `ollama`) | `anthropic` |
+| `OTEL_ENABLED` | Enable OpenTelemetry tracing | `false` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint (if OTel enabled) | _(empty)_ |
+
+### Generate secrets
 
 ```bash
-mkdir -p ssl
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout ssl/key.pem -out ssl/cert.pem \
-  -subj "/CN=yourdomain.com"
+# JWT secrets (≥32 chars)
+openssl rand -base64 48 | tr -d '\n'   # run twice — one for JWT_SECRET, one for JWT_REFRESH_SECRET
+
+# API key encryption secret (exactly 32 chars)
+openssl rand -hex 16                    # gives exactly 32 hex chars
 ```
 
-## Nginx Configuration
+---
 
-Create `nginx.conf`:
+## 5. Nginx Installation and Configuration
 
-```nginx
-events {
-    worker_connections 1024;
-}
+### Deploy the Nginx virtual host config
 
-http {
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-    limit_req_zone $binary_remote_addr zone=upload_limit:10m rate=2r/s;
-
-    # Upstream servers
-    upstream backend {
-        server backend:8000;
-    }
-
-    upstream frontend {
-        server frontend:3000;
-    }
-
-    # Redirect HTTP to HTTPS
-    server {
-        listen 80;
-        server_name yourdomain.com api.yourdomain.com;
-        return 301 https://$host$request_uri;
-    }
-
-    # Frontend (main domain)
-    server {
-        listen 443 ssl http2;
-        server_name yourdomain.com;
-
-        ssl_certificate /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers HIGH:!aNULL:!MD5;
-
-        client_max_body_size 500M;
-
-        location / {
-            proxy_pass http://frontend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-
-    # Backend API (api subdomain)
-    server {
-        listen 443 ssl http2;
-        server_name api.yourdomain.com;
-
-        ssl_certificate /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers HIGH:!aNULL:!MD5;
-
-        client_max_body_size 500M;
-        client_body_timeout 300s;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 300s;
-        proxy_send_timeout 300s;
-
-        # API endpoints with rate limiting
-        location /api/ {
-            limit_req zone=api_limit burst=20 nodelay;
-
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
-        # Upload endpoint with stricter rate limiting
-        location /api/v1/upload {
-            limit_req zone=upload_limit burst=5 nodelay;
-
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-
-            # Large file upload settings
-            client_max_body_size 500M;
-            client_body_timeout 600s;
-            proxy_read_timeout 600s;
-        }
-
-        # API documentation
-        location /docs {
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
-    }
-}
-```
-
-**Replace `yourdomain.com` with your actual domain.**
-
-## Deployment
-
-### 1. Build and Start Services
+The KMS config is a **virtual host file** (`sites-available` pattern). It does **not** replace the system `nginx.conf`. This keeps any other vhosts on the server intact.
 
 ```bash
-# Load environment variables
-export $(cat .env.prod | xargs)
+# Copy the virtual host config
+sudo cp /opt/kms/infra/nginx/kms.conf /etc/nginx/sites-available/kms
 
-# Build images
-docker compose -f docker-compose.prod.yml build
+# Replace YOUR_DOMAIN with your actual domain
+sudo sed -i 's/YOUR_DOMAIN/kms.example.com/g' /etc/nginx/sites-available/kms
 
-# Start services
-docker compose -f docker-compose.prod.yml up -d
+# Enable the site
+sudo ln -s /etc/nginx/sites-available/kms /etc/nginx/sites-enabled/kms
 
-# Check status
+# Remove the default site if it exists (optional — avoids port conflicts)
+sudo rm -f /etc/nginx/sites-enabled/default
+```
+
+> Replace `kms.example.com` with your actual domain throughout.
+
+### Test and reload
+
+```bash
+sudo nginx -t          # must say "syntax is ok"
+sudo systemctl reload nginx
+```
+
+### Path routing summary
+
+| Path prefix | Upstream | Notes |
+|---|---|---|
+| `/api/v1/chat*` | `rag-service:8002` | SSE — buffering disabled |
+| `/api/v1/runs*` | `rag-service:8002` | SSE — buffering disabled |
+| `/api/v1/agents*` | `rag-service:8002` | SSE — buffering disabled |
+| `/api/v1/*` | `kms-api:8000` | Main REST API |
+| `/_next/static/*` | `web-ui:3000` | 1-year cache headers |
+| `/*` | `web-ui:3000` | Next.js frontend |
+
+Services **not** exposed via Nginx (internal Docker network only):
+
+- `search-api:8001` — called by kms-api
+- `postgres:5432`, `redis:6379`, `rabbitmq:5672`, `qdrant:6333`, `neo4j:7687`
+
+---
+
+## 6. SSL Certificate (Let's Encrypt)
+
+```bash
+# Obtain certificate (Nginx plugin handles config automatically)
+sudo certbot --nginx -d kms.example.com
+
+# Test auto-renewal
+sudo certbot renew --dry-run
+```
+
+Certbot adds a cron job for auto-renewal. After obtaining the certificate, reload Nginx:
+
+```bash
+sudo systemctl reload nginx
+```
+
+---
+
+## 7. Build and Start Services
+
+### Build production images
+
+```bash
+cd /opt/kms
+
+# Build all production images (takes 5–15 minutes on first run)
+docker compose -f docker-compose.prod.yml --env-file .env.prod build
+```
+
+### Start all services
+
+Migrations run automatically via the `migrate` init container before `kms-api` starts. The correct startup order is enforced by `depends_on: condition: service_completed_successfully`.
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+```
+
+Watch startup progress:
+
+```bash
+# Follow logs for the first boot (Ctrl+C when all services are healthy)
+docker compose -f docker-compose.prod.yml logs -f migrate kms-api
+
+# Confirm all containers are healthy
 docker compose -f docker-compose.prod.yml ps
 ```
 
-### 2. Verify Services
+Expected sequence on first boot:
+1. `postgres`, `redis`, `rabbitmq` — reach `healthy` (~30s)
+2. `migrate` — runs `prisma migrate deploy`, exits with code 0
+3. `kms-api` — starts, reaches `healthy`
+4. `search-api`, `rag-service`, `web-ui`, workers — start in parallel
+
+---
+
+## 8. Database Migrations
+
+Migrations are managed by Prisma and run **automatically** on every `docker compose up` via the `migrate` init container (exits after applying any pending migrations).
 
 ```bash
-# Check all services are healthy
+# Check migration status at any time
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  run --rm migrate npx prisma migrate status
+
+# Manually trigger migrations (e.g. after a failed first boot)
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  run --rm migrate
+```
+
+> The `migrate` service uses `restart: "no"` — it runs once and exits. It only re-runs if you explicitly call `docker compose run --rm migrate`.
+
+> Migrations are **backward-compatible** by design — no data loss on apply. If a migration requires downtime, this is noted in the migration file header.
+
+### Creating new migrations (from a dev machine)
+
+```bash
+cd kms-api
+npx prisma migrate dev --name describe-your-change
+```
+
+Commit the generated migration file and the updated `schema.prisma`.
+
+---
+
+## 9. Verify the Deployment
+
+```bash
+# KMS API health
+curl https://kms.example.com/api/v1/health/live
+# → {"success":true,"data":{"status":"ok",...}}
+
+# RAG service health
+curl https://kms.example.com/api/v1/runs  # → 401 (auth required — service is up)
+
+# Frontend
+curl -I https://kms.example.com/
+# → HTTP/2 200
+
+# Register a user
+curl -X POST https://kms.example.com/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"Admin1234!","confirmPassword":"Admin1234!","firstName":"Admin","lastName":"User"}'
+
+# Login
+curl -X POST https://kms.example.com/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"Admin1234!"}'
+# → {"tokens":{"accessToken":"...","refreshToken":"..."}, ...}
+```
+
+### Check all containers are healthy
+
+```bash
 docker compose -f docker-compose.prod.yml ps
-
-# Check logs
-docker compose -f docker-compose.prod.yml logs -f backend
-docker compose -f docker-compose.prod.yml logs -f worker
-docker compose -f docker-compose.prod.yml logs -f frontend
-docker compose -f docker-compose.prod.yml logs -f nginx
+# Every service should show: healthy or running
 ```
 
-### 3. Create API Key
+---
 
-```bash
-# Enter backend container
-docker compose -f docker-compose.prod.yml exec backend bash
+## 10. Monitoring and Logs
 
-# Create API key
-python3 << 'EOF'
-import asyncio
-import hashlib
-import secrets
-from app.db.session import AsyncSessionLocal
-from app.db.models import APIKey
-
-async def create_key():
-    key = secrets.token_urlsafe(32)
-    key_hash = hashlib.sha256(key.encode()).hexdigest()
-    async with AsyncSessionLocal() as db:
-        api_key = APIKey(key_hash=key_hash, name="Production Key", is_active=True)
-        db.add(api_key)
-        await db.commit()
-    print(f"API Key: {key}")
-
-asyncio.run(create_key())
-EOF
-
-# Save the output API key securely
-# Exit container
-exit
-```
-
-### 4. Update .env.prod with API Key
-
-```bash
-# Add the generated API key to .env.prod
-echo "API_KEY=<the_generated_key>" >> .env.prod
-
-# Restart frontend to pick up new API key
-docker compose -f docker-compose.prod.yml restart frontend
-```
-
-## Database Management
-
-### Backup Database
-
-```bash
-# Create backup directory
-mkdir -p backups
-
-# Backup database
-docker compose -f docker-compose.prod.yml exec postgres \
-  pg_dump -U voiceapp voiceapp > backups/backup_$(date +%Y%m%d_%H%M%S).sql
-
-# Compress backup
-gzip backups/backup_*.sql
-```
-
-### Restore Database
-
-```bash
-# Stop services that use database
-docker compose -f docker-compose.prod.yml stop backend worker dispatcher
-
-# Restore from backup
-gunzip -c backups/backup_20240101_120000.sql.gz | \
-  docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U voiceapp voiceapp
-
-# Start services
-docker compose -f docker-compose.prod.yml start backend worker dispatcher
-```
-
-### Database Migrations
-
-```bash
-# If you need to run migrations, enter backend container
-docker compose -f docker-compose.prod.yml exec backend bash
-
-# Run your migration scripts
-python -m alembic upgrade head
-
-# Exit
-exit
-```
-
-## Monitoring
-
-### View Logs
+### View logs
 
 ```bash
 # All services
 docker compose -f docker-compose.prod.yml logs -f
 
-# Specific service
-docker compose -f docker-compose.prod.yml logs -f backend
-
-# Last 100 lines
-docker compose -f docker-compose.prod.yml logs --tail=100 worker
-
-# Follow with timestamps
-docker compose -f docker-compose.prod.yml logs -f --timestamps
+# Single service
+docker compose -f docker-compose.prod.yml logs -f kms-api
+docker compose -f docker-compose.prod.yml logs -f rag-service
+docker compose -f docker-compose.prod.yml logs -f embed-worker
 ```
 
-### Resource Usage
+### Nginx logs
 
 ```bash
-# Container stats
-docker stats
-
-# Disk usage
-docker system df
-
-# Volume usage
-docker volume ls
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
 ```
 
-### Health Checks
+### Observability stack (optional)
+
+The production compose file does not include the Grafana/Tempo/Loki/Prometheus stack. To enable:
+
+1. Set `OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317` in `.env.prod`
+2. Run the observability services separately:
+   ```bash
+   docker compose -f docker-compose.kms.yml --env-file .env.prod \
+     up -d otel-collector prometheus tempo loki grafana
+   ```
+3. Grafana: `http://your-server-ip:3000` (use SSH tunnel in production, not public)
+
+---
+
+## 11. Backups
+
+### PostgreSQL
 
 ```bash
-# Check all services
+# Create a backup
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  exec postgres pg_dump -U ${POSTGRES_USER} ${POSTGRES_DB} \
+  | gzip > /opt/backups/kms-$(date +%Y%m%d-%H%M).sql.gz
+
+# Restore from backup
+gunzip -c /opt/backups/kms-20260101-1200.sql.gz \
+  | docker compose -f docker-compose.prod.yml --env-file .env.prod \
+    exec -T postgres psql -U ${POSTGRES_USER} ${POSTGRES_DB}
+```
+
+### Qdrant (vector store)
+
+```bash
+# Qdrant snapshots (via REST API) — collection name is kms_chunks
+curl -X POST http://localhost:6333/collections/kms_chunks/snapshots
+
+# Or simply back up the Docker volume
+docker run --rm \
+  -v kms-prod_qdrant_data:/data \
+  -v /opt/backups:/backup \
+  alpine tar czf /backup/qdrant-$(date +%Y%m%d).tar.gz /data
+```
+
+### Automated backup cron
+
+```bash
+sudo crontab -e
+# Add:
+0 2 * * * /opt/kms/scripts/backup.sh >> /var/log/kms-backup.log 2>&1
+```
+
+---
+
+## 12. Rolling Updates
+
+### Pull latest code
+
+```bash
+cd /opt/kms
+git pull origin main
+```
+
+### Rebuild and redeploy
+
+```bash
+# Build updated images (only changed layers are rebuilt)
+docker compose -f docker-compose.prod.yml --env-file .env.prod build
+
+# Apply any new migrations (the migrate service runs automatically on up,
+# but you can also trigger it explicitly before restarting kms-api)
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  run --rm migrate
+
+# Restart services one by one (zero-downtime for workers)
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  up -d --no-deps kms-api
+
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  up -d --no-deps rag-service
+
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  up -d --no-deps web-ui
+
+# Restart workers (they drain the queue gracefully before stopping)
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  up -d --no-deps scan-worker embed-worker dedup-worker graph-worker
+```
+
+### Rollback
+
+```bash
+git checkout <previous-tag-or-commit>
+docker compose -f docker-compose.prod.yml --env-file .env.prod build
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+```
+
+---
+
+## 13. Troubleshooting
+
+### migrate service exits non-zero
+
+```bash
+docker compose -f docker-compose.prod.yml logs migrate
+```
+
+Common causes:
+- `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` wrong — check `.env.prod`
+- `postgres` container not yet healthy when `migrate` ran — check `docker compose ps`
+- Conflicting migration state — run `npx prisma migrate status` to inspect
+
+### kms-api fails to start
+
+```bash
+docker compose -f docker-compose.prod.yml logs kms-api
+```
+
+Common causes:
+- `migrate` service failed — kms-api won't start until migrate exits with code 0
+- JWT secrets shorter than 32 chars — regenerate with `openssl rand -base64 48`
+- `API_KEY_ENCRYPTION_SECRET` not exactly 32 chars — generate with `openssl rand -hex 16`
+
+### Nginx 502 Bad Gateway
+
+Nginx gets 502 when a Docker service isn't listening on its port.
+
+```bash
+# Check services are up and bound to 127.0.0.1
+ss -tlnp | grep -E '8000|8002|3000'
+
+# Check Docker health
 docker compose -f docker-compose.prod.yml ps
-
-# Check specific service health
-docker inspect voice-app-backend-1 | grep -A 10 Health
 ```
 
-## Maintenance
+### embed-worker: model download fails
 
-### Update Application
+The BGE-M3 model downloads from Hugging Face on first start. If the server has no internet access:
 
 ```bash
-# Pull latest code
-cd /opt/voice-app
-sudo git pull
-
-# Rebuild images
-docker compose -f docker-compose.prod.yml build
-
-# Restart services with zero downtime
-docker compose -f docker-compose.prod.yml up -d --no-deps backend
-docker compose -f docker-compose.prod.yml up -d --no-deps worker
-docker compose -f docker-compose.prod.yml up -d --no-deps dispatcher
-docker compose -f docker-compose.prod.yml up -d --no-deps frontend
+# Pre-download on a machine with internet access, then copy the cache
+# Model cache location inside the container: /root/.cache/huggingface
+docker run --rm -v kms_model_cache:/root/.cache/huggingface \
+  python:3.11-slim pip install -q huggingface-hub && \
+  python -c "from huggingface_hub import snapshot_download; snapshot_download('BAAI/bge-m3')"
 ```
 
-### Certificate Renewal
+### RabbitMQ: authentication failure
 
 ```bash
-# Renew Let's Encrypt certificates
-sudo certbot renew
-
-# Copy renewed certificates
-sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem ssl/cert.pem
-sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem ssl/key.pem
-sudo chown $USER:$USER ssl/*
-
-# Reload nginx
-docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
+# Reset RabbitMQ credentials (requires container restart)
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  exec rabbitmq rabbitmqctl change_password ${RABBITMQ_USER} ${RABBITMQ_PASS}
 ```
 
-### Clean Up
+### Database connection refused
 
 ```bash
-# Remove unused images
-docker image prune -a
+# Verify postgres is healthy
+docker compose -f docker-compose.prod.yml exec postgres \
+  pg_isready -U ${POSTGRES_USER}
 
-# Remove unused volumes (caution!)
-docker volume prune
-
-# Remove unused networks
-docker network prune
+# Check connection from kms-api
+docker compose -f docker-compose.prod.yml exec kms-api \
+  npx prisma db pull
 ```
-
-## Security Hardening
-
-### Firewall Configuration
-
-```bash
-# Install UFW
-sudo apt-get install ufw
-
-# Allow SSH
-sudo ufw allow 22/tcp
-
-# Allow HTTP/HTTPS
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-
-# Enable firewall
-sudo ufw enable
-```
-
-### Automatic Updates
-
-```bash
-# Install unattended-upgrades
-sudo apt-get install unattended-upgrades
-
-# Enable automatic security updates
-sudo dpkg-reconfigure -plow unattended-upgrades
-```
-
-### Fail2Ban
-
-```bash
-# Install Fail2Ban
-sudo apt-get install fail2ban
-
-# Create jail for nginx rate limiting
-sudo cat > /etc/fail2ban/jail.local << 'EOF'
-[nginx-limit-req]
-enabled = true
-filter = nginx-limit-req
-logpath = /var/log/nginx/error.log
-maxretry = 5
-findtime = 600
-bantime = 3600
-EOF
-
-# Restart Fail2Ban
-sudo systemctl restart fail2ban
-```
-
-## Troubleshooting
-
-### Services Not Starting
-
-**Check logs**:
-```bash
-docker compose -f docker-compose.prod.yml logs backend
-docker compose -f docker-compose.prod.yml logs postgres
-```
-
-**Common issues**:
-1. Environment variables not set
-2. Port conflicts
-3. Insufficient resources
-
-### Database Connection Errors
-
-**Check postgres health**:
-```bash
-docker compose -f docker-compose.prod.yml ps postgres
-docker compose -f docker-compose.prod.yml logs postgres
-```
-
-**Solution**:
-```bash
-# Restart postgres
-docker compose -f docker-compose.prod.yml restart postgres
-
-# Wait for healthy status
-sleep 10
-
-# Restart dependent services
-docker compose -f docker-compose.prod.yml restart backend worker dispatcher
-```
-
-### Worker Not Processing Jobs
-
-**Check worker logs**:
-```bash
-docker compose -f docker-compose.prod.yml logs -f worker
-```
-
-**Check RabbitMQ**:
-```bash
-docker compose -f docker-compose.prod.yml logs rabbitmq
-```
-
-**Solution**:
-```bash
-# Restart worker
-docker compose -f docker-compose.prod.yml restart worker
-
-# Check queue status (requires rabbitmq management)
-docker compose -f docker-compose.prod.yml exec rabbitmq \
-  rabbitmqctl list_queues
-```
-
-### High Memory Usage
-
-**Check stats**:
-```bash
-docker stats
-```
-
-**Solutions**:
-1. Reduce `WORKER_CONCURRENCY` in `.env.prod`
-2. Use smaller Whisper model (medium instead of large-v3)
-3. Increase swap space
-4. Upgrade server RAM
-
-## Scaling
-
-### Horizontal Scaling (Multiple Workers)
-
-```bash
-# Scale worker service
-docker compose -f docker-compose.prod.yml up -d --scale worker=3
-```
-
-### Vertical Scaling (Resource Limits)
-
-Edit `docker-compose.prod.yml`:
-
-```yaml
-worker:
-  deploy:
-    resources:
-      limits:
-        cpus: '8.0'      # Increase CPU
-        memory: 16G      # Increase memory
-```
-
-## Backup Strategy
-
-### Automated Daily Backups
-
-Create `/opt/voice-app/backup.sh`:
-
-```bash
-#!/bin/bash
-BACKUP_DIR="/opt/voice-app/backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-
-# Database backup
-docker compose -f /opt/voice-app/docker-compose.prod.yml exec -T postgres \
-  pg_dump -U voiceapp voiceapp | gzip > "$BACKUP_DIR/db_$DATE.sql.gz"
-
-# Keep only last 7 days
-find "$BACKUP_DIR" -name "db_*.sql.gz" -mtime +7 -delete
-
-echo "Backup completed: $DATE"
-```
-
-Add to crontab:
-```bash
-chmod +x /opt/voice-app/backup.sh
-crontab -e
-
-# Add line:
-0 2 * * * /opt/voice-app/backup.sh >> /var/log/voice-app-backup.log 2>&1
-```
-
-## Performance Optimization
-
-### Enable Docker BuildKit
-
-Add to `/etc/docker/daemon.json`:
-
-```json
-{
-  "features": {
-    "buildkit": true
-  }
-}
-```
-
-Restart Docker:
-```bash
-sudo systemctl restart docker
-```
-
-### Optimize Postgres
-
-```bash
-# Enter postgres container
-docker compose -f docker-compose.prod.yml exec postgres psql -U voiceapp
-
-# Optimize settings
-ALTER SYSTEM SET shared_buffers = '2GB';
-ALTER SYSTEM SET effective_cache_size = '6GB';
-ALTER SYSTEM SET maintenance_work_mem = '512MB';
-ALTER SYSTEM SET checkpoint_completion_target = 0.9;
-ALTER SYSTEM SET wal_buffers = '16MB';
-ALTER SYSTEM SET default_statistics_target = 100;
-ALTER SYSTEM SET random_page_cost = 1.1;
-
-# Reload configuration
-SELECT pg_reload_conf();
-```
-
-## Next Steps
-
-- Set up monitoring (Prometheus, Grafana)
-- Configure log aggregation (ELK stack)
-- Implement CDN for static assets
-- Set up staging environment
-- Configure CI/CD pipeline
-- Add health check endpoints
-- Implement rate limiting at application level
-
-## Support
-
-For issues and questions:
-- Check logs: `docker compose -f docker-compose.prod.yml logs`
-- Review [DOCKER_DEVELOPMENT.md](./DOCKER_DEVELOPMENT.md)
-- Review [DOCKER_TESTING.md](./DOCKER_TESTING.md)
-- Check [CLAUDE.md](../CLAUDE.md)

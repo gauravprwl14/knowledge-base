@@ -144,8 +144,24 @@ knowledge-base/
 └── scripts/              # kms-start.sh and utilities
 ```
 
+## Deployment
+
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full production deployment guide, including:
+
+- Server requirements and firewall setup
+- Nginx reverse proxy configuration (path routing for all services)
+- SSL/TLS setup via Let's Encrypt
+- Environment variables reference
+- Database migrations
+- Backup strategy
+- Rolling updates with zero downtime
+
+Production Docker Compose: `docker-compose.prod.yml`
+Nginx config template: `infra/nginx/nginx.conf`
+
 ## Documentation
 
+- **Production deployment**: `docs/DEPLOYMENT.md`
 - **Architecture & standards**: `docs/architecture/ENGINEERING_STANDARDS.md`
 - **Engineering workflow**: `docs/workflow/ENGINEERING_WORKFLOW.md`
 - **PRDs**: `docs/prd/`
