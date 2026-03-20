@@ -4,8 +4,9 @@
 """
 Asyncpg-backed persistence layer for the scan worker.
 
-Handles upserts of discovered files into ``kms_files`` and status updates
-for ``kms_scan_jobs``.  Uses raw asyncpg (no ORM) as required by the
+Handles upserts of discovered files into ``kms_files``, status updates for
+``kms_scan_jobs``, and queries to determine which files need embed-pipeline
+publishing after a scan.  Uses raw asyncpg (no ORM) as required by the
 engineering standards for worker services.
 """
 from datetime import datetime, timezone
@@ -17,6 +18,10 @@ from app.config import get_settings
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
+
+# File statuses that indicate the file is already fully indexed and unchanged.
+# Files in these states are NOT re-published to the embed queue.
+_ALREADY_INDEXED_STATUSES = ("INDEXED",)
 
 
 class FileSyncService:
@@ -198,5 +203,78 @@ class FileSyncService:
                 source_id,
             )
             return row["encrypted_tokens"] if row else None
+        finally:
+            await conn.close()
+
+    async def get_files_pending_embed(
+        self,
+        source_id: str,
+        external_ids: list[str],
+    ) -> list[dict]:
+        """Return file rows that should be published to the embed queue.
+
+        Filters the given ``external_ids`` to those whose DB record exists,
+        is **not** in status ``INDEXED`` with an unchanged checksum, and is
+        **not** in status ``UNSUPPORTED``.
+
+        This is used by the scan handler after a batch upsert to determine
+        which files actually need to be sent down the embedding pipeline.
+
+        Args:
+            source_id: UUID string of the parent source.
+            external_ids: List of Drive file IDs (or local paths) that were
+                just upserted.
+
+        Returns:
+            List of dicts with keys ``id``, ``external_id``, ``mime_type``,
+            ``status``, ``checksum_sha256`` for each file that needs embedding.
+        """
+        if not external_ids:
+            return []
+
+        conn: asyncpg.Connection = await asyncpg.connect(settings.database_url)
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT id, external_id, mime_type, status::text AS status, checksum_sha256
+                FROM kms_files
+                WHERE source_id = $1
+                  AND external_id = ANY($2::text[])
+                  AND status::text NOT IN ('UNSUPPORTED', 'INDEXED')
+                """,
+                source_id,
+                external_ids,
+            )
+            return [dict(r) for r in rows]
+        finally:
+            await conn.close()
+
+    async def get_file_by_external_id(
+        self,
+        source_id: str,
+        external_id: str,
+    ) -> dict | None:
+        """Fetch a single file record by its external identifier.
+
+        Args:
+            source_id: UUID string of the parent source.
+            external_id: The stable external key (Drive file ID or local path).
+
+        Returns:
+            Dict with ``id``, ``external_id``, ``mime_type``, ``status``,
+            ``checksum_sha256``, or ``None`` if no matching row exists.
+        """
+        conn: asyncpg.Connection = await asyncpg.connect(settings.database_url)
+        try:
+            row = await conn.fetchrow(
+                """
+                SELECT id, external_id, mime_type, status::text AS status, checksum_sha256
+                FROM kms_files
+                WHERE source_id = $1 AND external_id = $2
+                """,
+                source_id,
+                external_id,
+            )
+            return dict(row) if row else None
         finally:
             await conn.close()

@@ -93,3 +93,64 @@ class ScanJobFailedError(KMSWorkerError):
             code="KBWRK0104",
             retryable=retryable,
         )
+
+
+class DriveRateLimitError(KMSWorkerError):
+    """Raised when the Google Drive API returns HTTP 429 (Too Many Requests).
+
+    Always retryable — the caller should apply exponential backoff before
+    nacking with requeue=True so the broker re-delivers the message after a
+    delay rather than immediately hammering Drive again.
+
+    Args:
+        source_id: UUID of the source being scanned.
+        reason: Drive API error detail.
+    """
+
+    def __init__(self, source_id: str, reason: str) -> None:
+        super().__init__(
+            f"Drive rate limited for source {source_id}: {reason}",
+            code="KBWRK0105",
+            retryable=True,
+        )
+        self.source_id = source_id
+
+
+class TokenRefreshError(KMSWorkerError):
+    """Raised when the Google OAuth2 access token cannot be refreshed.
+
+    Non-retryable — the user must reconnect their Drive account to issue a
+    new refresh token.  The message is dead-lettered.
+
+    Args:
+        source_id: UUID of the source whose token refresh failed.
+        reason: Short description of the failure.
+    """
+
+    def __init__(self, source_id: str, reason: str) -> None:
+        super().__init__(
+            f"Token refresh failed for source {source_id}: {reason}",
+            code="KBWRK0106",
+            retryable=False,
+        )
+        self.source_id = source_id
+
+
+class EmbedPublishError(KMSWorkerError):
+    """Raised when publishing a file to the embed pipeline queue fails.
+
+    Always retryable — the scan job nacks so the entire job is re-tried,
+    preventing partial indexing where some files were never sent to embed.
+
+    Args:
+        file_id: DB UUID of the file that could not be published.
+        reason: Short description of the failure.
+    """
+
+    def __init__(self, file_id: str, reason: str) -> None:
+        super().__init__(
+            f"Failed to publish file {file_id} to embed pipeline: {reason}",
+            code="KBWRK0107",
+            retryable=True,
+        )
+        self.file_id = file_id

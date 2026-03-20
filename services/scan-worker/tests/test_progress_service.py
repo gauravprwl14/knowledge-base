@@ -32,7 +32,8 @@ async def test_set_progress_writes_json(svc, mock_redis):
     assert key == "kms:scan:progress:src-1"
     assert ttl == 3600
     data = json.loads(payload)
-    assert data["status"] == "RUNNING"
+    # Status is normalised to lower-case by the new ProgressService API
+    assert data["status"] == "running"
     assert data["filesFound"] == 10
     assert data["filesAdded"] == 8
     assert data["error"] is None
@@ -44,7 +45,8 @@ async def test_set_progress_with_error(svc, mock_redis):
 
     _, _, payload = mock_redis.setex.call_args.args
     data = json.loads(payload)
-    assert data["status"] == "FAILED"
+    # Status is normalised to lower-case by the new ProgressService API
+    assert data["status"] == "failed"
     assert data["error"] == "Drive access revoked"
 
 

@@ -76,7 +76,7 @@ async def test_handle_valid_message_acks_after_scan():
     message = _make_incoming_message(json.dumps(payload).encode())
 
     with (
-        patch.object(handler, "_run_scan", new=AsyncMock(return_value=5)),
+        patch.object(handler, "_run_scan", new=AsyncMock(return_value={"discovered": 5, "indexed": 5, "failed": 0})),
         patch.object(handler, "_update_job_status", new=AsyncMock()),
         patch.object(handler._progress, "set_progress", new=AsyncMock()),
     ):

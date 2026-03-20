@@ -105,16 +105,17 @@ class TestDecryptTokens:
 # ---------------------------------------------------------------------------
 
 class TestConnect:
-    def test_connect_raises_without_tokens(self):
+    @pytest.mark.asyncio
+    async def test_connect_raises_without_tokens(self):
         connector = GoogleDriveConnector()
         with pytest.raises(ConnectorError) as exc_info:
-            import asyncio
-            asyncio.get_event_loop().run_until_complete(connector.connect({}))
+            await connector.connect({})
         assert not exc_info.value.retryable
 
+    @pytest.mark.asyncio
     @patch("app.connectors.google_drive.build")
     @patch.object(GoogleDriveConnector, "_decrypt_tokens")
-    def test_connect_success(self, mock_decrypt, mock_build):
+    async def test_connect_success(self, mock_decrypt, mock_build):
         mock_decrypt.return_value = {
             "access_token": "ya29",
             "refresh_token": "1//",
@@ -126,10 +127,8 @@ class TestConnect:
         mock_build.return_value = mock_service
 
         connector = GoogleDriveConnector()
-        import asyncio
-        asyncio.get_event_loop().run_until_complete(
-            connector.connect({"encrypted_tokens": "dummy"})
-        )
+        with patch.object(connector, "_ensure_valid_credentials", new=AsyncMock()):
+            await connector.connect({"encrypted_tokens": "dummy"})
         assert connector._service is not None
 
 
