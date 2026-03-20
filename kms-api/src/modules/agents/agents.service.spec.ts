@@ -43,7 +43,7 @@ describe('AgentsService', () => {
         json: jest.fn().mockResolvedValue(mockRunData),
       } as any);
 
-      const result = await service.createRun({ message: 'What is KMS?' }, 'user-1');
+      const result = await service.createRun({ message: 'What is KMS?' }) as any;
       expect(result).toMatchObject({ runId: 'run-abc' });
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/runs'),
@@ -53,12 +53,12 @@ describe('AgentsService', () => {
 
     it('throws AppError when rag-service is unreachable', async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
-      await expect(service.createRun({ message: 'q' }, 'user-1')).rejects.toThrow(AppError);
+      await expect(service.createRun({ message: 'q' })).rejects.toThrow(AppError);
     });
 
     it('throws AppError when rag-service returns 500', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 } as any);
-      await expect(service.createRun({ message: 'q' }, 'user-1')).rejects.toThrow(AppError);
+      await expect(service.createRun({ message: 'q' })).rejects.toThrow(AppError);
     });
   });
 
@@ -70,20 +70,20 @@ describe('AgentsService', () => {
         json: jest.fn().mockResolvedValue(runInfo),
       } as any);
 
-      const result = await service.getRun('run-abc', 'user-1');
+      const result = await service.getRun('run-abc') as any;
       expect(result.status).toBe('completed');
     });
 
     it('throws AppError when run is not found (404)', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 404 } as any);
-      await expect(service.getRun('missing', 'user-1')).rejects.toThrow(AppError);
+      await expect(service.getRun('missing')).rejects.toThrow(AppError);
     });
   });
 
   describe('cancelRun', () => {
     it('sends DELETE to rag-service for the run', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: jest.fn().mockResolvedValue({}) } as any);
-      await expect(service.cancelRun('run-abc', 'user-1')).resolves.not.toThrow();
+      await expect(service.cancelRun('run-abc')).resolves.not.toThrow();
       const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
       expect(url).toContain('run-abc');
       expect(init.method).toBe('DELETE');

@@ -93,8 +93,8 @@ describe('SearchService', () => {
       global.fetch = jest.fn().mockRejectedValue(new Error('connection refused'));
 
       await expect(service.search({ q: 'test' }, 'user-1')).rejects.toThrow(AppError);
-      const err = await service.search({ q: 'test' }, 'user-1').catch((e) => e);
-      expect(err.code).toMatch(/EXT/);
+      const err = await service.search({ q: 'test' }, 'user-1').catch((e) => e) as AppError;
+      expect((err as any).code).toMatch(/EXT/);
     });
 
     it('throws AppError when search-api returns 500', async () => {

@@ -9,8 +9,11 @@ const mockTagsRepo = {
   countByUserId: jest.fn(),
   create: jest.fn(),
   findById: jest.fn(),
-  update: jest.fn(),
-  delete: jest.fn(),
+  findByIdAndUserId: jest.fn(),
+  deleteById: jest.fn(),
+  addTagToFile: jest.fn(),
+  removeTagFromFile: jest.fn(),
+  bulkAddTagToFiles: jest.fn(),
 };
 
 const mockLogger = {
@@ -62,59 +65,94 @@ describe('TagsService', () => {
   describe('createTag', () => {
     it('creates a tag when under the 50-tag limit', async () => {
       mockTagsRepo.countByUserId.mockResolvedValue(10);
-      const newTag = { id: 'tag-new', name: 'Inbox', userId, _count: { fileTags: 0 } };
+      const newTag = { id: 'tag-new', name: 'Inbox', userId };
       mockTagsRepo.create.mockResolvedValue(newTag);
 
-      const result = await service.createTag(userId, { name: 'Inbox' });
+      const result = await service.createTag(userId, 'Inbox');
       expect(result.name).toBe('Inbox');
-      expect(mockTagsRepo.create).toHaveBeenCalledWith({ name: 'Inbox', userId });
+      expect(mockTagsRepo.create).toHaveBeenCalledWith(userId, 'Inbox', '#6366f1');
     });
 
     it('throws AppError TAG0003 when user has 50 tags', async () => {
       mockTagsRepo.countByUserId.mockResolvedValue(50);
-      await expect(service.createTag(userId, { name: 'Over50' })).rejects.toThrow(AppError);
+      await expect(service.createTag(userId, 'Over50')).rejects.toThrow(AppError);
     });
 
     it('propagates unique constraint violation as AppError TAG0002', async () => {
       mockTagsRepo.countByUserId.mockResolvedValue(5);
       const prismaError = Object.assign(new Error('Unique constraint'), { code: 'P2002' });
       mockTagsRepo.create.mockRejectedValue(prismaError);
-      await expect(service.createTag(userId, { name: 'Dup' })).rejects.toThrow(AppError);
+      await expect(service.createTag(userId, 'Dup')).rejects.toThrow(AppError);
     });
   });
 
-  describe('updateTag', () => {
-    it('updates tag name when owned by user', async () => {
-      mockTagsRepo.findById.mockResolvedValue({ id: 'tag-1', userId, name: 'Old' });
-      mockTagsRepo.update.mockResolvedValue({ id: 'tag-1', userId, name: 'New', _count: { fileTags: 0 } });
-
-      const result = await service.updateTag('tag-1', userId, { name: 'New' });
-      expect(result.name).toBe('New');
-    });
-
-    it('throws AppError TAG0001 when tag belongs to another user', async () => {
-      mockTagsRepo.findById.mockResolvedValue({ id: 'tag-1', userId: 'other-user', name: 'X' });
-      await expect(service.updateTag('tag-1', userId, { name: 'Y' })).rejects.toThrow(AppError);
-    });
-
-    it('throws AppError when tag not found', async () => {
-      mockTagsRepo.findById.mockResolvedValue(null);
-      await expect(service.updateTag('missing', userId, { name: 'Z' })).rejects.toThrow(AppError);
+  describe('createTag', () => {
+    it('re-throws non-P2002 errors from the repository', async () => {
+      mockTagsRepo.countByUserId.mockResolvedValue(5);
+      mockTagsRepo.create.mockRejectedValue(new Error('DB connection lost'));
+      await expect(service.createTag(userId, 'Test')).rejects.toThrow('DB connection lost');
     });
   });
 
   describe('deleteTag', () => {
-    it('deletes tag when owned by user', async () => {
-      mockTagsRepo.findById.mockResolvedValue({ id: 'tag-1', userId, name: 'ToDelete' });
-      mockTagsRepo.delete.mockResolvedValue(undefined);
+    it('deletes tag (no-op, always succeeds)', async () => {
+      mockTagsRepo.deleteById.mockResolvedValue(undefined);
 
       await expect(service.deleteTag('tag-1', userId)).resolves.toBeUndefined();
-      expect(mockTagsRepo.delete).toHaveBeenCalledWith('tag-1');
+      expect(mockTagsRepo.deleteById).toHaveBeenCalledWith('tag-1', userId);
+    });
+  });
+
+  describe('addTagToFile', () => {
+    it('applies a tag to a file when ownership check passes', async () => {
+      mockTagsRepo.findByIdAndUserId.mockResolvedValue({ id: 'tag-1', name: 'Work', userId });
+      mockTagsRepo.addTagToFile.mockResolvedValue(undefined);
+
+      await expect(service.addTagToFile('file-1', 'tag-1', userId)).resolves.toBeUndefined();
+      expect(mockTagsRepo.addTagToFile).toHaveBeenCalledWith('file-1', 'tag-1');
     });
 
-    it('throws when deleting another user\'s tag', async () => {
-      mockTagsRepo.findById.mockResolvedValue({ id: 'tag-1', userId: 'other', name: 'X' });
-      await expect(service.deleteTag('tag-1', userId)).rejects.toThrow(AppError);
+    it('throws AppError TAG0001 when tag does not belong to the user', async () => {
+      mockTagsRepo.findByIdAndUserId.mockResolvedValue(null);
+
+      await expect(service.addTagToFile('file-1', 'tag-other', userId)).rejects.toThrow(AppError);
+      expect(mockTagsRepo.addTagToFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeTagFromFile', () => {
+    it('removes a tag from a file when ownership check passes', async () => {
+      mockTagsRepo.findByIdAndUserId.mockResolvedValue({ id: 'tag-1', name: 'Work', userId });
+      mockTagsRepo.removeTagFromFile.mockResolvedValue(undefined);
+
+      await expect(service.removeTagFromFile('file-1', 'tag-1', userId)).resolves.toBeUndefined();
+      expect(mockTagsRepo.removeTagFromFile).toHaveBeenCalledWith('file-1', 'tag-1');
+    });
+
+    it('throws AppError TAG0001 when tag is not owned by the user', async () => {
+      mockTagsRepo.findByIdAndUserId.mockResolvedValue(null);
+
+      await expect(service.removeTagFromFile('file-1', 'tag-other', userId)).rejects.toThrow(AppError);
+      expect(mockTagsRepo.removeTagFromFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('bulkTagFiles', () => {
+    it('bulk-tags files and returns the count of new associations', async () => {
+      mockTagsRepo.findByIdAndUserId.mockResolvedValue({ id: 'tag-1', name: 'Work', userId });
+      mockTagsRepo.bulkAddTagToFiles.mockResolvedValue(3);
+
+      const result = await service.bulkTagFiles(['f1', 'f2', 'f3'], 'tag-1', userId);
+
+      expect(mockTagsRepo.bulkAddTagToFiles).toHaveBeenCalledWith(['f1', 'f2', 'f3'], 'tag-1');
+      expect(result).toEqual({ tagged: 3 });
+    });
+
+    it('throws AppError TAG0001 when tag is not owned by the user', async () => {
+      mockTagsRepo.findByIdAndUserId.mockResolvedValue(null);
+
+      await expect(service.bulkTagFiles(['f1'], 'tag-other', userId)).rejects.toThrow(AppError);
+      expect(mockTagsRepo.bulkAddTagToFiles).not.toHaveBeenCalled();
     });
   });
 });

@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 const mockCollectionsService = {
   list: jest.fn(),
   findById: jest.fn(),
+  get: jest.fn(),
   create: jest.fn(),
   update: jest.fn(),
   delete: jest.fn(),
@@ -77,13 +78,13 @@ describe('CollectionsController', () => {
     });
   });
 
-  describe('findById', () => {
+  describe('get', () => {
     it('returns the collection by id', async () => {
-      mockCollectionsService.findById.mockResolvedValue(mockCollection);
+      mockCollectionsService.get.mockResolvedValue(mockCollection);
 
-      const result = await controller.findById(collectionId, userId);
+      const result = await controller.get(collectionId, userId);
       expect(result.id).toBe(collectionId);
-      expect(mockCollectionsService.findById).toHaveBeenCalledWith(collectionId, userId);
+      expect(mockCollectionsService.get).toHaveBeenCalledWith(collectionId, userId);
     });
   });
 
@@ -109,10 +110,9 @@ describe('CollectionsController', () => {
   describe('addFiles', () => {
     it('calls service.addFiles with file ids', async () => {
       const dto = { fileIds: ['f1', 'f2'] };
-      mockCollectionsService.addFiles.mockResolvedValue({ added: 2, skipped: 0 });
+      mockCollectionsService.addFiles.mockResolvedValue(undefined);
 
-      const result = await controller.addFiles(collectionId, userId, dto);
-      expect(result.added).toBe(2);
+      await controller.addFiles(collectionId, userId, dto);
       expect(mockCollectionsService.addFiles).toHaveBeenCalledWith(collectionId, userId, dto);
     });
   });
@@ -122,7 +122,7 @@ describe('CollectionsController', () => {
       mockCollectionsService.removeFile.mockResolvedValue(undefined);
 
       await controller.removeFile(collectionId, 'file-id', userId);
-      expect(mockCollectionsService.removeFile).toHaveBeenCalledWith(collectionId, 'file-id', userId);
+      expect(mockCollectionsService.removeFile).toHaveBeenCalledWith(collectionId, userId, 'file-id');
     });
   });
 });

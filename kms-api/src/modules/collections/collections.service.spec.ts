@@ -33,10 +33,8 @@ function makeCollection(overrides: Partial<any> = {}): any {
 
 describe('CollectionsService', () => {
   let service: CollectionsService;
-  let repository: jest.Mocked<CollectionsRepository>;
-  let prisma: jest.Mocked<PrismaService>;
 
-  const mockRepository: jest.Mocked<Partial<CollectionsRepository>> = {
+  const mockRepository = {
     findAll: jest.fn(),
     findById: jest.fn(),
     create: jest.fn(),
@@ -73,8 +71,6 @@ describe('CollectionsService', () => {
     }).compile();
 
     service = module.get<CollectionsService>(CollectionsService);
-    repository = module.get(CollectionsRepository);
-    prisma = module.get(PrismaService);
   });
 
   // -------------------------------------------------------------------------
@@ -85,8 +81,8 @@ describe('CollectionsService', () => {
     it('returns all collections for a user with fileCount populated', async () => {
       const col1 = makeCollection({ id: 'col-001', name: 'Alpha' });
       const col2 = makeCollection({ id: 'col-002', name: 'Beta' });
-      mockRepository.findAll!.mockResolvedValue([col1, col2]);
-      mockRepository.getFileCount!.mockResolvedValueOnce(3).mockResolvedValueOnce(7);
+      mockRepository.findAll.mockResolvedValue([col1, col2]);
+      mockRepository.getFileCount.mockResolvedValueOnce(3).mockResolvedValueOnce(7);
 
       const result = await service.list('user-001');
 
@@ -97,7 +93,7 @@ describe('CollectionsService', () => {
     });
 
     it('returns an empty array when the user has no collections', async () => {
-      mockRepository.findAll!.mockResolvedValue([]);
+      mockRepository.findAll.mockResolvedValue([]);
 
       const result = await service.list('user-001');
 
@@ -112,8 +108,8 @@ describe('CollectionsService', () => {
   describe('get()', () => {
     it('returns the collection DTO when found', async () => {
       const col = makeCollection();
-      mockRepository.findById!.mockResolvedValue(col);
-      mockRepository.getFileCount!.mockResolvedValue(5);
+      mockRepository.findById.mockResolvedValue(col);
+      mockRepository.getFileCount.mockResolvedValue(5);
 
       const result = await service.get('col-001', 'user-001');
 
@@ -122,7 +118,7 @@ describe('CollectionsService', () => {
     });
 
     it('throws a 404 AppError when collection is not found', async () => {
-      mockRepository.findById!.mockResolvedValue(null);
+      mockRepository.findById.mockResolvedValue(null);
 
       await expect(service.get('nonexistent', 'user-001')).rejects.toThrow(AppError);
 
@@ -144,7 +140,7 @@ describe('CollectionsService', () => {
     it('creates and returns a new collection with fileCount 0', async () => {
       const dto: CreateCollectionDto = { name: 'New Collection' };
       const created = makeCollection({ id: 'col-new', name: 'New Collection' });
-      mockRepository.create!.mockResolvedValue(created);
+      mockRepository.create.mockResolvedValue(created);
 
       const result = await service.create('user-001', dto);
 
@@ -161,22 +157,22 @@ describe('CollectionsService', () => {
   describe('delete()', () => {
     it('deletes a normal collection successfully', async () => {
       const col = makeCollection({ isDefault: false });
-      mockRepository.findById!.mockResolvedValue(col);
-      mockRepository.delete!.mockResolvedValue(undefined);
+      mockRepository.findById.mockResolvedValue(col);
+      mockRepository.delete.mockResolvedValue(undefined);
 
       await expect(service.delete('col-001', 'user-001')).resolves.not.toThrow();
       expect(mockRepository.delete).toHaveBeenCalledWith('col-001', 'user-001');
     });
 
     it('throws a 404 AppError when collection is not found', async () => {
-      mockRepository.findById!.mockResolvedValue(null);
+      mockRepository.findById.mockResolvedValue(null);
 
       await expect(service.delete('nonexistent', 'user-001')).rejects.toThrow(AppError);
     });
 
     it('throws a 409 AppError when attempting to delete the default collection', async () => {
       const col = makeCollection({ isDefault: true });
-      mockRepository.findById!.mockResolvedValue(col);
+      mockRepository.findById.mockResolvedValue(col);
 
       await expect(service.delete('col-001', 'user-001')).rejects.toThrow(AppError);
 
@@ -200,19 +196,19 @@ describe('CollectionsService', () => {
       const dto: AddFilesToCollectionDto = {
         fileIds: ['file-001', 'file-002'],
       };
-      mockRepository.findById!.mockResolvedValue(col);
+      mockRepository.findById.mockResolvedValue(col);
       mockPrisma.kmsFile.findMany.mockResolvedValue([
         { id: 'file-001' },
         { id: 'file-002' },
       ]);
-      mockRepository.addFiles!.mockResolvedValue(undefined);
+      mockRepository.addFiles.mockResolvedValue(undefined);
 
       await expect(service.addFiles('col-001', 'user-001', dto)).resolves.not.toThrow();
       expect(mockRepository.addFiles).toHaveBeenCalledWith('col-001', 'user-001', dto.fileIds);
     });
 
     it('throws a 404 AppError when the collection is not found', async () => {
-      mockRepository.findById!.mockResolvedValue(null);
+      mockRepository.findById.mockResolvedValue(null);
       const dto: AddFilesToCollectionDto = { fileIds: ['file-001'] };
 
       await expect(service.addFiles('nonexistent', 'user-001', dto)).rejects.toThrow(AppError);
@@ -221,7 +217,7 @@ describe('CollectionsService', () => {
     it('throws a 404 AppError when one or more fileIds do not exist for the user', async () => {
       const col = makeCollection();
       const dto: AddFilesToCollectionDto = { fileIds: ['file-001', 'file-bad'] };
-      mockRepository.findById!.mockResolvedValue(col);
+      mockRepository.findById.mockResolvedValue(col);
       // Only one file returned — file-bad does not exist for this user
       mockPrisma.kmsFile.findMany.mockResolvedValue([{ id: 'file-001' }]);
 
@@ -237,7 +233,7 @@ describe('CollectionsService', () => {
 
     it('does nothing when fileIds array is empty', async () => {
       const col = makeCollection();
-      mockRepository.findById!.mockResolvedValue(col);
+      mockRepository.findById.mockResolvedValue(col);
       const dto: AddFilesToCollectionDto = { fileIds: [] };
 
       await expect(service.addFiles('col-001', 'user-001', dto)).resolves.not.toThrow();
