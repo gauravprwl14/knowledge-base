@@ -1,13 +1,13 @@
 /**
  * Auth API — typed wrappers over the KMS auth endpoints.
  *
- * All functions use the shared apiClient singleton which handles:
- * - Bearer token injection
- * - Silent token refresh on 401
- * - Normalised ApiError on failure
+ * Mock swap: set NEXT_PUBLIC_USE_MOCK=true in .env.local.
+ * Each function checks the flag and delegates to the mock handler.
+ * To use real API: remove the flag (or set to false). No other changes needed.
  */
 
 import { apiClient } from './client';
+import * as mockAuth from '@/lib/mock/handlers/auth.mock';
 import type {
   LoginRequest,
   RegisterRequest,
@@ -18,24 +18,17 @@ import type {
   CreateApiKeyResponse,
 } from '@/lib/types/auth.types';
 
-// ---------------------------------------------------------------------------
-// Auth endpoints
-// ---------------------------------------------------------------------------
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
-/**
- * POST /auth/login
- * Returns access token; refresh token is set as httpOnly cookie by the server.
- */
+/** POST /auth/login */
 export async function login(credentials: LoginRequest): Promise<AuthResponse> {
+  if (USE_MOCK) return mockAuth.mockLogin(credentials);
   return apiClient.post<AuthResponse>('/auth/login', credentials);
 }
 
-/**
- * POST /auth/register
- * Creates a new user account. Backend will send a verification email.
- * Does NOT return an access token — user must verify before logging in.
- */
+/** POST /auth/register */
 export async function register(payload: RegisterRequest): Promise<User> {
+  if (USE_MOCK) return mockAuth.mockRegister(payload);
   return apiClient.post<User>('/auth/register', {
     email: payload.email,
     password: payload.password,
@@ -43,48 +36,32 @@ export async function register(payload: RegisterRequest): Promise<User> {
   });
 }
 
-/**
- * POST /auth/logout
- * Invalidates the refresh token cookie on the server.
- */
+/** POST /auth/logout */
 export async function logout(): Promise<void> {
+  if (USE_MOCK) return mockAuth.mockLogout();
   return apiClient.post<void>('/auth/logout');
 }
 
-/**
- * GET /auth/me
- * Returns the currently authenticated user's profile.
- */
+/** GET /auth/me — also seeds the auth store in mock mode. */
 export async function getMe(): Promise<User> {
+  if (USE_MOCK) return mockAuth.mockGetMe();
   return apiClient.get<User>('/auth/me');
 }
 
-// ---------------------------------------------------------------------------
-// API Keys endpoints
-// ---------------------------------------------------------------------------
-
-/**
- * GET /auth/api-keys
- * Lists all API keys for the authenticated user.
- */
+/** GET /auth/api-keys */
 export async function listApiKeys(): Promise<ApiKey[]> {
+  if (USE_MOCK) return mockAuth.mockListApiKeys();
   return apiClient.get<ApiKey[]>('/auth/api-keys');
 }
 
-/**
- * POST /auth/api-keys
- * Creates a new API key. The full key value is returned once — store it.
- */
-export async function createApiKey(
-  payload: CreateApiKeyRequest,
-): Promise<CreateApiKeyResponse> {
+/** POST /auth/api-keys */
+export async function createApiKey(payload: CreateApiKeyRequest): Promise<CreateApiKeyResponse> {
+  if (USE_MOCK) return mockAuth.mockCreateApiKey(payload);
   return apiClient.post<CreateApiKeyResponse>('/auth/api-keys', payload);
 }
 
-/**
- * DELETE /auth/api-keys/:id
- * Permanently revokes an API key.
- */
+/** DELETE /auth/api-keys/:id */
 export async function revokeApiKey(id: string): Promise<void> {
+  if (USE_MOCK) return mockAuth.mockRevokeApiKey(id);
   return apiClient.delete<void>(`/auth/api-keys/${id}`);
 }

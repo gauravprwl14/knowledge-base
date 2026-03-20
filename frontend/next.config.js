@@ -13,7 +13,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000'}/api/:path*`,
+        destination: `${process.env.KMS_API_URL || 'http://kms-api:8000'}/api/:path*`,
       },
     ];
   },

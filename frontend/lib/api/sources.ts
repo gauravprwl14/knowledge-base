@@ -34,31 +34,20 @@ export interface KmsSource {
   createdAt: string;
 }
 
-/**
- * Typed API methods for the /sources resource.
- */
-export const kmsSourcesApi = {
-  /**
-   * GET /sources — returns all sources connected by the authenticated user.
-   */
+/** Single entry in a source's scan history. */
+export interface ScanHistoryItem {
+  id: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+// ── Real implementations ────────────────────────────────────────────────────
+
+const _realKmsSourcesApi = {
   list: (): Promise<KmsSource[]> => apiClient.get<KmsSource[]>('/sources'),
-
-  /**
-   * GET /sources/:id — returns a single source.
-   */
   get: (id: string): Promise<KmsSource> => apiClient.get<KmsSource>(`/sources/${id}`),
-
-  /**
-   * DELETE /sources/:id — disconnects a source.
-   */
   disconnect: (id: string): Promise<void> => apiClient.delete<void>(`/sources/${id}`),
-
-  /**
-   * Redirects the browser to the Google OAuth consent screen.
-   * The backend embeds `userId` in the OAuth `state` param for callback association.
-   *
-   * @param userId - The authenticated user's UUID
-   */
   initiateGoogleDrive: (userId: string): void => {
     const base =
       typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL
@@ -66,27 +55,31 @@ export const kmsSourcesApi = {
         : 'http://localhost:8000';
     window.location.href = `${base}/api/v1/sources/google-drive/oauth?userId=${encodeURIComponent(userId)}`;
   },
+  triggerScan: (sourceId: string, scanType: 'FULL' | 'INCREMENTAL' = 'FULL'): Promise<{ id: string; status: string }> =>
+    apiClient.post<{ id: string; status: string }>(`/sources/${sourceId}/scan`, { scanType }),
+  getScanHistory: (sourceId: string): Promise<ScanHistoryItem[]> =>
+    apiClient.get<ScanHistoryItem[]>(`/sources/${sourceId}/scan-history`),
 };
+
+const _realLocalSourcesApi = {
+  registerObsidian: (vaultPath: string, displayName?: string): Promise<KmsSource> =>
+    apiClient.post<KmsSource>('/sources/obsidian', { vaultPath, displayName }),
+  registerLocal: (path: string, displayName?: string): Promise<KmsSource> =>
+    apiClient.post<KmsSource>('/sources/local', { path, displayName }),
+};
+
+// ── Mock swap ───────────────────────────────────────────────────────────────
+// To use real API: remove NEXT_PUBLIC_USE_MOCK from .env.local (or set to false).
+
+import { mockKmsSourcesApi, mockLocalSourcesApi } from '@/lib/mock/handlers/sources.mock';
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+
+/**
+ * Typed API methods for the /sources resource.
+ */
+export const kmsSourcesApi = USE_MOCK ? mockKmsSourcesApi : _realKmsSourcesApi;
 
 /**
  * Typed API methods for local and Obsidian sources.
  */
-export const localSourcesApi = {
-  /**
-   * POST /sources/obsidian — registers an Obsidian vault by its filesystem path.
-   *
-   * @param vaultPath - Absolute path to the vault directory (e.g. /vault in Docker)
-   * @param displayName - Optional human-readable label for the source
-   */
-  registerObsidian: (vaultPath: string, displayName?: string): Promise<KmsSource> =>
-    apiClient.post<KmsSource>('/sources/obsidian', { vaultPath, displayName }),
-
-  /**
-   * POST /sources/local — registers a local folder by its filesystem path.
-   *
-   * @param path - Absolute path to the directory to index
-   * @param displayName - Optional human-readable label for the source
-   */
-  registerLocal: (path: string, displayName?: string): Promise<KmsSource> =>
-    apiClient.post<KmsSource>('/sources/local', { path, displayName }),
-};
+export const localSourcesApi = USE_MOCK ? mockLocalSourcesApi : _realLocalSourcesApi;

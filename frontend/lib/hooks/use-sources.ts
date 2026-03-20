@@ -1,7 +1,6 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { kmsSourcesApi, localSourcesApi } from '../api/sources';
-import { apiClient } from '../api/client';
 
 /**
  * Returns all knowledge sources for the authenticated user.
@@ -66,8 +65,7 @@ export function useTriggerScan() {
     }: {
       sourceId: string;
       scanType?: 'FULL' | 'INCREMENTAL';
-    }) =>
-      apiClient.post<{ id: string; status: string }>(`/sources/${sourceId}/scan`, { scanType }),
+    }) => kmsSourcesApi.triggerScan(sourceId, scanType),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sources'] }),
   });
 }
@@ -79,10 +77,7 @@ export function useTriggerScan() {
 export function useScanHistory(sourceId: string, enabled: boolean) {
   return useQuery({
     queryKey: ['sources', sourceId, 'scan-history'],
-    queryFn: () =>
-      apiClient.get<Array<{ id: string; status: string; startedAt: string; completedAt?: string }>>(
-        `/sources/${sourceId}/scan-history`,
-      ),
+    queryFn: () => kmsSourcesApi.getScanHistory(sourceId),
     refetchInterval: enabled ? 5_000 : false,
     enabled: Boolean(sourceId),
   });

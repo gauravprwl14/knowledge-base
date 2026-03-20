@@ -58,7 +58,7 @@ export interface AcpEvent {
  * Perform the ACP handshake. Returns server capabilities including tool list.
  * No authentication required — this is a public discovery endpoint.
  */
-export async function acpInitialize(): Promise<AcpCapabilities> {
+async function _realAcpInitialize(): Promise<AcpCapabilities> {
   const res = await fetch(`${KMS_API_URL}/acp/v1/initialize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -78,7 +78,7 @@ export async function acpInitialize(): Promise<AcpCapabilities> {
  * @param token - JWT access token from the auth store.
  * @returns Session ID string (UUID).
  */
-export async function acpCreateSession(token: string): Promise<string> {
+async function _realAcpCreateSession(token: string): Promise<string> {
   const res = await fetch(`${KMS_API_URL}/acp/v1/sessions`, {
     method: 'POST',
     headers: {
@@ -135,7 +135,7 @@ export async function acpCreateSession(token: string): Promise<string> {
  * }
  * ```
  */
-export async function* acpPromptStream(
+async function* _realAcpPromptStream(
   sessionId: string,
   token: string,
   question: string,
@@ -202,9 +202,26 @@ export async function* acpPromptStream(
  * @param sessionId - Session UUID to close.
  * @param token - JWT access token.
  */
-export async function acpCloseSession(sessionId: string, token: string): Promise<void> {
+async function _realAcpCloseSession(sessionId: string, token: string): Promise<void> {
   await fetch(`${KMS_API_URL}/acp/v1/sessions/${sessionId}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+// ── Mock swap ───────────────────────────────────────────────────────────────
+// To use real API: remove NEXT_PUBLIC_USE_MOCK from .env.local (or set to false).
+
+import {
+  mockAcpInitialize,
+  mockAcpCreateSession,
+  mockAcpPromptStream,
+  mockAcpCloseSession,
+} from '@/lib/mock/handlers/acp.mock';
+
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+
+export const acpInitialize = USE_MOCK ? mockAcpInitialize : _realAcpInitialize;
+export const acpCreateSession = USE_MOCK ? mockAcpCreateSession : _realAcpCreateSession;
+export const acpPromptStream = USE_MOCK ? mockAcpPromptStream : _realAcpPromptStream;
+export const acpCloseSession = USE_MOCK ? mockAcpCloseSession : _realAcpCloseSession;

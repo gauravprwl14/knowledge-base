@@ -92,7 +92,7 @@ export interface ListFilesResponse {
 /**
  * Typed API methods for the /files resource.
  */
-export const filesApi = {
+const _realFilesApi = {
   /**
    * GET /files — returns a cursor-paginated list of files with optional filters.
    */
@@ -150,46 +150,21 @@ export interface KmsTag {
 /**
  * Typed API methods for the /tags resource.
  */
-export const tagsApi = {
-  /**
-   * GET /tags — returns all tags for the authenticated user.
-   */
-  list: (): Promise<KmsTag[]> =>
-    apiClient.get<KmsTag[]>('/tags'),
-
-  /**
-   * POST /tags — creates a new tag.
-   */
-  create: (name: string, color: string): Promise<KmsTag> =>
-    apiClient.post<KmsTag>('/tags', { name, color }),
-
-  /**
-   * PATCH /tags/:id — updates a tag's name or color.
-   */
-  update: (id: string, payload: Partial<{ name: string; color: string }>): Promise<KmsTag> =>
-    apiClient.patch<KmsTag>(`/tags/${id}`, payload),
-
-  /**
-   * DELETE /tags/:id — removes a tag (and all file associations).
-   */
-  delete: (id: string): Promise<void> =>
-    apiClient.delete<void>(`/tags/${id}`),
-
-  /**
-   * POST /files/:fileId/tags/:tagId — adds a tag to a single file.
-   */
-  addToFile: (fileId: string, tagId: string): Promise<void> =>
-    apiClient.post<void>(`/files/${fileId}/tags/${tagId}`),
-
-  /**
-   * DELETE /files/:fileId/tags/:tagId — removes a tag from a single file.
-   */
-  removeFromFile: (fileId: string, tagId: string): Promise<void> =>
-    apiClient.delete<void>(`/files/${fileId}/tags/${tagId}`),
-
-  /**
-   * POST /files/bulk-tag — applies a tag to multiple files at once.
-   */
-  bulkTag: (fileIds: string[], tagId: string): Promise<void> =>
-    apiClient.post<void>('/files/bulk-tag', { fileIds, tagId }),
+const _realTagsApi = {
+  list: (): Promise<KmsTag[]> => apiClient.get<KmsTag[]>('/tags'),
+  create: (name: string, color: string): Promise<KmsTag> => apiClient.post<KmsTag>('/tags', { name, color }),
+  update: (id: string, payload: Partial<{ name: string; color: string }>): Promise<KmsTag> => apiClient.patch<KmsTag>(`/tags/${id}`, payload),
+  delete: (id: string): Promise<void> => apiClient.delete<void>(`/tags/${id}`),
+  addToFile: (fileId: string, tagId: string): Promise<void> => apiClient.post<void>(`/files/${fileId}/tags/${tagId}`),
+  removeFromFile: (fileId: string, tagId: string): Promise<void> => apiClient.delete<void>(`/files/${fileId}/tags/${tagId}`),
+  bulkTag: (fileIds: string[], tagId: string): Promise<void> => apiClient.post<void>('/files/bulk-tag', { fileIds, tagId }),
 };
+
+// ── Mock swap ───────────────────────────────────────────────────────────────
+// To use real API: remove NEXT_PUBLIC_USE_MOCK from .env.local (or set to false).
+
+import { mockFilesApi, mockTagsApi } from '@/lib/mock/handlers/files.mock';
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+
+export const filesApi = USE_MOCK ? mockFilesApi : _realFilesApi;
+export const tagsApi = USE_MOCK ? mockTagsApi : _realTagsApi;

@@ -45,7 +45,7 @@ export interface CreateCollectionPayload {
 /**
  * Typed API methods for the /collections resource.
  */
-export const collectionsApi = {
+const _realCollectionsApi = {
   /**
    * GET /collections — returns all collections for the authenticated user.
    */
@@ -94,4 +94,16 @@ export const collectionsApi = {
    */
   removeFile: (collectionId: string, fileId: string): Promise<void> =>
     apiClient.delete<void>(`/collections/${collectionId}/files/${fileId}`),
+
+  /** Convenience: remove multiple files from a collection (iterates removeFile). */
+  removeFiles: (collectionId: string, fileIds: string[]): Promise<void> =>
+    Promise.all(fileIds.map((id) => apiClient.delete<void>(`/collections/${collectionId}/files/${id}`))).then(() => {}),
 };
+
+// ── Mock swap ───────────────────────────────────────────────────────────────
+// To use real API: remove NEXT_PUBLIC_USE_MOCK from .env.local (or set to false).
+
+import { mockCollectionsApi } from '@/lib/mock/handlers/collections.mock';
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+
+export const collectionsApi = USE_MOCK ? mockCollectionsApi : _realCollectionsApi;

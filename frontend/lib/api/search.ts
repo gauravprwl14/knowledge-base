@@ -54,19 +54,17 @@ export interface SearchResponse {
 // API methods
 // ---------------------------------------------------------------------------
 
-export const searchApi = {
-  /**
-   * GET /search — performs a ranked hybrid/keyword/semantic search.
-   *
-   * Sends `q`, `type`, and `limit` as query parameters. The backend proxies
-   * this to the search-api which runs BM25 + vector retrieval + RRF ranking.
-   *
-   * @param query - Search query string (min 2 chars before calling)
-   * @param mode  - Retrieval strategy: 'hybrid' (default), 'keyword', or 'semantic'
-   * @param limit - Maximum chunks to return; default 20, max 50
-   */
+const _realSearchApi = {
   search: (query: string, mode: SearchMode = 'hybrid', limit = 20): Promise<SearchResponse> =>
     apiClient.get<SearchResponse>('/search', {
       params: { q: query, type: mode, limit },
     }),
 };
+
+// ── Mock swap ───────────────────────────────────────────────────────────────
+// To use real API: remove NEXT_PUBLIC_USE_MOCK from .env.local (or set to false).
+
+import { mockSearchApi } from '@/lib/mock/handlers/search.mock';
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+
+export const searchApi = USE_MOCK ? mockSearchApi : _realSearchApi;
