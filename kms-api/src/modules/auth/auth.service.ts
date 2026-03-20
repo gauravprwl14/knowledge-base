@@ -81,13 +81,17 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
 
     // Create user
+    // Email verification is not yet implemented (no mail service configured),
+    // so users are activated immediately on registration.
     const user = await this.userRepository.create({
       email: dto.email.toLowerCase(),
       passwordHash,
       firstName: dto.firstName,
       lastName: dto.lastName,
       role: UserRole.USER,
-      status: UserStatus.PENDING_VERIFICATION,
+      status: UserStatus.ACTIVE,
+      emailVerified: true,
+      emailVerifiedAt: new Date(),
     });
 
     this.logger.info({ audit: true, event: 'auth.register', userId: user.id, email: user.email, success: true }, 'AUTH AUDIT');
