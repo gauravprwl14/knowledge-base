@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { User, UserStatus, UserRole, ApiKey } from '@prisma/client';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -23,6 +23,7 @@ import {
 } from './dto/auth.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { CacheService } from '../../cache/cache.service';
 
 /**
  * AuthService handles authentication operations:
@@ -48,12 +49,16 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 export class AuthService {
   private readonly SALT_ROUNDS = 12;
 
+  /** Redis key prefix for the refresh token JTI blocklist */
+  private readonly REFRESH_JTI_BLOCKLIST_PREFIX = 'auth:jti:blocklist:';
+
   constructor(
     private readonly config: AppConfigService,
     private readonly jwtService: JwtService,
     private readonly userRepository: UserRepository,
     private readonly apiKeyRepository: ApiKeyRepository,
     private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
     @InjectPinoLogger(AuthService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -68,6 +73,7 @@ export class AuthService {
     // Check if email already exists
     const existingUser = await this.userRepository.findByEmail(dto.email);
     if (existingUser) {
+      this.logger.info({ audit: true, event: 'auth.register', email: dto.email, success: false, reason: 'email_already_exists' }, 'AUTH AUDIT');
       throw ErrorFactory.conflict('User', dto.email);
     }
 
@@ -84,7 +90,7 @@ export class AuthService {
       status: UserStatus.PENDING_VERIFICATION,
     });
 
-    this.logger.info(`User registered: ${user.email}`);
+    this.logger.info({ audit: true, event: 'auth.register', userId: user.id, email: user.email, success: true }, 'AUTH AUDIT');
 
     // Remove password hash from response
     const { passwordHash: _, ...userWithoutPassword } = user;
@@ -101,6 +107,7 @@ export class AuthService {
     const user = await this.userRepository.findByEmail(dto.email);
 
     if (!user || !user.passwordHash) {
+      this.logger.info({ audit: true, event: 'auth.login', email: dto.email, success: false, reason: 'invalid_credentials' }, 'AUTH AUDIT');
       throw ErrorFactory.authentication(
         ERROR_CODES.AUT.INVALID_CREDENTIALS.code,
         'Invalid email or password',
@@ -112,6 +119,7 @@ export class AuthService {
       const remainingMinutes = Math.ceil(
         (user.lockedUntil.getTime() - Date.now()) / (1000 * 60),
       );
+      this.logger.info({ audit: true, event: 'auth.login', userId: user.id, email: dto.email, success: false, reason: 'account_locked' }, 'AUTH AUDIT');
       throw ErrorFactory.authentication(
         ERROR_CODES.AUT.ACCOUNT_LOCKED.code,
         `Account locked. Try again in ${remainingMinutes} minutes`,
@@ -132,12 +140,14 @@ export class AuthService {
       );
 
       if (shouldLock) {
+        this.logger.info({ audit: true, event: 'auth.login', userId: user.id, email: dto.email, success: false, reason: 'account_locked' }, 'AUTH AUDIT');
         throw ErrorFactory.authentication(
           ERROR_CODES.AUT.ACCOUNT_LOCKED.code,
           `Account locked due to too many failed attempts. Try again in ${AUTH.ACCOUNT_LOCK_DURATION_MINUTES} minutes`,
         );
       }
 
+      this.logger.info({ audit: true, event: 'auth.login', userId: user.id, email: dto.email, success: false, reason: 'invalid_credentials' }, 'AUTH AUDIT');
       throw ErrorFactory.authentication(
         ERROR_CODES.AUT.INVALID_CREDENTIALS.code,
         'Invalid email or password',
@@ -147,17 +157,20 @@ export class AuthService {
     // Check account status
     if (user.status !== UserStatus.ACTIVE) {
       if (user.status === UserStatus.PENDING_VERIFICATION) {
+        this.logger.info({ audit: true, event: 'auth.login', userId: user.id, email: dto.email, success: false, reason: 'account_not_verified' }, 'AUTH AUDIT');
         throw ErrorFactory.authentication(
           ERROR_CODES.AUT.ACCOUNT_NOT_VERIFIED.code,
           'Please verify your email before logging in',
         );
       }
       if (user.status === UserStatus.SUSPENDED) {
+        this.logger.info({ audit: true, event: 'auth.login', userId: user.id, email: dto.email, success: false, reason: 'account_suspended' }, 'AUTH AUDIT');
         throw ErrorFactory.authentication(
           ERROR_CODES.AUT.ACCOUNT_SUSPENDED.code,
           'Account has been suspended',
         );
       }
+      this.logger.info({ audit: true, event: 'auth.login', userId: user.id, email: dto.email, success: false, reason: 'account_inactive' }, 'AUTH AUDIT');
       throw ErrorFactory.authentication(
         ERROR_CODES.AUT.UNAUTHENTICATED.code,
         'Account is not active',
@@ -170,7 +183,7 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(user);
 
-    this.logger.info(`User logged in: ${user.email}`);
+    this.logger.info({ audit: true, event: 'auth.login', userId: user.id, email: user.email, success: true }, 'AUTH AUDIT');
 
     return {
       tokens,
@@ -185,37 +198,68 @@ export class AuthService {
   }
 
   /**
-   * Refreshes access token using refresh token
-   * @param dto - Refresh token
+   * Refreshes access token using refresh token.
+   *
+   * Enforces refresh token rotation: the incoming token's JTI is added to a
+   * Redis blocklist after successful issuance of new tokens, preventing reuse.
+   * Presenting a blocklisted JTI is treated as a replay attack.
+   *
+   * @param dto - Refresh token DTO
    * @returns New auth tokens
    */
   @Trace({ name: 'auth.refresh' })
   async refreshToken(dto: RefreshTokenDto): Promise<AuthTokens> {
     try {
-      // Verify refresh token
+      // Verify refresh token signature and expiry
       const payload = await this.jwtService.verifyAsync<JwtPayload>(dto.refreshToken, {
         secret: this.config.auth.jwtRefreshSecret,
       });
 
       if (payload.type !== 'refresh') {
+        this.logger.info({ audit: true, event: 'auth.refresh', success: false, reason: 'invalid_token_type' }, 'AUTH AUDIT');
         throw ErrorFactory.authentication(
           ERROR_CODES.AUT.REFRESH_TOKEN_INVALID.code,
           'Invalid refresh token',
         );
       }
 
+      // Detect replay: reject tokens whose JTI has already been rotated out
+      if (payload.jti) {
+        const blocklisted = await this.cache.exists(`${this.REFRESH_JTI_BLOCKLIST_PREFIX}${payload.jti}`);
+        if (blocklisted) {
+          this.logger.info({ audit: true, event: 'auth.refresh', userId: payload.sub, success: false, reason: 'token_replay_detected' }, 'AUTH AUDIT');
+          throw ErrorFactory.authentication(
+            ERROR_CODES.AUT.REFRESH_TOKEN_INVALID.code,
+            'Invalid refresh token',
+          );
+        }
+      }
+
       // Get user
       const user = await this.userRepository.findUnique({ id: payload.sub });
 
       if (!user || user.status !== UserStatus.ACTIVE) {
+        this.logger.info({ audit: true, event: 'auth.refresh', userId: payload.sub, success: false, reason: 'user_not_found_or_inactive' }, 'AUTH AUDIT');
         throw ErrorFactory.authentication(
           ERROR_CODES.AUT.REFRESH_TOKEN_INVALID.code,
           'User not found or inactive',
         );
       }
 
-      // Generate new tokens
-      return this.generateTokens(user);
+      // Issue new tokens before blocklisting the old JTI (fail-safe ordering)
+      const tokens = await this.generateTokens(user);
+
+      // Blocklist the consumed JTI so it cannot be reused (rotation enforcement)
+      if (payload.jti) {
+        const remainingTtl = payload.exp
+          ? Math.max(payload.exp - Math.floor(Date.now() / 1000), 1)
+          : this.parseExpirationTime(this.config.auth.jwtRefreshExpiration);
+        await this.cache.set(`${this.REFRESH_JTI_BLOCKLIST_PREFIX}${payload.jti}`, 1, remainingTtl);
+      }
+
+      this.logger.info({ audit: true, event: 'auth.refresh', userId: user.id, success: true }, 'AUTH AUDIT');
+
+      return tokens;
     } catch (error) {
       if (error instanceof Error && error.name === 'TokenExpiredError') {
         throw ErrorFactory.authentication(
@@ -287,7 +331,7 @@ export class AuthService {
       });
     }
 
-    this.logger.info(`User logged out: ${userId}`);
+    this.logger.info({ audit: true, event: 'auth.logout', userId, success: true }, 'AUTH AUDIT');
   }
 
   /**
@@ -418,12 +462,14 @@ export class AuthService {
   }
 
   /**
-   * Generates JWT access and refresh tokens
+   * Generates JWT access and refresh tokens.
+   * Each token receives a unique `jti` (JWT ID) claim to enable refresh token
+   * rotation and replay detection via the Redis blocklist.
    * @param user - User entity
    * @returns Auth tokens
    */
   private async generateTokens(user: User): Promise<AuthTokens> {
-    const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
+    const basePayload: Omit<JwtPayload, 'iat' | 'exp' | 'jti'> = {
       sub: user.id,
       email: user.email,
       role: user.role,
@@ -432,14 +478,14 @@ export class AuthService {
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
-        { ...payload, type: 'access' },
+        { ...basePayload, type: 'access', jti: randomUUID() },
         {
           secret: this.config.auth.jwtAccessSecret,
           expiresIn: this.config.auth.jwtAccessExpiration as any,
         },
       ),
       this.jwtService.signAsync(
-        { ...payload, type: 'refresh' },
+        { ...basePayload, type: 'refresh', jti: randomUUID() },
         {
           secret: this.config.auth.jwtRefreshSecret,
           expiresIn: this.config.auth.jwtRefreshExpiration as any,

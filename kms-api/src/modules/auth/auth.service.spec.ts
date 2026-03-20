@@ -8,6 +8,7 @@ import { UserRepository } from '../../database/repositories/user.repository';
 import { ApiKeyRepository } from '../../database/repositories/api-key.repository';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { ErrorFactory } from '../../errors/types/error-factory';
+import { CacheService } from '../../cache/cache.service';
 
 // ---------------------------------------------------------------------------
 // Module-level bcrypt mock (ensures the same reference used by auth.service)
@@ -23,7 +24,8 @@ import * as bcrypt from 'bcrypt';
 // Helpers
 // ---------------------------------------------------------------------------
 
-const makeUser = (overrides: Partial<ReturnType<typeof makeUser>> = {}) => ({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const makeUser = (overrides: Record<string, any> = {}): any => ({
   id: 'user-id-1',
   email: 'test@example.com',
   passwordHash: '$2b$12$hash',
@@ -111,6 +113,7 @@ describe('AuthService', () => {
         { provide: UserRepository, useValue: mockUserRepository },
         { provide: ApiKeyRepository, useValue: mockApiKeyRepository },
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: CacheService, useValue: { get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined) } },
         { provide: getLoggerToken(AuthService.name), useValue: mockLogger },
       ],
     }).compile();

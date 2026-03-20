@@ -15,6 +15,8 @@ export interface JwtPayload {
   email: string;
   role: string;
   type: 'access' | 'refresh';
+  /** Unique token identifier — used for refresh token rotation blocklist */
+  jti?: string;
   iat?: number;
   exp?: number;
 }

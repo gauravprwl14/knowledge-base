@@ -1,10 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
+import { getLoggerToken } from 'nestjs-pino';
 import { AuthService } from '../../../src/modules/auth/auth.service';
 import { UserRepository } from '../../../src/database/repositories/user.repository';
+import { ApiKeyRepository } from '../../../src/database/repositories/api-key.repository';
 import { AppConfigService } from '../../../src/config/config.service';
 import { PrismaService } from '../../../src/database/prisma/prisma.service';
+import { CacheService } from '../../../src/cache/cache.service';
 import { UserStatus, UserRole } from '@prisma/client';
+
+jest.mock('bcrypt', () => ({ compare: jest.fn(), hash: jest.fn(), genSalt: jest.fn() }));
 import * as bcrypt from 'bcrypt';
 
 describe('AuthService', () => {
@@ -66,7 +71,19 @@ describe('AuthService', () => {
         },
         {
           provide: PrismaService,
-          useValue: {},
+          useValue: { refreshToken: { create: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }) } },
+        },
+        {
+          provide: ApiKeyRepository,
+          useValue: { hasReachedKeyLimit: jest.fn(), create: jest.fn(), findByUserId: jest.fn(), findUnique: jest.fn(), revoke: jest.fn() },
+        },
+        {
+          provide: CacheService,
+          useValue: { get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: getLoggerToken(AuthService.name),
+          useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), trace: jest.fn(), fatal: jest.fn() },
         },
       ],
     }).compile();
@@ -123,7 +140,7 @@ describe('AuthService', () => {
       };
 
       // Mock bcrypt.compare to return true
-      jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true) as any);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       userRepository.findByEmail.mockResolvedValue(mockUser);
       userRepository.updateLastLogin.mockResolvedValue(mockUser);
@@ -145,7 +162,7 @@ describe('AuthService', () => {
         password: 'WrongPassword',
       };
 
-      jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(false) as any);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
       userRepository.findByEmail.mockResolvedValue(mockUser);
 

@@ -40,7 +40,7 @@ describe('AuthController', () => {
       const created = { user: { id: 'u-1', email: dto.email, name: dto.name }, tokens: mockTokens };
       mockAuthService.register.mockResolvedValue(created);
 
-      const result = await controller.register(dto as any);
+      const result = await controller.register(dto as any) as any;
       expect(result.tokens.accessToken).toBeDefined();
       expect(mockAuthService.register).toHaveBeenCalledWith(dto);
     });
@@ -61,12 +61,12 @@ describe('AuthController', () => {
     });
   });
 
-  describe('refreshToken', () => {
+  describe('refresh', () => {
     it('delegates to authService.refreshToken', async () => {
       const dto = { refreshToken: 'valid.refresh.token' };
       mockAuthService.refreshToken.mockResolvedValue(mockTokens);
 
-      const result = await controller.refreshToken(dto as any);
+      const result = await controller.refresh(dto as any) as any;
       expect(result.accessToken).toBeDefined();
     });
   });
@@ -87,7 +87,7 @@ describe('AuthController', () => {
       mockAuthService.logout.mockResolvedValue({ message: 'Logged out' });
 
       await controller.logout('user-1', dto as any);
-      expect(mockAuthService.logout).toHaveBeenCalledWith('user-1', dto);
+      expect(mockAuthService.logout).toHaveBeenCalledWith('user-1', 'token');
     });
   });
 });
