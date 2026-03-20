@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { HttpModule } from '@nestjs/axios';
 import { ScheduleModule } from '@nestjs/schedule';
 import { WorkflowController } from './workflow.controller';
 import { WorkflowService } from './workflow.service';
@@ -31,10 +30,6 @@ import { ContentStoreService } from './content-store.service';
   imports: [
     // ConfigModule provides URL_AGENT_URL, ANTHROPIC_API_KEY, CONTENT_STORE_PATH
     ConfigModule,
-
-    // HttpModule makes HttpService available for url-agent calls
-    // (current impl uses native fetch but HttpService simplifies testing)
-    HttpModule,
 
     // ScheduleModule enables @Cron / @Interval decorators for future
     // periodic cleanup of stale workflow job records

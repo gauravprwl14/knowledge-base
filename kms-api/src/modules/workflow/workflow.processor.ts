@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../database/prisma.service';
+import { PrismaService } from '../../database/prisma/prisma.service';
 import { AppLogger } from '../../logger/logger.service';
 import { ContentStoreService } from './content-store.service';
 
@@ -75,7 +75,7 @@ export class WorkflowProcessorService {
         where: { id: jobId },
         data: {
           status: 'COMPLETED',
-          result: { filePath, title: extractedContent.title, urlType: extractedContent.url_type },
+          result: { filePath, title: String(extractedContent.title ?? ""), urlType: String(extractedContent.url_type ?? "") },
         },
       });
 

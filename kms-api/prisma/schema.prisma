@@ -474,3 +474,24 @@ model KmsCollectionFile {
   @@index([fileId])
   @@map("kms_collection_files")
 }
+
+// =============================================================================
+// WORKFLOW DOMAIN
+// =============================================================================
+
+/// URL-ingestion workflow job (ADR-0028: no BullMQ, fire-and-forget setImmediate)
+model KmsWorkflowJob {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  url          String   @db.Text
+  status       String   @default("QUEUED") @db.VarChar(20)
+  collectionId String?  @map("collection_id") @db.Uuid
+  error        String?  @db.Text
+  result       Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("kms_workflow_jobs")
+}

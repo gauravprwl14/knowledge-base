@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { PrismaService } from '../../database/prisma.service';
+import { PrismaService } from '../../database/prisma/prisma.service';
 import { AppLogger } from '../../logger/logger.service';
 import { AppError } from '../../errors/types/app-error';
 import { ERROR_CODES } from '../../errors/error-codes';

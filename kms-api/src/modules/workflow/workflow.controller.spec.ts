@@ -45,19 +45,17 @@ describe('WorkflowController', () => {
 
   describe('getJobStatus', () => {
     it('returns job status for a known job ID', async () => {
-      mockWorkflowService.getJobStatus.mockResolvedValue({ jobId, status: 'completed', userId });
+      mockWorkflowService.getJobStatus.mockResolvedValue({ jobId, status: 'completed' });
 
-      const req = { user: { id: userId } };
-      const result = await controller.getJobStatus(jobId, req);
+      const result = await controller.getJobStatus(jobId);
       expect(result.status).toBe('completed');
-      expect(mockWorkflowService.getJobStatus).toHaveBeenCalledWith(jobId, userId);
+      expect(mockWorkflowService.getJobStatus).toHaveBeenCalledWith(jobId);
     });
 
     it('propagates AppError from service (404 job not found)', async () => {
       mockWorkflowService.getJobStatus.mockRejectedValue(new Error('Not found'));
 
-      const req = { user: { id: userId } };
-      await expect(controller.getJobStatus('missing', req)).rejects.toThrow();
+      await expect(controller.getJobStatus('missing')).rejects.toThrow();
     });
   });
 });

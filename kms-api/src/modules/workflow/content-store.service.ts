@@ -56,7 +56,19 @@ export class ContentStoreService {
    */
   async write(jobId: string, content: string): Promise<string> {
     // Ensure the store directory exists — idempotent, safe to call every time
-    await fs.mkdir(this.storePath, { recursive: true });
+    try {
+      await fs.mkdir(this.storePath, { recursive: true });
+    } catch (err) {
+      this.logger.error('Failed to create content store directory', {
+        storePath: this.storePath,
+        error: (err as Error).message,
+      });
+      throw new AppError({
+        code: ERROR_CODES.SRV.FILE_SYSTEM_ERROR.code,
+        message: `Failed to create content store directory`,
+        cause: err instanceof Error ? err : undefined,
+      });
+    }
 
     // Build the absolute file path using the jobId as the stem
     const filePath = path.join(this.storePath, `${jobId}.md`);
@@ -97,11 +109,17 @@ export class ContentStoreService {
   async read(jobId: string): Promise<string | null> {
     const filePath = path.join(this.storePath, `${jobId}.md`);
     try {
-      // readFile throws ENOENT when file is missing — we treat that as null
+      // readFile throws ENOENT when file is missing — surface as AppError
       return await fs.readFile(filePath, 'utf-8');
-    } catch {
-      // Intentionally swallow ENOENT — any other error will surface via
-      // the caller's own error handling if it needs the file to exist
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') {
+        throw new AppError({
+          code: ERROR_CODES.SRV.FILE_SYSTEM_ERROR.code,
+          message: `Content file not found for job ${jobId}`,
+          cause: err instanceof Error ? err : undefined,
+        });
+      }
       return null;
     }
   }
