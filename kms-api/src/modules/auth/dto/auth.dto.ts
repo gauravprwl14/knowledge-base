@@ -36,14 +36,17 @@ export const registerSchema = z
         PATTERNS.PASSWORD_STRONG,
         'Password must contain uppercase, lowercase, number, and special character',
       ),
-    confirmPassword: z.string(),
+    confirmPassword: z.string().optional(),
     firstName: z.string().min(1).max(100).optional(),
     lastName: z.string().min(1).max(100).optional(),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
+  .refine(
+    (data) => data.confirmPassword === undefined || data.password === data.confirmPassword,
+    {
+      message: 'Passwords do not match',
+      path: ['confirmPassword'],
+    },
+  );
 
 export type RegisterDto = z.infer<typeof registerSchema>;
 
