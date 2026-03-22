@@ -146,7 +146,36 @@ export class SourcesController {
 
   // ---------------------------------------------------------------------------
   // Parameterised authenticated routes (must come after static sub-routes)
+  // IMPORTANT: static sub-paths like :id/clear-status must be declared BEFORE
+  // the bare :id routes to prevent NestJS/Fastify treating "clear-status" as an id.
   // ---------------------------------------------------------------------------
+
+  /**
+   * Returns the latest data-clear job for a source.
+   * Useful for polling progress after DELETE /sources/:id?clearData=true.
+   * Returns null (200) if no clear job has ever been triggered for this source.
+   *
+   * IMPORTANT: this route is declared before GET :id to avoid route collision.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Get(':id/clear-status')
+  @ApiParam({ name: 'id', type: String, description: 'Source UUID' })
+  @ApiEndpoint({
+    summary: 'Get data clear progress',
+    description:
+      'Returns the most recent KmsClearJob for the source. ' +
+      'Poll this endpoint after DELETE /sources/:id?clearData=true to track progress.',
+    responses: [
+      { status: HttpStatus.OK, description: 'KmsClearJob record or null' },
+    ],
+  })
+  async getClearStatus(
+    @Param('id') sourceId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.sourcesService.getLatestClearJob(userId, sourceId);
+  }
 
   /**
    * Returns a single source by UUID.
@@ -170,25 +199,41 @@ export class SourcesController {
   }
 
   /**
-   * Disconnects a source (sets status to DISCONNECTED).
+   * Disconnects a source (sets status to DISCONNECTED, always wipes OAuth tokens).
+   *
+   * Pass `?clearData=true` to also launch an async background job that deletes
+   * all indexed files, chunks, and Qdrant vectors for the source. The response
+   * will include a `jobId` which can be polled via GET /sources/:id/clear-status.
+   *
    * Returns 404 if the source does not exist or belongs to a different user.
    */
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('jwt')
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiParam({ name: 'id', type: String, description: 'Source UUID' })
+  @ApiQuery({
+    name: 'clearData',
+    required: false,
+    type: String,
+    description: 'Pass "true" to async-delete all indexed files and vectors',
+  })
   @ApiEndpoint({
     summary: 'Disconnect a source',
-    description: 'Sets the source status to DISCONNECTED. Idempotent if already disconnected.',
-    successStatus: HttpStatus.NO_CONTENT,
-    responses: [{ status: HttpStatus.NOT_FOUND, description: 'Source not found' }],
+    description:
+      'Disconnects source. Pass ?clearData=true to also delete all indexed files and vectors.',
+    responses: [
+      { status: HttpStatus.OK, description: 'Disconnected (with optional jobId if clearData=true)' },
+      { status: HttpStatus.NOT_FOUND, description: 'Source not found' },
+    ],
   })
   async disconnectSource(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
-  ): Promise<void> {
-    return this.sourcesService.disconnectSource(id, userId);
+    @Query('clearData') clearData: string = 'false',
+  ): Promise<{ message: string; jobId?: string }> {
+    const result = await this.sourcesService.disconnectSource(id, userId, clearData === 'true');
+    return { message: 'Source disconnected', ...result };
   }
 
   /**

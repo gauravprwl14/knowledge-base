@@ -339,6 +339,35 @@ model KmsChunk {
 }
 
 // =============================================================================
+// SOURCE CLEAR JOBS DOMAIN
+// =============================================================================
+
+enum ClearJobStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// Async job that tracks progress of deleting all indexed data for a source
+model KmsClearJob {
+  id             String         @id @default(uuid()) @db.Uuid
+  sourceId       String         @map("source_id") @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  status         ClearJobStatus @default(RUNNING)
+  totalFiles     Int            @default(0) @map("total_files")
+  filesCleared   Int            @default(0) @map("files_cleared")
+  chunksCleared  Int            @default(0) @map("chunks_cleared")
+  vectorsCleared Int            @default(0) @map("vectors_cleared")
+  errorMsg       String?        @map("error_msg") @db.Text
+  startedAt      DateTime       @default(now()) @map("started_at")
+  finishedAt     DateTime?      @map("finished_at")
+
+  @@index([sourceId])
+  @@index([userId])
+  @@map("kms_clear_jobs")
+}
+
+// =============================================================================
 // DEDUPLICATION DOMAIN (M06)
 // =============================================================================
 

@@ -2,6 +2,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SourcesService } from './sources.service';
 import { SourceRepository } from '../../database/repositories/source.repository';
+import { PrismaService } from '../../database/prisma/prisma.service';
 import { TokenEncryptionService } from './token-encryption.service';
 import { AppError } from '../../errors/types/app-error';
 import { getLoggerToken } from 'nestjs-pino';
@@ -50,6 +51,25 @@ const mockSourceRepo = {
   update: jest.fn(),
   disconnect: jest.fn(),
   findFirst: jest.fn(),
+};
+
+const mockPrisma = {
+  kmsFile: {
+    count: jest.fn(),
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
+  kmsChunk: {
+    count: jest.fn(),
+  },
+  kmsClearJob: {
+    create: jest.fn(),
+    update: jest.fn(),
+    findFirst: jest.fn(),
+  },
+  kmsScanJob: {
+    deleteMany: jest.fn(),
+  },
 };
 
 const mockTokenEncryption = {
@@ -130,6 +150,7 @@ describe('SourcesService', () => {
       providers: [
         SourcesService,
         { provide: SourceRepository, useValue: mockSourceRepo },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: TokenEncryptionService, useValue: mockTokenEncryption },
         { provide: getLoggerToken(SourcesService.name), useValue: mockLogger },
       ],
@@ -261,29 +282,228 @@ describe('SourcesService', () => {
     });
   });
 
-  // ─── disconnectSource ──────────────────────────────────────────────────────
+  // ─── disconnectSource (disconnect-only, clearData=false) ──────────────────
 
   describe('disconnectSource', () => {
-    it('calls disconnect and resolves when source is active', async () => {
+    it('sets status DISCONNECTED, clears encryptedTokens, returns empty object', async () => {
       mockSourceRepo.findByIdAndUserId.mockResolvedValue(mockGdriveSource);
+      mockSourceRepo.update.mockResolvedValue({ ...mockGdriveSource, status: SourceStatus.DISCONNECTED, encryptedTokens: null });
 
-      await expect(service.disconnectSource(sourceId, userId)).resolves.not.toThrow();
-      expect(mockSourceRepo.disconnect).toHaveBeenCalledWith(sourceId);
+      const result = await service.disconnectSource(sourceId, userId, false);
+
+      expect(mockSourceRepo.update).toHaveBeenCalledWith(
+        { id: sourceId },
+        expect.objectContaining({ status: SourceStatus.DISCONNECTED, encryptedTokens: null }),
+      );
+      expect(result).toEqual({});
     });
 
-    it('is idempotent — does not call disconnect when source is already DISCONNECTED', async () => {
+    it('is idempotent — returns empty object when source is already DISCONNECTED (no clearData)', async () => {
       mockSourceRepo.findByIdAndUserId.mockResolvedValue({
         ...mockGdriveSource,
         status: SourceStatus.DISCONNECTED,
       });
 
-      await expect(service.disconnectSource(sourceId, userId)).resolves.not.toThrow();
-      expect(mockSourceRepo.disconnect).not.toHaveBeenCalled();
+      const result = await service.disconnectSource(sourceId, userId, false);
+      // update should NOT be called for the no-op path
+      expect(result).toEqual({});
+    });
+
+    it('does NOT delete kms_files when clearData=false', async () => {
+      mockSourceRepo.findByIdAndUserId.mockResolvedValue(mockGdriveSource);
+      mockSourceRepo.update.mockResolvedValue({ ...mockGdriveSource });
+
+      await service.disconnectSource(sourceId, userId, false);
+
+      expect(mockPrisma.kmsFile.deleteMany).not.toHaveBeenCalled();
     });
 
     it('throws AppError 404 when source not found', async () => {
       mockSourceRepo.findByIdAndUserId.mockResolvedValue(null);
-      await expect(service.disconnectSource('missing', userId)).rejects.toThrow(AppError);
+      await expect(service.disconnectSource('missing', userId, false)).rejects.toThrow(AppError);
+    });
+
+    it('throws AppError 404 for source owned by different user', async () => {
+      mockSourceRepo.findByIdAndUserId.mockResolvedValue(null);
+      await expect(service.disconnectSource(sourceId, 'other-user', false)).rejects.toThrow(AppError);
+    });
+  });
+
+  // ─── disconnectSource (clearData=true) ────────────────────────────────────
+
+  describe('disconnectSource with clearData=true', () => {
+    const clearJob = {
+      id: 'clear-job-001',
+      sourceId,
+      userId,
+      status: 'RUNNING' as const,
+      totalFiles: 2,
+      filesCleared: 0,
+      chunksCleared: 0,
+      vectorsCleared: 0,
+      errorMsg: null,
+      startedAt: new Date(),
+      finishedAt: null,
+    };
+
+    beforeEach(() => {
+      mockSourceRepo.findByIdAndUserId.mockResolvedValue(mockGdriveSource);
+      mockSourceRepo.update.mockResolvedValue({ ...mockGdriveSource, status: SourceStatus.DISCONNECTED, encryptedTokens: null });
+      mockPrisma.kmsFile.count.mockResolvedValue(2);
+      mockPrisma.kmsClearJob.create.mockResolvedValue(clearJob);
+      // runClearJob internals — resolve immediately so the fire-and-forget doesn't leak
+      mockPrisma.kmsFile.findMany.mockResolvedValue([]);
+      mockPrisma.kmsClearJob.update.mockResolvedValue({ ...clearJob, status: 'DONE' });
+      mockPrisma.kmsScanJob.deleteMany.mockResolvedValue({ count: 0 });
+    });
+
+    it('returns jobId immediately (fire-and-forget async)', async () => {
+      const result = await service.disconnectSource(sourceId, userId, true);
+
+      expect(result).toHaveProperty('jobId', 'clear-job-001');
+    });
+
+    it('creates KmsClearJob record with RUNNING status and correct totalFiles', async () => {
+      await service.disconnectSource(sourceId, userId, true);
+
+      expect(mockPrisma.kmsClearJob.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          sourceId,
+          userId,
+          status: 'RUNNING',
+          totalFiles: 2,
+        }),
+      });
+    });
+
+    it('always wipes encryptedTokens on disconnect (security)', async () => {
+      await service.disconnectSource(sourceId, userId, true);
+
+      expect(mockSourceRepo.update).toHaveBeenCalledWith(
+        { id: sourceId },
+        expect.objectContaining({ encryptedTokens: null }),
+      );
+    });
+
+    it('clearData=true: deletes all kms_files for source in batches', async () => {
+      // First batch returns 2 files; second batch returns empty (done)
+      mockPrisma.kmsFile.findMany
+        .mockResolvedValueOnce([{ id: 'file-001' }, { id: 'file-002' }])
+        .mockResolvedValueOnce([]);
+      mockPrisma.kmsChunk.count.mockResolvedValue(5);
+      mockPrisma.kmsFile.deleteMany.mockResolvedValue({ count: 2 });
+
+      // We need to wait for the background job to finish in this test.
+      // Override create so we can capture the promise that runClearJob returns.
+      let runClearJobPromise: Promise<void> | null = null;
+      const originalRun = (service as any).runClearJob.bind(service);
+      jest.spyOn(service as any, 'runClearJob').mockImplementation((...args: unknown[]) => {
+        runClearJobPromise = originalRun(...args);
+        return runClearJobPromise;
+      });
+
+      await service.disconnectSource(sourceId, userId, true);
+      // Wait for the background job to complete
+      await runClearJobPromise;
+
+      expect(mockPrisma.kmsFile.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: ['file-001', 'file-002'] } } }),
+      );
+    });
+
+    it('clearData=true: calls Qdrant delete API with correct file_id filter', async () => {
+      mockPrisma.kmsFile.findMany
+        .mockResolvedValueOnce([{ id: 'file-001' }])
+        .mockResolvedValueOnce([]);
+      mockPrisma.kmsChunk.count.mockResolvedValue(3);
+      mockPrisma.kmsFile.deleteMany.mockResolvedValue({ count: 1 });
+
+      // Mock global fetch
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      let runClearJobPromise: Promise<void> | null = null;
+      jest.spyOn(service as any, 'runClearJob').mockImplementation((...args: unknown[]) => {
+        runClearJobPromise = (service as any).runClearJob.call(service, ...args);
+        return runClearJobPromise;
+      });
+
+      // Get the original method back
+      jest.restoreAllMocks();
+      mockSourceRepo.findByIdAndUserId.mockResolvedValue(mockGdriveSource);
+      mockSourceRepo.update.mockResolvedValue({ ...mockGdriveSource });
+      mockPrisma.kmsFile.count.mockResolvedValue(1);
+      mockPrisma.kmsClearJob.create.mockResolvedValue(clearJob);
+
+      await service.disconnectSource(sourceId, userId, true);
+      // Give the background job a tick to start
+      await new Promise((r) => setImmediate(r));
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/collections/kms_chunks/points/delete'),
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+  });
+
+  // ─── getLatestClearJob ─────────────────────────────────────────────────────
+
+  describe('getLatestClearJob', () => {
+    it('returns null when no clear job exists', async () => {
+      mockPrisma.kmsClearJob.findFirst.mockResolvedValue(null);
+
+      const result = await service.getLatestClearJob(userId, sourceId);
+
+      expect(result).toBeNull();
+      expect(mockPrisma.kmsClearJob.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sourceId, userId } }),
+      );
+    });
+
+    it('returns RUNNING job with filesCleared count', async () => {
+      const runningJob = {
+        id: 'clear-job-002',
+        sourceId,
+        userId,
+        status: 'RUNNING',
+        totalFiles: 10,
+        filesCleared: 4,
+        chunksCleared: 20,
+        vectorsCleared: 20,
+        errorMsg: null,
+        startedAt: new Date(),
+        finishedAt: null,
+      };
+      mockPrisma.kmsClearJob.findFirst.mockResolvedValue(runningJob);
+
+      const result = await service.getLatestClearJob(userId, sourceId);
+
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe('RUNNING');
+      expect(result!.filesCleared).toBe(4);
+    });
+
+    it('returns DONE job with final counts', async () => {
+      const doneJob = {
+        id: 'clear-job-003',
+        sourceId,
+        userId,
+        status: 'DONE',
+        totalFiles: 10,
+        filesCleared: 10,
+        chunksCleared: 50,
+        vectorsCleared: 50,
+        errorMsg: null,
+        startedAt: new Date(),
+        finishedAt: new Date(),
+      };
+      mockPrisma.kmsClearJob.findFirst.mockResolvedValue(doneJob);
+
+      const result = await service.getLatestClearJob(userId, sourceId);
+
+      expect(result!.status).toBe('DONE');
+      expect(result!.filesCleared).toBe(10);
+      expect(result!.finishedAt).toBeDefined();
     });
   });
 

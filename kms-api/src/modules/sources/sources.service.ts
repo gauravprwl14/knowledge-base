@@ -2,8 +2,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { google, Auth } from 'googleapis';
-import { KmsSource, SourceStatus, SourceType } from '@prisma/client';
+import { KmsSource, KmsClearJob, SourceStatus, SourceType } from '@prisma/client';
 import { SourceRepository } from '../../database/repositories/source.repository';
+import { PrismaService } from '../../database/prisma/prisma.service';
 import { TokenEncryptionService } from './token-encryption.service';
 import { ErrorFactory } from '../../errors/types/error-factory';
 import { ERROR_CODES } from '../../errors/error-codes';
@@ -30,6 +31,7 @@ export class SourcesService {
 
   constructor(
     private readonly sourceRepository: SourceRepository,
+    private readonly prisma: PrismaService,
     private readonly tokenEncryptionService: TokenEncryptionService,
     @InjectPinoLogger(SourcesService.name)
     private readonly logger: PinoLogger,
@@ -210,15 +212,30 @@ export class SourcesService {
 
   /**
    * Disconnects a source by setting its status to DISCONNECTED.
+   *
+   * When `clearData=false` (default): marks the source DISCONNECTED and wipes
+   * OAuth tokens but leaves all indexed files, chunks, and vectors intact.
+   *
+   * When `clearData=true`: also launches an async background job that
+   * batch-deletes all kms_files, kms_chunks, Qdrant vectors, and scan jobs
+   * for the source. The job ID is returned so the client can poll for progress
+   * via GET /sources/:id/clear-status.
+   *
    * Throws 404 if the source does not exist or belongs to a different user.
    * Idempotent if the source is already disconnected.
    *
    * @param id - Source UUID
    * @param userId - Authenticated user UUID (ownership check)
+   * @param clearData - When true, schedules async deletion of all indexed data
+   * @returns Object with optional jobId when clearData=true
    */
   @Trace({ name: 'sources.disconnectSource' })
-  async disconnectSource(id: string, userId: string): Promise<void> {
-    this.logger.info({ sourceId: id, userId }, 'Disconnecting source');
+  async disconnectSource(
+    id: string,
+    userId: string,
+    clearData = false,
+  ): Promise<{ jobId?: string }> {
+    this.logger.info({ sourceId: id, userId, clearData }, 'Disconnecting source');
 
     const source = await this.sourceRepository.findByIdAndUserId(id, userId);
 
@@ -226,15 +243,202 @@ export class SourcesService {
       throw ErrorFactory.notFound('Source', id);
     }
 
-    if (source.status === SourceStatus.DISCONNECTED) {
-      // Already disconnected — treat as success (idempotent)
+    if (source.status === SourceStatus.DISCONNECTED && !clearData) {
+      // Already disconnected without clear — treat as success (idempotent)
       this.logger.info({ sourceId: id }, 'Source already disconnected, no-op');
-      return;
+      return {};
     }
 
-    await this.sourceRepository.disconnect(id);
+    // Always wipe OAuth tokens on disconnect for security
+    await this.sourceRepository.update(
+      { id },
+      {
+        status: SourceStatus.DISCONNECTED,
+        encryptedTokens: null,
+      },
+    );
 
     this.logger.info({ sourceId: id, userId }, 'Source disconnected successfully');
+
+    if (!clearData) {
+      return {};
+    }
+
+    // Count files up-front so the job record has an accurate total
+    const totalFiles = await this.prisma.kmsFile.count({ where: { sourceId: id } });
+
+    const clearJob = await this.prisma.kmsClearJob.create({
+      data: {
+        sourceId: id,
+        userId,
+        status: 'RUNNING',
+        totalFiles,
+      },
+    });
+
+    this.logger.info(
+      { sourceId: id, userId, clearJobId: clearJob.id, totalFiles },
+      'clear_job_started',
+    );
+
+    // Fire-and-forget — do NOT await; respond immediately with jobId
+    this.runClearJob(clearJob.id, id, userId).catch((err) => {
+      this.logger.error({ err, clearJobId: clearJob.id }, 'clear_job_failed');
+    });
+
+    return { jobId: clearJob.id };
+  }
+
+  /**
+   * Returns the most recent KmsClearJob for a source owned by the given user.
+   * Useful for polling clear progress after DELETE /sources/:id?clearData=true.
+   *
+   * @param userId - Authenticated user UUID (ownership check)
+   * @param sourceId - Source UUID
+   * @returns Latest KmsClearJob or null if none exists
+   */
+  async getLatestClearJob(userId: string, sourceId: string): Promise<KmsClearJob | null> {
+    return this.prisma.kmsClearJob.findFirst({
+      where: { sourceId, userId },
+      orderBy: { startedAt: 'desc' },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private — background clear job
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Batch-deletes all indexed data for a source: kms_files (cascade-deletes
+   * chunks, transcription links, collection memberships), Qdrant vectors,
+   * and scan jobs. Updates the KmsClearJob progress record after each batch.
+   *
+   * @param jobId - KmsClearJob UUID to update with progress
+   * @param sourceId - Source UUID whose data should be cleared
+   * @param userId - Owner UUID (for logging)
+   */
+  private async runClearJob(jobId: string, sourceId: string, userId: string): Promise<void> {
+    const BATCH_SIZE = 100;
+    let filesCleared = 0;
+    let chunksCleared = 0;
+    let vectorsCleared = 0;
+
+    try {
+      while (true) {
+        const files = await this.prisma.kmsFile.findMany({
+          where: { sourceId },
+          take: BATCH_SIZE,
+          select: { id: true },
+        });
+
+        if (files.length === 0) break;
+
+        const fileIds = files.map((f) => f.id);
+
+        // Count chunks before deletion so we can report accurate numbers
+        const chunkCount = await this.prisma.kmsChunk.count({
+          where: { fileId: { in: fileIds } },
+        });
+
+        // Delete Qdrant vectors first — prevents orphaned vectors if PG fails
+        await this.deleteQdrantPoints(fileIds);
+
+        // Delete from PostgreSQL — cascade handles chunks, transcription links,
+        // collection memberships, file tags, and duplicates automatically
+        await this.prisma.kmsFile.deleteMany({ where: { id: { in: fileIds } } });
+
+        filesCleared += fileIds.length;
+        chunksCleared += chunkCount;
+        vectorsCleared += chunkCount; // one Qdrant point per chunk
+
+        // Persist incremental progress for the polling endpoint
+        await this.prisma.kmsClearJob.update({
+          where: { id: jobId },
+          data: { filesCleared, chunksCleared, vectorsCleared },
+        });
+
+        this.logger.info(
+          { jobId, sourceId, filesCleared, chunksCleared },
+          'clear_job_batch_done',
+        );
+      }
+
+      // Remove scan jobs for the source (not file-scoped, so not cascade-deleted)
+      await this.prisma.kmsScanJob.deleteMany({ where: { sourceId } });
+
+      await this.prisma.kmsClearJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'DONE',
+          finishedAt: new Date(),
+          filesCleared,
+          chunksCleared,
+          vectorsCleared,
+        },
+      });
+
+      this.logger.info(
+        { jobId, sourceId, userId, filesCleared, chunksCleared, vectorsCleared },
+        'clear_job_completed',
+      );
+    } catch (err) {
+      this.logger.error({ err, jobId, sourceId }, 'clear_job_error');
+
+      await this.prisma.kmsClearJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'FAILED',
+          errorMsg: (err as Error).message,
+          finishedAt: new Date(),
+        },
+      });
+    }
+  }
+
+  /**
+   * Deletes Qdrant vector points whose ``file_id`` payload field matches any
+   * of the given file UUIDs.
+   *
+   * Uses a filter-based delete so bulk deletion is performed in a single HTTP
+   * request rather than one request per point.
+   *
+   * @param fileIds - Array of kms_file UUIDs whose vectors should be removed
+   */
+  private async deleteQdrantPoints(fileIds: string[]): Promise<void> {
+    if (fileIds.length === 0) return;
+
+    const qdrantUrl = process.env.QDRANT_URL ?? 'http://qdrant:6333';
+    const collection = process.env.QDRANT_COLLECTION ?? 'kms_chunks';
+
+    try {
+      const response = await fetch(
+        `${qdrantUrl}/collections/${collection}/points/delete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filter: {
+              must: [
+                {
+                  key: 'file_id',
+                  match: { any: fileIds },
+                },
+              ],
+            },
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        this.logger.warn(
+          { status: response.status, fileIds: fileIds.length },
+          'qdrant_delete_non_200',
+        );
+      }
+    } catch (err) {
+      // Log but don't rethrow — a Qdrant failure should not abort the PG cleanup
+      this.logger.warn({ err, fileIds: fileIds.length }, 'qdrant_delete_failed');
+    }
   }
 
   /**
