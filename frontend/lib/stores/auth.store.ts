@@ -60,16 +60,19 @@ const SESSION_COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
 
 function setSessionCookie(token: string): void {
   if (typeof document === 'undefined') return;
-  // path=/ so the cookie is sent to both /kms/* routes AND the Next.js
-  // middleware (which intercepts all paths). SameSite=Lax is safe for
-  // OAuth redirect flows. Secure flag works because the app runs over HTTPS.
-  document.cookie = `${SESSION_COOKIE}=${token}; path=/; SameSite=Lax; Secure; max-age=${SESSION_COOKIE_MAX_AGE}`;
+  // Only add Secure flag when running over HTTPS. Setting a Secure cookie on
+  // an HTTP origin silently fails in all browsers, which would break local
+  // dev and any HTTP-only preview deployments.
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const secureAttr = isHttps ? '; Secure' : '';
+  document.cookie = `${SESSION_COOKIE}=${token}; path=/; SameSite=Lax${secureAttr}; max-age=${SESSION_COOKIE_MAX_AGE}`;
 }
 
 function clearSessionCookie(): void {
   if (typeof document === 'undefined') return;
-  // Expire on both path=/ to ensure removal regardless of how it was set.
-  document.cookie = `${SESSION_COOKIE}=; path=/; SameSite=Lax; Secure; max-age=0`;
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const secureAttr = isHttps ? '; Secure' : '';
+  document.cookie = `${SESSION_COOKIE}=; path=/; SameSite=Lax${secureAttr}; max-age=0`;
 }
 
 // ---------------------------------------------------------------------------

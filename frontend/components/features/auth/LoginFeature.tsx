@@ -66,7 +66,6 @@ export function LoginFeature() {
 
         // 3. Navigate to dashboard
         router.push(`/${locale}/dashboard`);
-        router.refresh();
       } catch {
         // Error is already surfaced via the `error` field from useLogin
       }

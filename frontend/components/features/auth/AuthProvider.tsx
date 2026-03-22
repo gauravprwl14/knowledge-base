@@ -93,11 +93,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
         queryClient.setQueryData(ME_QUERY_KEY, user);
       } catch {
-        if (typeof document !== 'undefined') {
-          document.cookie = SESSION_COOKIE_CLEAR;
-        }
-        if (typeof localStorage !== 'undefined') {
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
+        // Only wipe the session if client.ts didn't already recover via its own
+        // refresh-and-retry path. Both AuthProvider and the 401 interceptor in
+        // client.ts race to refresh the token on page load; whichever wins
+        // stores a valid access token in the auth store. If we lost the race we
+        // must NOT clear the cookie that the winner just set.
+        const alreadyRecovered = !!authStore.state.accessToken;
+        if (!alreadyRecovered) {
+          if (typeof document !== 'undefined') {
+            document.cookie = SESSION_COOKIE_CLEAR;
+          }
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem(REFRESH_TOKEN_KEY);
+          }
         }
       }
     };
