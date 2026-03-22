@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getLoggerToken } from 'nestjs-pino';
 import { Bm25Service } from './bm25.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { SearchResult } from './dto/search-response.dto';
 
 /** Build a ConfigService mock. */
@@ -17,8 +18,14 @@ function makeConfigMock(overrides: Record<string, unknown> = {}): jest.Mocked<Co
   } as unknown as jest.Mocked<ConfigService>;
 }
 
+/** Minimal PrismaService mock — only $queryRaw is needed by Bm25Service. */
+function makePrismaMock(): jest.Mocked<Pick<PrismaService, '$queryRaw'>> {
+  return { $queryRaw: jest.fn() } as unknown as jest.Mocked<Pick<PrismaService, '$queryRaw'>>;
+}
+
 describe('Bm25Service', () => {
   let service: Bm25Service;
+  let prismaMock: ReturnType<typeof makePrismaMock>;
 
   const mockLogger = {
     debug: jest.fn(),
@@ -29,12 +36,17 @@ describe('Bm25Service', () => {
   };
 
   async function buildModule(configOverrides: Record<string, unknown> = {}): Promise<TestingModule> {
+    prismaMock = makePrismaMock();
     return Test.createTestingModule({
       providers: [
         Bm25Service,
         {
           provide: ConfigService,
           useValue: makeConfigMock(configOverrides),
+        },
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
         },
         {
           provide: getLoggerToken(Bm25Service.name),
@@ -232,11 +244,27 @@ describe('Bm25Service', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Real mode (MOCK_BM25=false) — throws until DB is wired
+  // Real mode (MOCK_BM25=false) — uses mocked PrismaService.$queryRaw
   // ---------------------------------------------------------------------------
 
   describe('search() — real mode', () => {
     let realModeService: Bm25Service;
+
+    /** Builds a fake raw DB row matching the RawRow shape from pgSearch. */
+    function makeFakeRow(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'chunk-real-001',
+        file_id: 'file-real-001',
+        filename: 'real-doc.pdf',
+        snippet: 'This is a <b>highlighted</b> snippet from the document.',
+        ts_rank: 0.75,
+        chunk_index: 2,
+        source_type: 'google_drive',
+        web_view_link: 'https://drive.google.com/file/d/abc123',
+        start_secs: null,
+        ...overrides,
+      };
+    }
 
     beforeEach(async () => {
       const module = await buildModule({ MOCK_BM25: false });
@@ -244,10 +272,108 @@ describe('Bm25Service', () => {
       jest.clearAllMocks();
     });
 
-    it('should throw an error when real mode is requested (not yet implemented)', async () => {
+    it('should call prisma.$queryRaw and return mapped SearchResult objects', async () => {
+      const fakeRow = makeFakeRow();
+      prismaMock.$queryRaw.mockResolvedValueOnce([fakeRow]);
+
+      const results = await realModeService.search('real query', 'user-real-001', 10);
+
+      expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        id: 'chunk-real-001',
+        fileId: 'file-real-001',
+        filename: 'real-doc.pdf',
+        content: fakeRow.snippet,
+        score: 0.75,
+        chunkIndex: 2,
+        webViewLink: 'https://drive.google.com/file/d/abc123',
+        sourceType: 'google_drive',
+      });
+    });
+
+    it('should return an empty array when the DB returns no rows', async () => {
+      prismaMock.$queryRaw.mockResolvedValueOnce([]);
+
+      const results = await realModeService.search('no-match query', 'user-real-001', 10);
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('should return an empty array for a query with only non-alphanumeric characters', async () => {
+      const results = await realModeService.search('!!! ---', 'user-real-001', 10);
+
+      // All safe terms are empty after stripping → early return without DB call
+      expect(results).toHaveLength(0);
+      expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('should set startSecs when the DB row has a numeric start_secs value', async () => {
+      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow({ start_secs: 42.5 })]);
+
+      const results = await realModeService.search('voice transcript', 'user-real-001', 5);
+
+      expect(results[0].startSecs).toBeCloseTo(42.5);
+    });
+
+    it('should set startSecs to undefined when start_secs is null', async () => {
+      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow({ start_secs: null })]);
+
+      const results = await realModeService.search('query', 'user-real-001', 5);
+
+      expect(results[0].startSecs).toBeUndefined();
+    });
+
+    it('should call prisma.$queryRaw with the sourceIds variant when sourceIds is provided', async () => {
+      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow()]);
+
+      await realModeService.search('query', 'user-real-001', 5, ['src-uuid-001']);
+
+      expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('should use the no-sourceIds query variant when sourceIds is empty', async () => {
+      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow()]);
+
+      await realModeService.search('query', 'user-real-001', 5, []);
+
+      expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('should propagate errors thrown by prisma.$queryRaw', async () => {
+      prismaMock.$queryRaw.mockRejectedValueOnce(new Error('DB connection refused'));
+
       await expect(
-        realModeService.search('any query', 'user-001', 10),
-      ).rejects.toThrow('BM25 real-mode not yet implemented');
+        realModeService.search('any query', 'user-real-001', 10),
+      ).rejects.toThrow('DB connection refused');
+    });
+
+    it('should clamp ts_rank values greater than 1 to 1', async () => {
+      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow({ ts_rank: 1.5 })]);
+
+      const results = await realModeService.search('query', 'user-real-001', 5);
+
+      expect(results[0].score).toBe(1);
+    });
+
+    it('should clamp negative ts_rank values to 0', async () => {
+      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow({ ts_rank: -0.1 })]);
+
+      const results = await realModeService.search('query', 'user-real-001', 5);
+
+      expect(results[0].score).toBe(0);
+    });
+
+    it('should map multiple rows to multiple SearchResult objects in order', async () => {
+      const row1 = makeFakeRow({ id: 'c1', ts_rank: 0.9 });
+      const row2 = makeFakeRow({ id: 'c2', ts_rank: 0.6 });
+      prismaMock.$queryRaw.mockResolvedValueOnce([row1, row2]);
+
+      const results = await realModeService.search('query', 'user-real-001', 10);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].id).toBe('c1');
+      expect(results[1].id).toBe('c2');
     });
   });
 });

@@ -30,6 +30,21 @@ export class SearchResult {
     additionalProperties: true,
   })
   metadata?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: 'Google Drive or external web-view URL for the source file',
+  })
+  webViewLink?: string;
+
+  @ApiPropertyOptional({
+    description: 'Start timestamp in seconds — populated for voice transcript chunks',
+  })
+  startSecs?: number;
+
+  @ApiPropertyOptional({
+    description: 'Source type of the parent file (e.g. "google_drive", "local", "obsidian")',
+  })
+  sourceType?: string;
 }
 
 /**

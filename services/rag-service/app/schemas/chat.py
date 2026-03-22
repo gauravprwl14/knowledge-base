@@ -65,12 +65,16 @@ class Citation(BaseModel):
         filename: Original filename.
         snippet: Short excerpt from the relevant chunk (up to 300 chars).
         score: Relevance score in [0, 1].
+        web_view_link: External URL to view the source file (e.g. Google Drive link).
+        start_secs: Start timestamp in seconds for voice transcript chunks.
     """
 
     file_id: str
     filename: str
     snippet: str
     score: float
+    web_view_link: Optional[str] = None
+    start_secs: Optional[float] = None
 
 
 class ChatResponse(BaseModel):

@@ -32,6 +32,9 @@ export const configSchema = z.object({
     .transform((v) => v === 'true' || v === '1')
     .default('true'),
 
+  // Base URL of the embed-worker HTTP service — used by semantic real mode
+  EMBED_WORKER_URL: z.string().url().default('http://localhost:8004'),
+
   // Pino log level
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
 });
