@@ -8,7 +8,7 @@ import { TokenEncryptionService } from './token-encryption.service';
 import { ErrorFactory } from '../../errors/types/error-factory';
 import { ERROR_CODES } from '../../errors/error-codes';
 import { Trace } from '../../telemetry/decorators/trace.decorator';
-import { SourceResponseDto } from './dto/sources.dto';
+import { DriveFolderDto, SourceResponseDto, UpdateSourceConfigDto } from './dto/sources.dto';
 
 /**
  * SourcesService — business logic for managing knowledge source connections.
@@ -269,6 +269,104 @@ export class SourcesService {
     const encryptedTokens = this.tokenEncryptionService.encrypt(JSON.stringify(credentials));
     await this.sourceRepository.update({ id: sourceId }, { encryptedTokens });
     return credentials;
+  }
+
+  /**
+   * Updates the sync configuration for a source.
+   *
+   * Merges the provided fields into the existing `configJson` — a partial
+   * update, not a replacement.  Ownership is verified before the update.
+   *
+   * @param userId - Authenticated user UUID (ownership check)
+   * @param sourceId - Source UUID
+   * @param dto - Fields to merge into `configJson`
+   * @returns Updated SourceResponseDto
+   * @throws AppError(404) if source not found or belongs to a different user
+   */
+  @Trace({ name: 'sources.updateConfig' })
+  async updateConfig(userId: string, sourceId: string, dto: UpdateSourceConfigDto): Promise<SourceResponseDto> {
+    this.logger.info({ userId, sourceId }, 'Updating source config');
+
+    const source = await this.sourceRepository.findByIdAndUserId(sourceId, userId);
+    if (!source) {
+      throw ErrorFactory.notFound('Source', sourceId);
+    }
+
+    const currentConfig = (source.configJson as Record<string, unknown>) ?? {};
+    const updatedConfig = { ...currentConfig, ...dto };
+
+    const updated = await this.sourceRepository.update(
+      { id: sourceId },
+      { configJson: updatedConfig },
+    );
+
+    this.logger.info({ userId, sourceId }, 'Source config updated');
+    return this.toResponseDto(updated);
+  }
+
+  /**
+   * Lists Google Drive folders under a given parent for the connected source.
+   *
+   * Decrypts OAuth2 tokens, builds a Drive API client, and queries folders
+   * one level deep from the specified parent.  Used by the UI folder-picker.
+   *
+   * @param userId - Authenticated user UUID (ownership check)
+   * @param sourceId - Source UUID (must be GOOGLE_DRIVE type)
+   * @param parentId - Drive folder ID to list children of (default: 'root')
+   * @returns Object containing array of DriveFolderDto
+   * @throws AppError(404) if source not found or not owned by user
+   * @throws AppError(500) on Drive API failure
+   */
+  @Trace({ name: 'sources.listDriveFolders' })
+  async listDriveFolders(
+    userId: string,
+    sourceId: string,
+    parentId: string = 'root',
+  ): Promise<{ folders: DriveFolderDto[] }> {
+    this.logger.info({ userId, sourceId, parentId }, 'Listing Google Drive folders');
+
+    const source = await this.sourceRepository.findByIdAndUserId(sourceId, userId);
+    if (!source) {
+      throw ErrorFactory.notFound('Source', sourceId);
+    }
+    if (!source.encryptedTokens) {
+      throw ErrorFactory.notFound('Tokens', sourceId);
+    }
+
+    const decryptedTokens = this.tokenEncryptionService.decrypt(source.encryptedTokens);
+    const tokens = JSON.parse(decryptedTokens) as Auth.Credentials;
+
+    const auth = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI,
+    );
+    auth.setCredentials(tokens);
+    const drive = google.drive({ version: 'v3', auth });
+
+    let files: { id?: string | null; name?: string | null }[] = [];
+    try {
+      const response = await drive.files.list({
+        q: `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`,
+        fields: 'files(id,name)',
+        pageSize: 100,
+        orderBy: 'name',
+      });
+      files = response.data.files ?? [];
+    } catch (err) {
+      this.logger.error({ err, userId, sourceId, parentId }, 'Drive folders API call failed');
+      throw ErrorFactory.internal('Failed to retrieve Google Drive folders');
+    }
+
+    const folders: DriveFolderDto[] = files.map((f) => ({
+      id: f.id!,
+      name: f.name!,
+      path: parentId === 'root' ? f.name! : `${parentId}/${f.name}`,
+      childCount: 0,
+    }));
+
+    this.logger.info({ userId, sourceId, parentId, count: folders.length }, 'Drive folders listed');
+    return { folders };
   }
 
   /**
