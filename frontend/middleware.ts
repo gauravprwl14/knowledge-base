@@ -99,6 +99,14 @@ function isAuthenticated(request: NextRequest): boolean {
 export default function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
+  // Diagnostic logging — visible in container logs: docker logs kms-prod-web-ui-1
+  const cookieVal = request.cookies.get('kms-access-token')?.value;
+  console.log(
+    `[MW] ${request.method} ${pathname}` +
+    ` | cookie=${cookieVal ? `SET(${cookieVal.slice(0, 12)}...)` : 'MISSING'}` +
+    ` | ua=${request.headers.get('user-agent')?.slice(0, 30) ?? 'unknown'}`
+  );
+
   const locale = getLocale(pathname);
   const pathWithoutLocale = stripLocale(pathname, locale);
 
@@ -120,6 +128,7 @@ export default function middleware(request: NextRequest): NextResponse {
 
   // Redirect unauthenticated users away from protected routes
   if (isProtected && !authenticated) {
+    console.log(`[MW] → REDIRECT to login (protected route, not authenticated) | path=${pathname}`);
     // Use request.nextUrl.clone() so that the basePath (e.g. /kms) is
     // preserved in the Location header. new URL('/en/login', request.url)
     // would resolve relative to the origin and drop the basePath entirely.
@@ -127,16 +136,21 @@ export default function middleware(request: NextRequest): NextResponse {
     loginUrl.pathname = `/${locale}/login`;
     // Preserve the intended destination for post-login redirect
     loginUrl.searchParams.set('next', pathname);
-    return NextResponse.redirect(loginUrl);
+    const response = NextResponse.redirect(loginUrl);
+    response.headers.set('Cache-Control', 'no-store');
+    return response;
   }
 
   // Redirect authenticated users away from auth pages
   if (isAuthRoute && authenticated) {
+    console.log(`[MW] → REDIRECT to dashboard (auth route, already authenticated) | path=${pathname}`);
     // Same basePath-safe approach for the dashboard redirect.
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = `/${locale}/dashboard`;
     dashboardUrl.search = '';
-    return NextResponse.redirect(dashboardUrl);
+    const dashboardResponse = NextResponse.redirect(dashboardUrl);
+    dashboardResponse.headers.set('Cache-Control', 'no-store');
+    return dashboardResponse;
   }
 
   // Delegate locale handling to next-intl

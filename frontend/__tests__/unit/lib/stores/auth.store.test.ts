@@ -247,6 +247,39 @@ describe('auth.store', () => {
   });
 
   // -------------------------------------------------------------------------
+  // setAccessToken() — cookie sync regression (Bug 2)
+  // -------------------------------------------------------------------------
+
+  describe('setAccessToken() — cookie sync after silent refresh', () => {
+    it('writes the new token to kms-access-token cookie (regression: must not only update store)', () => {
+      // Arrange — start with a logged-in state
+      login(makeUser(), TEST_TOKEN);
+
+      const cookieValues: string[] = [];
+      Object.defineProperty(document, 'cookie', {
+        get: () => `kms-access-token=${TEST_TOKEN}`,
+        set: (val: string) => {
+          cookieValues.push(val);
+        },
+        configurable: true,
+      });
+
+      const newToken = 'silently-refreshed-token';
+
+      // Act
+      setAccessToken(newToken);
+
+      // Assert — the cookie MUST be updated, not just the in-memory store.
+      // Before the fix, setAccessToken only called authStore.setState and
+      // never called setSessionCookie, leaving the cookie stale after a
+      // silent refresh via client.ts.
+      const allWrites = cookieValues.join('|');
+      expect(allWrites).toContain('kms-access-token');
+      expect(allWrites).toContain(newToken);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Singleton behaviour
   // -------------------------------------------------------------------------
 

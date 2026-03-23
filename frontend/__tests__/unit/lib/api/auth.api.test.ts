@@ -89,6 +89,41 @@ describe('auth.api', () => {
       // Should NOT contain the nested tokens object
       expect((result as Record<string, unknown>).tokens).toBeUndefined();
     });
+
+    it('maps nested tokens.refreshToken to flat refreshToken in the returned object', async () => {
+      // Arrange — regression test: refreshToken must NOT be dropped
+      const rawResponse = {
+        tokens: {
+          accessToken: 'access-jwt',
+          refreshToken: 'refresh-jwt-456',
+          expiresIn: 900,
+          tokenType: 'Bearer',
+        },
+        user: { id: '1', email: 'a@b.com', firstName: 'A', lastName: 'B', role: 'USER' },
+      };
+      mockPost.mockResolvedValue(rawResponse);
+
+      // Act
+      const result = await login({ email: 'a@b.com', password: 'pass' });
+
+      // Assert
+      expect(result.refreshToken).toBe('refresh-jwt-456');
+      expect(result).toHaveProperty('refreshToken');
+    });
+
+    it('returns expiresIn from the tokens payload', async () => {
+      // Arrange
+      mockPost.mockResolvedValue({
+        tokens: { accessToken: 'tok', refreshToken: 'ref', expiresIn: 1800, tokenType: 'Bearer' },
+        user: { id: '1', email: 'a@b.com', firstName: 'A', lastName: 'B', role: 'USER' },
+      });
+
+      // Act
+      const result = await login({ email: 'a@b.com', password: 'pass' });
+
+      // Assert
+      expect(result.expiresIn).toBe(1800);
+    });
   });
 
   // -------------------------------------------------------------------------

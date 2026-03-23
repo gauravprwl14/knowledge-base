@@ -8,6 +8,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { UserStatus, UserRole } from '@prisma/client';
+
+// Mock bcrypt before importing AuthService so the module-level import in
+// auth.service.ts receives the mock (bcrypt.compare cannot be spied on
+// after import due to how bcrypt compiles its exports).
+jest.mock('bcrypt', () => ({
+  hash: jest.fn().mockResolvedValue('$2b$12$hashedpassword'),
+  compare: jest.fn(),
+}));
 import * as bcrypt from 'bcrypt';
 
 import { AuthService } from '../auth.service';
@@ -151,7 +159,7 @@ describe('AuthService.login()', () => {
     const { authService, userRepository } = await buildModule();
     const user = makeUser();
     (userRepository.findByEmail as jest.Mock).mockResolvedValue(user);
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
     // Act
     const result = await authService.login(VALID_LOGIN_DTO);
@@ -168,7 +176,7 @@ describe('AuthService.login()', () => {
     const { authService, userRepository } = await buildModule();
     const user = makeUser();
     (userRepository.findByEmail as jest.Mock).mockResolvedValue(user);
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
     // Act & Assert
     await expect(authService.login(VALID_LOGIN_DTO)).rejects.toMatchObject({
@@ -192,7 +200,7 @@ describe('AuthService.login()', () => {
     const { authService, userRepository } = await buildModule();
     const suspendedUser = makeUser({ status: UserStatus.SUSPENDED });
     (userRepository.findByEmail as jest.Mock).mockResolvedValue(suspendedUser);
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
     // Act & Assert
     await expect(authService.login(VALID_LOGIN_DTO)).rejects.toMatchObject({
@@ -205,7 +213,7 @@ describe('AuthService.login()', () => {
     const { authService, userRepository } = await buildModule();
     const pendingUser = makeUser({ status: UserStatus.PENDING_VERIFICATION });
     (userRepository.findByEmail as jest.Mock).mockResolvedValue(pendingUser);
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
     // Act & Assert
     await expect(authService.login(VALID_LOGIN_DTO)).rejects.toMatchObject({
@@ -218,7 +226,7 @@ describe('AuthService.login()', () => {
     const { authService, userRepository } = await buildModule();
     const user = makeUser();
     (userRepository.findByEmail as jest.Mock).mockResolvedValue(user);
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
     // Act
     await authService.login(VALID_LOGIN_DTO);

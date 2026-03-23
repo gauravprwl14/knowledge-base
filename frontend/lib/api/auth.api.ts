@@ -43,6 +43,7 @@ export async function login(credentials: LoginRequest): Promise<AuthResponse> {
   const res = await apiClient.post<LoginApiResponse>('/auth/login', credentials);
   return {
     accessToken: res.tokens.accessToken,
+    refreshToken: res.tokens.refreshToken,
     expiresIn: res.tokens.expiresIn,
   };
 }

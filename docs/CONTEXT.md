@@ -6,16 +6,22 @@ All KMS project documentation. Navigate by task type using the routing table bel
 
 ## Subfolder Purposes
 
-| Folder | Purpose |
-|--------|---------|
-| `workflow/` | Engineering process — how features go from idea to production |
-| `prd/` | Product Requirements Documents — one per feature |
-| `development/` | How-to guides for building features: patterns, error handling, testing |
-| `guides/` | Operational guides: Docker, deployment, getting started |
-| `architecture/` | Engineering standards, ADRs, sequence diagrams |
-| `agents/` | Claude Code agent system: skills, shared patterns |
-| `session-summary/` | Session-end changelogs — institutional memory |
-| `delivery-plan/` | Milestone tracker, task breakdown |
+| Folder | Purpose | Has CONTEXT.md |
+|--------|---------|----------------|
+| `workflow/` | Engineering process — how features go from idea to production | Yes |
+| `prd/` | Product Requirements Documents — one per feature | Yes |
+| `development/` | How-to guides for building features: patterns, error handling, testing | Yes |
+| `guides/` | Operational guides: Docker, deployment, getting started | Yes |
+| `architecture/` | Engineering standards, ADRs, sequence diagrams | Yes |
+| `agents/` | Claude Code agent system: skills, shared patterns | Yes |
+| `3-layer-approach/` | 3-layer documentation system concept and layer map | No |
+| `session-summary/` | Session-end changelogs — institutional memory | No |
+| `delivery-plan/` | Milestone tracker, sprint boards, task breakdown | No |
+| `knowledge-graph/` | Knowledge graph architecture reference docs | No |
+| `knowledge-transfer/` | Codebase overview and onboarding reference | No |
+| `superpowers/` | Advanced capability docs | No |
+| `tutorial/` | Step-by-step tutorials | No |
+| `adr/` | Legacy ADR location (canonical ADRs are in `architecture/decisions/`) | No |
 
 ---
 
@@ -25,20 +31,22 @@ All KMS project documentation. Navigate by task type using the routing table bel
 |-----------------|-------|
 | How do I plan a new feature? | `workflow/ENGINEERING_WORKFLOW.md` |
 | What's the PRD template? | `workflow/PRD-TEMPLATE.md` |
+| What's the Definition of Done checklist? | `workflow/DEFINITION-OF-DONE.md` |
 | What PRD exists for feature X? | `prd/CONTEXT.md` → `prd/PRD-{feature}.md` |
-| How do I build a NestJS module? | `development/CONTEXT.md` → `FOR-nestjs-patterns.md` |
+| How do I build a NestJS module? | `development/CONTEXT.md` → `FOR-python-patterns.md` (NestJS guide pending) |
 | How do I build a Python worker/FastAPI service? | `development/CONTEXT.md` → `FOR-python-patterns.md` |
 | How do I handle errors correctly? | `development/CONTEXT.md` → `FOR-error-handling.md` |
 | How do I add structured logging? | `development/CONTEXT.md` → `FOR-logging.md` |
 | How do I add OTel tracing? | `development/CONTEXT.md` → `FOR-observability.md` |
 | How do I write tests? | `development/CONTEXT.md` → `FOR-testing.md` |
-| How do I design an API endpoint? | `development/CONTEXT.md` → `FOR-api-design.md` |
-| How do I write a database migration? | `development/CONTEXT.md` → `FOR-database.md` |
+| How do I implement auth / JWT / refresh tokens? | `development/CONTEXT.md` → `FOR-auth-strategy.md` |
+| How do I add rate limiting? | `development/CONTEXT.md` → `FOR-rate-limiting.md` |
 | Which tech stack decisions were made and why? | `architecture/CONTEXT.md` → `decisions/` |
 | What are the full engineering standards? | `architecture/ENGINEERING_STANDARDS.md` |
 | What sequence diagrams exist? | `architecture/CONTEXT.md` → `sequence-diagrams/` |
-| How do I start the stack / Docker setup? | `guides/CONTEXT.md` → `FOR-docker.md` |
+| How do I set up Google Drive integration? | `guides/FOR-google-drive-setup.md` |
 | How do agents and skills work here? | `agents/CONTEXT.md` |
+| How does the 3-layer doc system work? | `3-layer-approach/CONCEPT.md` |
 
 ---
 

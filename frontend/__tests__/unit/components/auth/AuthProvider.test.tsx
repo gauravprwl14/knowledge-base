@@ -13,10 +13,16 @@
 // Auth store — mock to control user state and capture login calls
 const mockUseCurrentUser = jest.fn<ReturnType<typeof import('@/lib/stores/auth.store').useCurrentUser>, []>();
 const mockStoreLogin = jest.fn();
+const mockStoreLogout = jest.fn();
+const mockStoreSetAccessToken = jest.fn();
 
 jest.mock('@/lib/stores/auth.store', () => ({
   useCurrentUser: () => mockUseCurrentUser(),
   login: (...args: unknown[]) => mockStoreLogin(...args),
+  logout: (...args: unknown[]) => mockStoreLogout(...args),
+  setAccessToken: (...args: unknown[]) => mockStoreSetAccessToken(...args),
+  setAuthRestorePromise: jest.fn(),
+  getAuthRestorePromise: jest.fn(() => null),
   authStore: {
     state: { accessToken: null, user: null, isAuthenticated: false },
     setState: jest.fn(),
@@ -177,13 +183,17 @@ describe('AuthProvider', () => {
       localStorage.setItem('kms_refresh_token', 'refresh-jwt');
 
       // Mock global.fetch for the /auth/refresh call
+      // Response matches the NestJS TransformInterceptor envelope shape:
+      // { success: true, data: { accessToken, refreshToken, ... } }
       const successTokenResponse = {
-        tokens: {
+        success: true,
+        data: {
           accessToken: 'new-access-token',
           refreshToken: 'new-refresh-token',
           expiresIn: 3600,
           tokenType: 'Bearer',
         },
+        timestamp: '2026-01-01T00:00:00.000Z',
       };
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
@@ -216,11 +226,16 @@ describe('AuthProvider', () => {
       localStorage.setItem('kms_refresh_token', 'stored-refresh');
 
       const user = makeUser();
+      // TransformInterceptor-wrapped response (production shape)
       const successTokenResponse = {
-        accessToken: 'access-abc',
-        refreshToken: 'refresh-xyz',
-        expiresIn: 3600,
-        tokenType: 'Bearer',
+        success: true,
+        data: {
+          accessToken: 'access-abc',
+          refreshToken: 'refresh-xyz',
+          expiresIn: 3600,
+          tokenType: 'Bearer',
+        },
+        timestamp: '2026-01-01T00:00:00.000Z',
       };
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
@@ -235,7 +250,7 @@ describe('AuthProvider', () => {
         </AuthProvider>,
       );
 
-      // Assert
+      // Assert — storeLogin must be called with the unwrapped token, not undefined
       await waitFor(() => {
         expect(mockStoreLogin).toHaveBeenCalledWith(
           expect.objectContaining({ email: user.email }),

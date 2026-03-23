@@ -273,4 +273,50 @@ describe('KMS middleware', () => {
       expect(intlMiddlewareSpy.handler).toHaveBeenCalled();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Cache-Control headers on redirects (Bug 3 regression)
+  // -------------------------------------------------------------------------
+
+  describe('Cache-Control: no-store on redirect responses', () => {
+    it('adds Cache-Control: no-store to the login redirect for protected routes', () => {
+      // Arrange — unauthenticated request to a protected route
+      const req = makeRequest('/en/dashboard');
+
+      // Act
+      const res = middleware(req);
+
+      // Assert — redirect must carry Cache-Control: no-store to prevent
+      // Next.js Router Cache from caching the 302 and replaying it after login
+      expect(res.status).toBe(307);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('adds Cache-Control: no-store to the dashboard redirect for authed user on auth route', () => {
+      // Arrange — authenticated user hitting the login page
+      const req = makeRequest('/en/login', {
+        cookie: 'kms-access-token=valid-token',
+      });
+
+      // Act
+      const res = middleware(req);
+
+      // Assert
+      expect(res.status).toBe(307);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('does NOT add Cache-Control header when passing through to intlMiddleware', () => {
+      // Arrange — authenticated request, no redirect needed
+      const req = makeRequest('/en/dashboard', {
+        cookie: 'kms-access-token=valid-token',
+      });
+
+      // Act — intlMiddleware returns NextResponse.next()
+      middleware(req);
+
+      // Assert — intlMiddleware was called (no redirect from our middleware)
+      expect(intlMiddlewareSpy.handler).toHaveBeenCalled();
+    });
+  });
 });

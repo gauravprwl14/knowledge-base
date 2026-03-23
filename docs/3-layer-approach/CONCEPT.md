@@ -73,7 +73,7 @@ Each `FOR-*.md` has exactly 6 sections:
 | Layer | File | Purpose |
 |-------|------|---------|
 | 1 Router | `/CLAUDE.md` | Always loaded. Routes to docs/ |
-| 2 Room | `docs/CONTEXT.md` | Master docs router |
+| 2 Room | `docs/CONTEXT.md` | Master docs router — all subfolders |
 | 2 Room | `docs/workflow/CONTEXT.md` | Routes to process docs |
 | 2 Room | `docs/prd/CONTEXT.md` | Routes to feature PRDs |
 | 2 Room | `docs/development/CONTEXT.md` | Routes to FOR-*.md guides |
@@ -82,6 +82,24 @@ Each `FOR-*.md` has exactly 6 sections:
 | 2 Room | `docs/agents/CONTEXT.md` | Routes to agent/skill docs |
 | 3 Output | `docs/prd/PRD-*.md` | Feature requirements |
 | 3 Output | `docs/development/FOR-*.md` | Feature implementation guides |
-| 3 Output | `docs/architecture/decisions/*.md` | Architecture decisions |
+| 3 Output | `docs/architecture/decisions/*.md` | Architecture decisions (ADRs) |
 | 3 Output | `docs/architecture/sequence-diagrams/*.md` | Data flow diagrams |
 | 3 Output | `docs/architecture/ENGINEERING_STANDARDS.md` | Full standards reference |
+| 3 Output | `docs/workflow/DEFINITION-OF-DONE.md` | 10-gate DoD checklist |
+| 3 Output | `docs/workflow/PRD-TEMPLATE.md` | PRD writing template |
+| 3 Output | `docs/workflow/ENGINEERING_WORKFLOW.md` | End-to-end feature workflow |
+
+## Folders Without CONTEXT.md (not yet in 3-layer system)
+
+These folders exist in `docs/` but do not have a CONTEXT.md. They are legacy or reference-only:
+
+| Folder | Contents |
+|--------|----------|
+| `docs/3-layer-approach/` | This CONCEPT.md file |
+| `docs/session-summary/` | Session-end changelogs |
+| `docs/delivery-plan/` | Sprint boards, milestone tracker, task breakdown |
+| `docs/knowledge-graph/` | Knowledge graph architecture reference |
+| `docs/knowledge-transfer/` | Codebase overview and onboarding reference |
+| `docs/superpowers/` | Advanced capability docs |
+| `docs/tutorial/` | Step-by-step tutorials |
+| `docs/adr/` | Legacy ADR location (canonical = `architecture/decisions/`) |

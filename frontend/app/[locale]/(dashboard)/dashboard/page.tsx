@@ -41,8 +41,8 @@ function StatCard({ icon: Icon, label, value, description, href }: StatCardProps
       className="group flex flex-col gap-3 p-5 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm hover:border-white/20 hover:bg-white/[0.07] transition-all"
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-violet-600/25 to-purple-500/15 border border-violet-500/20">
-          <Icon className="text-violet-400" size={18} aria-hidden="true" />
+        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#93c5fd]/10 border border-[#93c5fd]/20">
+          <Icon className="text-[#93c5fd]" size={18} aria-hidden="true" />
         </div>
         <ArrowRight
           className="w-4 h-4 text-slate-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"
@@ -80,7 +80,7 @@ function QuickAction({ icon: Icon, label, href, variant = 'secondary' }: QuickAc
       className={cn(
         'inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.98]',
         variant === 'primary'
-          ? 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-lg shadow-violet-500/20'
+          ? 'bg-[#3b82f6] hover:bg-[#2563eb] text-white'
           : 'border border-white/10 text-slate-300 bg-white/5 hover:bg-white/[0.08] hover:border-white/20',
       )}
     >
@@ -140,12 +140,12 @@ export default function DashboardPage() {
       {/* Welcome banner — gradient */}
       <section
         aria-label="Welcome"
-        className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-violet-600/20 via-purple-600/10 to-transparent p-6"
+        className="relative overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#111111] p-6"
       >
         {/* Ambient glow */}
         <div
           className="absolute -top-10 -left-10 w-48 h-48 rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%)' }}
+          style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)' }}
           aria-hidden="true"
         />
         <div className="relative">
@@ -174,7 +174,7 @@ export default function DashboardPage() {
       {/* CTA banner */}
       <section
         aria-label="Get started"
-        className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 rounded-xl border border-violet-500/20 bg-violet-600/10 backdrop-blur-sm"
+        className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 rounded-xl border border-[#93c5fd]/20 bg-[#93c5fd]/5 backdrop-blur-sm"
       >
         <div className="flex-1">
           <h3 className="font-semibold text-slate-200 text-sm mb-1">
@@ -187,7 +187,7 @@ export default function DashboardPage() {
         </div>
         <Link
           href={`/${locale}/sources`}
-          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-lg shadow-violet-500/20 transition-all active:scale-[0.98]"
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[#3b82f6] hover:bg-[#2563eb] text-white transition-all active:scale-[0.98]"
         >
           <Database className="w-4 h-4" aria-hidden="true" />
           Connect a source
@@ -206,9 +206,9 @@ export default function DashboardPage() {
         </div>
         {/* Empty state — premium onboarding card */}
         <div className="flex flex-col items-center justify-center gap-4 py-16 rounded-xl border border-dashed border-white/10 text-center bg-white/[0.02]">
-          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600/20 to-purple-500/10 border border-violet-500/20">
+          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#93c5fd]/10 border border-[#93c5fd]/20">
             <Activity
-              className="w-6 h-6 text-violet-400"
+              className="w-6 h-6 text-[#93c5fd]"
               aria-hidden="true"
             />
           </div>
@@ -222,7 +222,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href={`/${locale}/sources`}
-            className="text-xs text-violet-400 hover:text-violet-300 inline-flex items-center gap-1 transition-colors mt-1 font-medium"
+            className="text-xs text-[#93c5fd] hover:text-[#60a5fa] inline-flex items-center gap-1 transition-colors mt-1 font-medium"
           >
             Connect your first source
             <ArrowRight className="w-3 h-3" aria-hidden="true" />

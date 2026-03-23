@@ -14,24 +14,8 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { login as loginApi } from '@/lib/api/auth.api';
-import { login as storeLogin, authStore } from '@/lib/stores/auth.store';
-import { apiClient } from '@/lib/api/client';
 import type { LoginRequest, AuthResponse } from '@/lib/types/auth.types';
-
-// Wire up the API client token provider once — idempotent
-apiClient.setTokenProvider({
-  getAccessToken: () => authStore.state.accessToken,
-  setAccessToken: (token) => {
-    authStore.setState((prev) => ({ ...prev, accessToken: token }));
-  },
-  onAuthFailure: () => {
-    authStore.setState(() => ({
-      user: null,
-      accessToken: null,
-      isAuthenticated: false,
-    }));
-  },
-});
+// Note: token provider is registered by AuthProvider at module level — no duplicate needed here.
 
 export interface UseLoginReturn {
   mutate: (credentials: LoginRequest) => void;

@@ -9,19 +9,19 @@ Each guide has exactly 6 sections: Business Use Case, Flow Diagram, Code Structu
 
 | Question / Task | Load This File |
 |-----------------|----------------|
-| JWT auth, login, register, refresh tokens, API keys, RBAC | `FOR-authentication.md` *(guide pending)* |
-| NestJS controllers, DTOs, Zod validation, Fastify, response format | `FOR-nestjs-patterns.md` *(guide pending)* |
+| JWT auth, login, register, refresh tokens, API keys, RBAC | `FOR-auth-strategy.md` |
+| NestJS controllers, DTOs, Zod validation, Fastify, response format | *(guide pending — FOR-nestjs-patterns.md)* |
 | FastAPI endpoints, Pydantic, Depends(), lifespan, domain structure | `FOR-python-patterns.md` |
-| Prisma schema, BaseRepository, pagination, soft delete, migrations | `FOR-database.md` *(guide pending)* |
+| Prisma schema, BaseRepository, pagination, soft delete, migrations | *(guide pending — FOR-database.md)* |
 | AppException, error codes (KB*), exception filters, KMSWorkerError, AMQP ack/nack | `FOR-error-handling.md` |
 | nestjs-pino InjectPinoLogger, structlog, mandatory log fields, no print() | `FOR-logging.md` |
 | OTel, custom spans (kb.*), W3C traceparent, health checks, Prometheus | `FOR-observability.md` |
 | AMQP aio-pika, connect_robust, quorum queues, DLX, RabbitMQ patterns | `FOR-queue-system.md` |
-| OpenAPI 3.1, endpoint design, versioning, Swagger decorators, TSDoc | `FOR-api-design.md` *(guide pending)* |
+| OpenAPI 3.1, endpoint design, versioning, Swagger decorators, TSDoc | *(guide pending — FOR-api-design.md)* |
 | Jest unit tests, pytest, asyncio_mode, integration tests, coverage | `FOR-testing.md` |
 | BGE-M3 embedding, Qdrant upsert, chunking, FlagEmbedding, MOCK_EMBEDDING | `FOR-embedding.md` |
 | Neo4j driver, graph traversal, entity extraction, Leiden community detection | `FOR-graph.md` |
-| ACP protocol, agent orchestrator, LangGraph inside rag-service | `FOR-agent-patterns.md` *(guide pending)* |
+| ACP protocol, agent orchestrator, LangGraph inside rag-service | *(guide pending — FOR-agent-patterns.md)* |
 | ACP HTTP gateway, tool registry, session management, permission model | `FOR-acp-integration.md` |
 | Workflow Engine, agent spawning, YouTube URL workflow, how to add a new skill | `FOR-agentic-workflows.md` |
 | External agent adapters (Claude Code, Codex, Gemini), MCP server, RAG context pipeline | `FOR-external-agent-integration.md` |
@@ -30,9 +30,10 @@ Each guide has exactly 6 sections: Business Use Case, Flow Diagram, Code Structu
 | Files list/delete/bulk ops, scan trigger, internal worker callback, merge-conflict note | `FOR-files.md` |
 | Sources (local, Obsidian, Google Drive OAuth), token encryption, reconnect flow | `FOR-sources.md` |
 | Frontend API clients (`lib/api/*.ts`), React Query hooks, loading/error states, TypeScript DTO alignment | `FOR-frontend-api-patterns.md` |
+| Next.js auth store (Zustand), middleware route guards, session cookie, login/logout hooks | `FOR-frontend-auth.md` |
 | End-to-end data flows (Chat RAG, Search, Source scan, Embed pipeline, Collections) with exact URLs and payloads | `FOR-e2e-flows.md` |
 | search-api service (BM25, Qdrant, RRF fusion, x-user-id header, mock modes, config) | `FOR-search-api.md` |
-| url-agent service — YouTube transcript extraction, web page extraction, UrlClassifier, mock mode, AMQP publish | `FOR-url-agent.md` |
+| Rate limiting (NestJS ThrottlerGuard, per-user limits, Redis store, bypass for internal) | `FOR-rate-limiting.md` |
 
 ---
 

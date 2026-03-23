@@ -114,10 +114,10 @@ export function LoginForm({
                   'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all',
                   'bg-white/5 border',
                   'text-slate-200 placeholder:text-slate-600',
-                  'focus:ring-2 focus:ring-violet-500/20',
+                  'focus:ring-2 focus:ring-blue-400/20',
                   errors.email
                     ? 'border-red-500/50 focus:border-red-500/70'
-                    : 'border-white/10 focus:border-violet-400/60',
+                    : 'border-white/10 focus:border-blue-400/60',
                 )}
               />
               {/* Validation indicator dot */}
@@ -147,7 +147,7 @@ export function LoginForm({
               </label>
               <Link
                 href={forgotPasswordHref}
-                className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                className="text-xs text-[#93c5fd] hover:text-[#60a5fa] transition-colors"
               >
                 Forgot password?
               </Link>
@@ -171,10 +171,10 @@ export function LoginForm({
                   'w-full h-10 px-3 pr-10 rounded-lg text-sm outline-none transition-all',
                   'bg-white/5 border',
                   'text-slate-200 placeholder:text-slate-600',
-                  'focus:ring-2 focus:ring-violet-500/20',
+                  'focus:ring-2 focus:ring-blue-400/20',
                   errors.password
                     ? 'border-red-500/50 focus:border-red-500/70'
-                    : 'border-white/10 focus:border-violet-400/60',
+                    : 'border-white/10 focus:border-blue-400/60',
                 )}
               />
               <button
@@ -209,11 +209,11 @@ export function LoginForm({
             aria-busy={isLoading}
             className={cn(
               'w-full h-10 rounded-lg text-sm font-semibold transition-all',
-              'bg-gradient-to-r from-violet-600 to-purple-600',
-              'hover:from-violet-500 hover:to-purple-500',
-              'text-white shadow-lg shadow-violet-500/20',
+              'bg-[#3b82f6]',
+              'hover:bg-[#2563eb]',
+              'text-white shadow-sm',
               'active:scale-[0.98]',
-              'focus-visible:ring-2 focus-visible:ring-violet-500/50',
+              'focus-visible:ring-2 focus-visible:ring-blue-400/40',
               'disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100',
               'flex items-center justify-center gap-2',
             )}
@@ -290,7 +290,7 @@ export function LoginForm({
           Don&apos;t have an account?{' '}
           <Link
             href={registerHref}
-            className="font-medium text-violet-400 hover:text-violet-300 transition-colors"
+            className="font-medium text-[#93c5fd] hover:text-[#60a5fa] transition-colors"
           >
             Create account
           </Link>

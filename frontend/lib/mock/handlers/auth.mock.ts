@@ -36,7 +36,7 @@ export async function mockLogin(_credentials: LoginRequest): Promise<AuthRespons
   if (typeof document !== 'undefined') {
     document.cookie = `kms-access-token=${MOCK_ACCESS_TOKEN}; path=/; max-age=3600; SameSite=Lax`;
   }
-  return { accessToken: MOCK_ACCESS_TOKEN, expiresIn: 900 };
+  return { accessToken: MOCK_ACCESS_TOKEN, refreshToken: 'mock-refresh-token-demo', expiresIn: 900 };
 }
 
 export async function mockRegister(_payload: RegisterRequest): Promise<User> {

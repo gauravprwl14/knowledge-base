@@ -32,7 +32,7 @@ interface Job {
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   pending: <Clock className="w-4 h-4 text-amber-400" />,
-  processing: <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />,
+  processing: <Loader2 className="w-4 h-4 text-[#93c5fd] animate-spin" />,
   completed: <CheckCircle className="w-4 h-4 text-emerald-400" />,
   failed: <XCircle className="w-4 h-4 text-red-400" />,
   cancelled: <XCircle className="w-4 h-4 text-slate-500" />,
@@ -40,7 +40,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500/15 text-amber-400 border border-amber-500/20',
-  processing: 'bg-violet-500/15 text-violet-400 border border-violet-500/20',
+  processing: 'bg-[#93c5fd]/15 text-[#93c5fd] border border-[#93c5fd]/20',
   completed: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
   failed: 'bg-red-500/15 text-red-400 border border-red-500/20',
   cancelled: 'bg-slate-500/15 text-slate-400 border border-slate-500/20',
@@ -403,7 +403,7 @@ export default function JobsPage() {
                 <button
                   onClick={handleBulkCopy}
                   disabled={copying}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 disabled:opacity-60 rounded-lg text-white font-medium transition-all shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#3b82f6] hover:bg-[#2563eb] disabled:opacity-60 rounded-lg text-white font-medium transition-all shadow-sm"
                 >
                   <Copy className="w-4 h-4" />
                   {copying ? 'Copying...' : `Copy ${selectedJobs.size} Selected`}
@@ -435,7 +435,7 @@ export default function JobsPage() {
                 type="checkbox"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="rounded border-white/20 accent-violet-500"
+                className="rounded border-white/20 accent-blue-500"
               />
               <span className="font-medium">Auto-refresh</span>
             </label>
@@ -479,7 +479,7 @@ export default function JobsPage() {
                         selectedJobs.size === jobs.filter((j) => j.status === 'completed').length
                       }
                       onChange={handleSelectAll}
-                      className="rounded border-white/20 accent-violet-500"
+                      className="rounded border-white/20 accent-blue-500"
                       title="Select all completed jobs"
                     />
                   </th>
@@ -515,7 +515,7 @@ export default function JobsPage() {
                           type="checkbox"
                           checked={selectedJobs.has(job.id)}
                           onChange={() => handleToggleSelect(job.id)}
-                          className="rounded border-white/20 accent-violet-500"
+                          className="rounded border-white/20 accent-blue-500"
                         />
                       )}
                     </td>
@@ -566,7 +566,7 @@ export default function JobsPage() {
                           <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                             <div
                               className={`h-full transition-all duration-300 ${
-                                job.progress === 100 ? 'bg-emerald-500' : 'bg-violet-500'
+                                job.progress === 100 ? 'bg-emerald-500' : 'bg-[#93c5fd]'
                               }`}
                               style={{ width: `${job.progress}%` }}
                             />
@@ -585,7 +585,7 @@ export default function JobsPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleViewResult(job.id)}
-                            className="text-violet-400 hover:text-violet-300 text-sm font-medium flex items-center gap-1 transition-colors"
+                            className="text-[#93c5fd] hover:text-[#60a5fa] text-sm font-medium flex items-center gap-1 transition-colors"
                           >
                             <FileText className="w-4 h-4" />
                             View
@@ -684,8 +684,8 @@ export default function JobsPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed border-white/10 bg-white/[0.02]">
-          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600/20 to-purple-500/10 border border-violet-500/20 mb-4">
-            <FileText className="w-6 h-6 text-violet-400" />
+          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#93c5fd]/10 border border-[#93c5fd]/20 mb-4">
+            <FileText className="w-6 h-6 text-[#93c5fd]" />
           </div>
           <p className="text-slate-300 font-semibold mb-1">No jobs found</p>
           <p className="text-slate-600 text-sm">Start by uploading a file to transcribe</p>

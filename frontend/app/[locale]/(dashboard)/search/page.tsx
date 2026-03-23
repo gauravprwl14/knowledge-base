@@ -87,7 +87,7 @@ export default function SearchPage() {
           className="
             w-full text-xl px-5 py-4
             border border-white/10 rounded-xl
-            focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/20
+            focus:border-[#93c5fd]/50 focus:outline-none focus:ring-2 focus:ring-[#93c5fd]/20
             bg-white/5 text-slate-200 placeholder:text-slate-600
             transition-all duration-150
           "

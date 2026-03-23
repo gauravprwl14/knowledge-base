@@ -72,7 +72,7 @@ export function getFileTypeInfo(mimeType: string): FileTypeInfo {
 
   // Markdown
   if (mimeType === 'text/markdown' || mimeType === 'text/x-markdown') {
-    return { Icon: FileCode, colorClass: 'text-violet-500', label: 'MD' };
+    return { Icon: FileCode, colorClass: 'text-[#93c5fd]', label: 'MD' };
   }
 
   // Plain text / HTML
@@ -92,7 +92,7 @@ export function getFileTypeInfo(mimeType: string): FileTypeInfo {
 
   // Video
   if (mimeType.startsWith('video/')) {
-    return { Icon: Video, colorClass: 'text-purple-500', label: 'Video' };
+    return { Icon: Video, colorClass: 'text-[#60a5fa]', label: 'Video' };
   }
 
   // JSON / XML / code

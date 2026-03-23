@@ -123,15 +123,15 @@ export class SourcesController {
   @RequireFeature('googleDrive')
   @UseGuards(FeatureFlagGuard)
   @Get('google-drive/callback')
-  @HttpCode(HttpStatus.CREATED)
   @ApiEndpoint({
     summary: 'Google Drive OAuth callback',
     description:
-      'Receives the authorization code from Google, stubs token exchange, ' +
-      'encrypts tokens, and persists a new GOOGLE_DRIVE source.',
+      'Receives the authorization code from Google, exchanges it for tokens, ' +
+      'encrypts them, persists the source, then redirects the browser back to ' +
+      'the frontend sources page.',
     responseType: SourceResponseDto,
-    successStatus: HttpStatus.CREATED,
     responses: [
+      { status: HttpStatus.FOUND, description: 'Redirects to frontend /sources page' },
       { status: HttpStatus.BAD_REQUEST, description: 'Missing or invalid code / state' },
     ],
   })
@@ -140,8 +140,22 @@ export class SourcesController {
   async handleGoogleCallback(
     @Query('code') code: string,
     @Query('state') userId: string,
-  ): Promise<SourceResponseDto> {
-    return this.sourcesService.handleGoogleCallback(code, userId);
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    // Determine frontend base URL — falls back to same-origin /kms path
+    const frontendBase =
+      process.env.FRONTEND_URL ??
+      process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') ??
+      'http://localhost:3000/kms';
+
+    try {
+      await this.sourcesService.handleGoogleCallback(code, userId);
+      reply.redirect(`${frontendBase}/sources?connected=true`, 302);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? encodeURIComponent(err.message) : 'oauth_failed';
+      reply.redirect(`${frontendBase}/sources?error=${message}`, 302);
+    }
   }
 
   // ---------------------------------------------------------------------------

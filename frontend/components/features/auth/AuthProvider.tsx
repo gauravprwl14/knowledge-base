@@ -15,26 +15,33 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getMe } from '@/lib/api/auth.api';
-import { login as storeLogin, useCurrentUser, authStore } from '@/lib/stores/auth.store';
+import { login as storeLogin, logout as storeLogout, useCurrentUser, authStore, setAccessToken as storeSetAccessToken, setAuthRestorePromise, getAuthRestorePromise } from '@/lib/stores/auth.store';
 import { apiClient } from '@/lib/api/client';
 import { ME_QUERY_KEY } from '@/lib/hooks/auth/use-me';
 
 const REFRESH_TOKEN_KEY = 'kms_refresh_token';
-const SESSION_COOKIE_CLEAR = 'kms-access-token=; path=/; SameSite=Lax; Secure; max-age=0';
+
+function buildSessionCookieClear(): string {
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const secureAttr = isHttps ? '; Secure' : '';
+  return `kms-access-token=; path=/; SameSite=Lax${secureAttr}; max-age=0`;
+}
 
 // Wire token provider once at module level
 apiClient.setTokenProvider({
   getAccessToken: () => authStore.state.accessToken,
   setAccessToken: (token) => {
-    authStore.setState((prev) => ({ ...prev, accessToken: token }));
+    storeSetAccessToken(token);
   },
   onAuthFailure: () => {
-    authStore.setState(() => ({
-      user: null,
-      accessToken: null,
-      isAuthenticated: false,
-    }));
+    // Use logout() so the session cookie is cleared alongside the store state.
+    // If we only clear the in-memory store, middleware keeps seeing the stale
+    // cookie and lets the user through, but API calls continue to fail.
+    storeLogout();
   },
+  // Expose the in-flight restore promise so the request interceptor can await
+  // it before attaching the Bearer token (eliminates the JTI replay race).
+  getAuthRestorePromise: () => getAuthRestorePromise(),
 });
 
 interface AuthProviderProps {
@@ -68,7 +75,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
           throw new Error('refresh failed');
         }
 
-        const data = (await res.json()) as {
+        const json = await res.json();
+        // Unwrap the NestJS TransformInterceptor envelope:
+        //   { success: true, data: { accessToken, refreshToken, ... } }
+        // Falls back to root-level fields for any non-wrapped response.
+        const data = (
+          json?.success === true && json?.data ? json.data : json
+        ) as {
           accessToken: string;
           refreshToken: string;
           expiresIn: number;
@@ -77,7 +90,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         const { accessToken, refreshToken: newRefreshToken } = data;
 
-        authStore.setState((prev) => ({ ...prev, accessToken }));
+        // Use storeSetAccessToken so the session cookie is updated immediately.
+        // If we only update the store, the cookie still has the old token and
+        // the middleware may reject the next navigation before getMe() returns.
+        storeSetAccessToken(accessToken);
         localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
 
         const user = await getMe();
@@ -101,7 +117,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const alreadyRecovered = !!authStore.state.accessToken;
         if (!alreadyRecovered) {
           if (typeof document !== 'undefined') {
-            document.cookie = SESSION_COOKIE_CLEAR;
+            document.cookie = buildSessionCookieClear();
           }
           if (typeof localStorage !== 'undefined') {
             localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -110,7 +126,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     };
 
-    restoreSession();
+    // Register the promise so request interceptor can await it.
+    // Any API call that fires while session restore is in flight will wait
+    // until restoreSession() resolves before attaching the Bearer token.
+    const p = restoreSession().finally(() => setAuthRestorePromise(null));
+    setAuthRestorePromise(p);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

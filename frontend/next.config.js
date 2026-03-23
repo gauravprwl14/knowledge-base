@@ -7,6 +7,16 @@ const nextConfig = {
   basePath: '/kms',
   output: 'standalone',
 
+  // Prevent the Next.js Router Cache from serving stale route data
+  // for dynamically-rendered pages (pages that depend on cookies/headers).
+  // Setting dynamic to 0 means prefetch data for protected routes is always
+  // refetched from the server, ensuring auth state is always current.
+  experimental: {
+    staleTimes: {
+      dynamic: 0,
+    },
+  },
+
   // Enable Turbopack config to avoid errors
   turbopack: {},
 

@@ -11,7 +11,8 @@
  */
 
 import { useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
+import { useRouter } from '@/i18n/routing';
 import { useQueryClient } from '@tanstack/react-query';
 import { LoginForm } from './LoginForm';
 import { useLogin } from '@/lib/hooks/auth/use-login';
@@ -24,9 +25,12 @@ const GOOGLE_OAUTH_URL =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) ||
   'http://localhost:8000';
 
+const REFRESH_TOKEN_KEY = 'kms_refresh_token';
+
 export function LoginFeature() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const locale = (params?.locale as string) ?? 'en';
   const queryClient = useQueryClient();
   const { mutateAsync, isPending, error, reset } = useLogin();
@@ -36,6 +40,11 @@ export function LoginFeature() {
       try {
         reset();
         const authResponse = await mutateAsync(data);
+
+        // Persist refresh token for session restoration on page reload
+        if (authResponse.refreshToken && typeof localStorage !== 'undefined') {
+          localStorage.setItem(REFRESH_TOKEN_KEY, authResponse.refreshToken);
+        }
 
         // 1. Store the access token in the auth store
         //    getMe() needs the token set first — storeLogin does this via the
@@ -64,13 +73,19 @@ export function LoginFeature() {
           // getMe failed — still proceed, user store has partial data
         }
 
-        // 3. Navigate to dashboard
-        router.push(`/${locale}/dashboard`);
+        // 3. Navigate to the intended destination (or dashboard as fallback).
+        //    Middleware sets ?next= when redirecting unauthenticated users,
+        //    so honouring it returns the user to where they were going.
+        const next = searchParams?.get('next');
+        // Invalidate Router Cache before navigating so sidebar prefetches
+        // are refetched with the new auth cookie.
+        router.refresh();
+        router.push(next ?? `/${locale}/dashboard`);
       } catch {
         // Error is already surfaced via the `error` field from useLogin
       }
     },
-    [mutateAsync, reset, router, locale, queryClient],
+    [mutateAsync, reset, router, locale, queryClient, searchParams],
   );
 
   const handleGoogleLogin = useCallback(() => {

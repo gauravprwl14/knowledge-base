@@ -176,10 +176,10 @@ export function RegisterForm({
                   'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all',
                   'bg-white/5 border',
                   'text-slate-200 placeholder:text-slate-600',
-                  'focus:ring-2 focus:ring-violet-500/20',
+                  'focus:ring-2 focus:ring-blue-400/20',
                   errors.firstName
                     ? 'border-red-500/50 focus:border-red-500/70'
-                    : 'border-white/10 focus:border-violet-400/60',
+                    : 'border-white/10 focus:border-blue-400/60',
                 )}
               />
               {errors.firstName && (
@@ -206,10 +206,10 @@ export function RegisterForm({
                   'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all',
                   'bg-white/5 border',
                   'text-slate-200 placeholder:text-slate-600',
-                  'focus:ring-2 focus:ring-violet-500/20',
+                  'focus:ring-2 focus:ring-blue-400/20',
                   errors.lastName
                     ? 'border-red-500/50 focus:border-red-500/70'
-                    : 'border-white/10 focus:border-violet-400/60',
+                    : 'border-white/10 focus:border-blue-400/60',
                 )}
               />
               {errors.lastName && (
@@ -245,10 +245,10 @@ export function RegisterForm({
                 'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all',
                 'bg-white/5 border',
                 'text-slate-200 placeholder:text-slate-600',
-                'focus:ring-2 focus:ring-violet-500/20',
+                'focus:ring-2 focus:ring-blue-400/20',
                 errors.email
                   ? 'border-red-500/50 focus:border-red-500/70'
-                  : 'border-white/10 focus:border-violet-400/60',
+                  : 'border-white/10 focus:border-blue-400/60',
               )}
             />
             {errors.email && (
@@ -284,10 +284,10 @@ export function RegisterForm({
                   'w-full h-10 px-3 pr-10 rounded-lg text-sm outline-none transition-all',
                   'bg-white/5 border',
                   'text-slate-200 placeholder:text-slate-600',
-                  'focus:ring-2 focus:ring-violet-500/20',
+                  'focus:ring-2 focus:ring-blue-400/20',
                   errors.password
                     ? 'border-red-500/50 focus:border-red-500/70'
-                    : 'border-white/10 focus:border-violet-400/60',
+                    : 'border-white/10 focus:border-blue-400/60',
                 )}
               />
               <button
@@ -380,10 +380,10 @@ export function RegisterForm({
                   'w-full h-10 px-3 pr-10 rounded-lg text-sm outline-none transition-all',
                   'bg-white/5 border',
                   'text-slate-200 placeholder:text-slate-600',
-                  'focus:ring-2 focus:ring-violet-500/20',
+                  'focus:ring-2 focus:ring-blue-400/20',
                   errors.confirmPassword
                     ? 'border-red-500/50 focus:border-red-500/70'
-                    : 'border-white/10 focus:border-violet-400/60',
+                    : 'border-white/10 focus:border-blue-400/60',
                 )}
               />
               <button
@@ -416,7 +416,7 @@ export function RegisterForm({
               {...register('acceptTerms', {
                 required: 'You must accept the terms to continue',
               })}
-              className="mt-0.5 w-4 h-4 rounded border-white/10 accent-violet-500 cursor-pointer"
+              className="mt-0.5 w-4 h-4 rounded border-white/10 accent-blue-500 cursor-pointer"
             />
             <label
               htmlFor="acceptTerms"
@@ -425,7 +425,7 @@ export function RegisterForm({
               I agree to the{' '}
               <a
                 href="/terms"
-                className="text-violet-400 hover:text-violet-300 underline-offset-2 hover:underline"
+                className="text-[#93c5fd] hover:text-[#60a5fa] underline-offset-2 hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -434,7 +434,7 @@ export function RegisterForm({
               and{' '}
               <a
                 href="/privacy"
-                className="text-violet-400 hover:text-violet-300 underline-offset-2 hover:underline"
+                className="text-[#93c5fd] hover:text-[#60a5fa] underline-offset-2 hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -455,11 +455,10 @@ export function RegisterForm({
             aria-busy={isLoading}
             className={cn(
               'w-full h-10 rounded-lg text-sm font-semibold transition-all',
-              'bg-gradient-to-r from-violet-600 to-purple-600',
-              'hover:from-violet-500 hover:to-purple-500',
-              'text-white shadow-lg shadow-violet-500/20',
+              'bg-[#3b82f6] hover:bg-[#2563eb]',
+              'text-white',
               'active:scale-[0.98]',
-              'focus-visible:ring-2 focus-visible:ring-violet-500/50',
+              'focus-visible:ring-2 focus-visible:ring-blue-400/50',
               'disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100',
               'flex items-center justify-center gap-2',
             )}
@@ -480,7 +479,7 @@ export function RegisterForm({
           Already have an account?{' '}
           <Link
             href={loginHref}
-            className="font-medium text-violet-400 hover:text-violet-300 transition-colors"
+            className="font-medium text-[#93c5fd] hover:text-[#60a5fa] transition-colors"
           >
             Sign in
           </Link>

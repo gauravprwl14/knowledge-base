@@ -118,26 +118,31 @@ const config: Config = {
           900: '#312e81',
         },
 
-        // KMS premium design palette — violet/purple gradient, deep surfaces
+        // Gluestack UI v5 design palette — blue primary, orange accent
         kms2: {
-          // Primary gradient anchors
-          'violet-600': '#7C3AED',
-          'violet-500': '#8B5CF6',
-          'purple-500': '#A855F7',
-          'purple-400': '#C084FC',
-          // Cyan/teal accent
-          'cyan-500': '#06B6D4',
-          'cyan-600': '#0891B2',
-          // Deep surface backgrounds
-          'bg-base': '#0A0A0F',
-          'bg-raised': '#12121A',
-          'bg-elevated': '#1A1A2E',
-          'surface': '#0D0D14',
-          'surface-raised': '#161622',
+          // Primary — blue scale
+          'blue-300': '#93C5FD',
+          'blue-400': '#60A5FA',
+          'blue-500': '#3B82F6',
+          'blue-600': '#2563EB',
+          // Accent — orange
+          'orange-400': '#FB923C',
+          'orange-500': '#F97316',
+          'orange-600': '#EA580C',
+          // Neutral surfaces (pure gray, no color tint)
+          'bg-base': '#0A0A0A',
+          'bg-raised': '#111111',
+          'bg-elevated': '#171717',
+          'surface': '#111111',
+          'surface-raised': '#1C1C1C',
+          'surface-overlay': '#262626',
+          // Borders
+          'border': '#2E2E2E',
+          'border-strong': '#404040',
           // Text scale
-          'text-primary': '#F8F8FF',
-          'text-secondary': '#A0A0B0',
-          'text-muted': '#6B6B80',
+          'text-primary': '#FAFAFA',
+          'text-secondary': '#D4D4D4',
+          'text-muted': '#A1A1A1',
         },
       },
 

@@ -46,6 +46,25 @@ const initialState: AuthState = {
 export const authStore = new Store<AuthState>(initialState);
 
 // ---------------------------------------------------------------------------
+// Session-restore promise — prevents request race on page load
+// ---------------------------------------------------------------------------
+// AuthProvider sets this to the in-flight restoreSession() promise so that
+// the API client's request interceptor can await it before attaching the
+// Bearer token. Without this, child components mount and fire API calls
+// before AuthProvider has had a chance to hydrate the access token from the
+// refresh token in localStorage, causing spurious 401s and a JTI replay race.
+
+let _authRestorePromise: Promise<void> | null = null;
+
+export function setAuthRestorePromise(p: Promise<void> | null): void {
+  _authRestorePromise = p;
+}
+
+export function getAuthRestorePromise(): Promise<void> | null {
+  return _authRestorePromise;
+}
+
+// ---------------------------------------------------------------------------
 // Cookie helpers — sync access token with middleware
 // ---------------------------------------------------------------------------
 

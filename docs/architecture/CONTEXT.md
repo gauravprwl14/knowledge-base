@@ -28,6 +28,7 @@ Engineering standards, architecture decision records, and sequence diagrams.
 | Why structlog over loguru? | `decisions/0007-structlog-over-loguru.md` |
 | Why BGE-M3 embedding model? | `decisions/0009-bge-m3-embedding-model.md` |
 | Why Qdrant for vector DB? | `decisions/0010-qdrant-vector-db.md` |
+| Why OpenAPI as source of truth (contract-first)? | `decisions/0016-openapi-source-of-truth.md` |
 | Why ACP protocol for agents? | `decisions/0012-acp-protocol.md` |
 | Why custom orchestrator vs LangGraph? | `decisions/0013-orchestrator-pattern.md` |
 | Why HTTP transport for ACP (not stdio)? | `decisions/0018-acp-http-transport.md` |
@@ -39,6 +40,7 @@ Engineering standards, architecture decision records, and sequence diagrams.
 | Why tiered retrieval? When to skip LLM and return search results directly? | `decisions/0024-tiered-retrieval-response.md` |
 | LangGraph checkpointer: PostgreSQL vs Redis (dual storage) | `decisions/0025-langgraph-postgres-checkpointer.md` |
 | LLM provider abstraction: capability-based factory, Anthropic-primary | `decisions/0026-llm-provider-abstraction.md` |
+| File tagging system — manual + AI auto-tag, cascade delete, filter | `decisions/0027-file-tagging-system.md` |
 | Dual-queue boundary: BullMQ (internal) vs RabbitMQ (Python IPC) | `decisions/0028-dual-queue-boundary.md` |
 | Why search-api is a standalone NestJS service (port 8001) with header-based auth? | `decisions/0029-search-api-standalone-service.md` |
 | ADR index (all decisions) | `decisions/README.md` |

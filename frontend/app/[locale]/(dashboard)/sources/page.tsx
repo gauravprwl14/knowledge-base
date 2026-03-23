@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { kmsSourcesApi, type KmsSource, type SourceStatus, type SourceType } from '@/lib/api/sources';
+import { useCurrentUser } from '@/lib/stores/auth.store';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // ---------------------------------------------------------------------------
@@ -108,6 +109,7 @@ function LoadingSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function SourcesPage() {
+  const user = useCurrentUser();
   const [sources, setSources] = React.useState<KmsSource[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -126,6 +128,19 @@ export default function SourcesPage() {
     }
   }, []);
 
+  // Read ?connected= / ?error= query params set by the backend OAuth callback
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('connected') === 'true') {
+      // Remove the query param from the URL without a page reload
+      window.history.replaceState({}, '', window.location.pathname);
+      loadSources();
+    } else if (params.get('error')) {
+      setError(`Google Drive connection failed: ${params.get('error')}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [loadSources]);
+
   React.useEffect(() => {
     loadSources();
   }, [loadSources]);
@@ -143,7 +158,11 @@ export default function SourcesPage() {
   };
 
   const handleConnectGoogleDrive = () => {
-    window.location.href = '/kms/api/v1/sources/google-drive/oauth';
+    if (!user?.id) {
+      setError('Unable to initiate Google Drive connection: user not loaded yet. Please refresh.');
+      return;
+    }
+    kmsSourcesApi.initiateGoogleDrive(user.id);
   };
 
   return (

@@ -16,18 +16,18 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#0A0A0F] via-[#12091F] to-[#0A0A0F] relative overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-[#0a0a0a] relative overflow-hidden">
       {/* Ambient orbs — CSS-only, no JS */}
       <div
-        className="orb orb-violet fixed w-[600px] h-[600px] -top-48 -left-48"
+        className="orb orb-blue fixed w-[600px] h-[600px] -top-48 -left-48"
         aria-hidden="true"
       />
       <div
-        className="orb orb-purple fixed w-[500px] h-[500px] top-1/2 -right-48 -translate-y-1/2"
+        className="orb orb-orange fixed w-[500px] h-[500px] top-1/2 -right-48 -translate-y-1/2"
         aria-hidden="true"
       />
       <div
-        className="orb orb-cyan fixed w-[400px] h-[400px] -bottom-32 left-1/3"
+        className="orb orb-neutral fixed w-[400px] h-[400px] -bottom-32 left-1/3"
         aria-hidden="true"
       />
 
@@ -50,7 +50,7 @@ export default function AuthLayout({
           aria-label="KMS — Knowledge Base home"
         >
           {/* Logo mark — gradient */}
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-purple-500 shadow-lg shadow-violet-500/30">
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#3b82f6] shadow-lg shadow-blue-500/20">
             <span className="text-white font-bold text-sm leading-none select-none">
               K
             </span>

@@ -200,7 +200,6 @@ export class AuthController {
   ): Promise<void> {
     try {
       // req.user is populated by GoogleAuthGuard → GoogleStrategy.validate()
-      console.error('[GoogleCallback] req.user:', JSON.stringify(req?.user ?? null));
       const result = await this.authService.googleLogin(req.user);
 
       // Redirect browser to the frontend OAuth callback page.
@@ -209,11 +208,8 @@ export class AuthController {
         refreshToken: result.tokens.refreshToken,
       });
       const redirectUrl = `/kms/en/auth/callback?${params.toString()}`;
-      console.error('[GoogleCallback] redirecting to:', redirectUrl.substring(0, 60));
       reply.redirect(redirectUrl, 302);
     } catch (err) {
-      const e = err as Error;
-      console.error('[GoogleCallback] ERROR:', e?.message, e?.stack);
       throw err;
     }
   }

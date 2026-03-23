@@ -92,6 +92,13 @@ export interface TokenProvider {
   setAccessToken: (token: string) => void;
   /** Called when refresh fails (forces logout). */
   onAuthFailure: () => void;
+  /**
+   * Optional: returns the in-flight session-restore promise so the request
+   * interceptor can await it before attaching the Bearer token. This prevents
+   * a race where child components fire API calls before AuthProvider has
+   * restored the access token from the refresh token in localStorage.
+   */
+  getAuthRestorePromise?: () => Promise<void> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,9 +149,18 @@ export class KmsApiClient {
   // Interceptors
   // -------------------------------------------------------------------------
 
-  private requestInterceptor(
+  private async requestInterceptor(
     config: InternalAxiosRequestConfig,
-  ): InternalAxiosRequestConfig {
+  ): Promise<InternalAxiosRequestConfig> {
+    // Wait for session restore to finish (if in progress) before attaching
+    // the Bearer token. Without this, child components that mount before
+    // AuthProvider's useEffect runs will send requests with no token, receive
+    // a 401, and trigger a second concurrent refresh — causing a JTI replay
+    // error that destroys the session.
+    const restorePromise = this.tokenProvider?.getAuthRestorePromise?.();
+    if (restorePromise) {
+      await restorePromise;
+    }
     const token = this.tokenProvider?.getAccessToken();
     if (token) {
       config.headers = config.headers ?? {};
@@ -154,6 +170,17 @@ export class KmsApiClient {
   }
 
   private responseSuccessInterceptor(response: AxiosResponse): AxiosResponse {
+    // The NestJS TransformInterceptor wraps every response as:
+    //   { success: true, data: <payload>, meta: {...}, timestamp: "..." }
+    // Unwrap it here so callers receive the typed payload directly.
+    if (
+      response.data &&
+      typeof response.data === 'object' &&
+      response.data.success === true &&
+      'data' in response.data
+    ) {
+      response.data = response.data.data;
+    }
     return response;
   }
 
@@ -218,18 +245,24 @@ export class KmsApiClient {
         : null;
     if (!refreshToken) throw new Error('No refresh token available');
 
-    // Backend expects { refreshToken } in the body and returns { accessToken, refreshToken, ... }
-    const response = await axios.post<{
-      accessToken: string;
-      refreshToken: string;
-    }>(`${BASE_URL}${API_VERSION}/auth/refresh`, { refreshToken });
+    // Backend expects { refreshToken } in the body.
+    // Response is wrapped by NestJS TransformInterceptor:
+    //   { success: true, data: { accessToken, refreshToken, ... } }
+    // Use standalone axios (not this.http) to avoid triggering the 401 interceptor again.
+    const response = await axios.post(`${BASE_URL}${API_VERSION}/auth/refresh`, {
+      refreshToken,
+    });
+    const raw = response.data;
+    const data = (
+      raw?.success === true && raw?.data ? raw.data : raw
+    ) as { accessToken: string; refreshToken: string };
 
     // Persist the rotated refresh token
-    if (typeof localStorage !== 'undefined' && response.data.refreshToken) {
-      localStorage.setItem('kms_refresh_token', response.data.refreshToken);
+    if (typeof localStorage !== 'undefined' && data.refreshToken) {
+      localStorage.setItem('kms_refresh_token', data.refreshToken);
     }
 
-    return response.data.accessToken;
+    return data.accessToken;
   }
 
   // -------------------------------------------------------------------------
