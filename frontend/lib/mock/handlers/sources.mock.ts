@@ -8,8 +8,7 @@
  */
 
 import { MOCK_SOURCES, MOCK_SCAN_HISTORY } from '../data/sources.data';
-import type { KmsSource } from '@/lib/api/sources';
-import type { ScanHistoryItem } from '@/lib/api/sources';
+import type { KmsSource, ScanHistoryItem, DriveFolder, DisconnectResult, ClearJobStatus } from '@/lib/api/sources';
 
 let _sources: KmsSource[] = [...MOCK_SOURCES];
 
@@ -28,11 +27,46 @@ export const mockKmsSourcesApi = {
     return src;
   },
 
-  async disconnect(id: string): Promise<void> {
+  async disconnect(id: string, clearData = false): Promise<DisconnectResult> {
     await delay(300);
     _sources = _sources.map((s) =>
       s.id === id ? { ...s, status: 'DISCONNECTED' as const } : s,
     );
+    if (clearData) {
+      console.info('[mock] clearData=true — simulating async clear job');
+      return { jobId: `clear-mock-${Date.now()}` };
+    }
+    return {};
+  },
+
+  async getClearStatus(_id: string): Promise<ClearJobStatus | null> {
+    await delay(200);
+    return {
+      id: `clear-mock-status`,
+      status: 'COMPLETED',
+      filesDeleted: 12,
+      chunksDeleted: 143,
+      errorMsg: null,
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    };
+  },
+
+  async listDriveFolders(_sourceId: string, _parentId = 'root'): Promise<{ folders: DriveFolder[] }> {
+    await delay(300);
+    return {
+      folders: [
+        { id: 'folder-001', name: 'Work Documents', path: 'Work Documents', childCount: 3 },
+        { id: 'folder-002', name: 'Personal', path: 'Personal', childCount: 0 },
+        { id: 'folder-003', name: 'Projects', path: 'Projects', childCount: 5 },
+        { id: 'folder-004', name: 'Archive', path: 'Archive', childCount: 0 },
+      ],
+    };
+  },
+
+  async updateConfig(_id: string, _config: { syncFolderIds?: string[] }): Promise<void> {
+    await delay(200);
+    console.info('[mock] updateConfig called', _config);
   },
 
   /** In mock mode, just log — no redirect to Google consent screen. */

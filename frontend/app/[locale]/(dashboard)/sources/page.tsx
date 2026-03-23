@@ -1,9 +1,12 @@
 'use client';
 
 import * as React from 'react';
+import { FolderOpen, HardDrive, Loader2, RefreshCw } from 'lucide-react';
 import { kmsSourcesApi, type KmsSource, type SourceStatus, type SourceType } from '@/lib/api/sources';
 import { useCurrentUser } from '@/lib/stores/auth.store';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DisconnectConfirmModal } from '@/components/features/sources/DisconnectConfirmModal';
+import { FolderPickerModal } from '@/components/features/sources/FolderPickerModal';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -47,49 +50,103 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// SourceCard
 // ---------------------------------------------------------------------------
 
 function SourceCard({
   source,
   onDisconnect,
-  disconnecting,
+  onConfigureFolders,
+  onScan,
+  isScanning,
 }: {
   source: KmsSource;
-  onDisconnect: (id: string) => void;
-  disconnecting: boolean;
+  onDisconnect: (source: KmsSource) => void;
+  onConfigureFolders: (source: KmsSource) => void;
+  onScan: (id: string, type: 'FULL' | 'INCREMENTAL') => void;
+  isScanning: boolean;
 }) {
+  const canScan =
+    source.status === 'CONNECTED' ||
+    source.status === 'IDLE' ||
+    source.status === 'COMPLETED';
+
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 shadow-sm flex flex-col gap-3">
+      {/* Top row: name + badges + disconnect */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <span className="font-semibold text-[var(--color-text-primary)] truncate max-w-xs">
-            {source.displayName ?? source.id}
-          </span>
+        <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeBadgeClass(source.type)}`}
-            >
+            {source.type === 'GOOGLE_DRIVE'
+              ? <HardDrive className="h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" />
+              : <FolderOpen className="h-4 w-4 shrink-0 text-[var(--color-text-secondary)]" aria-hidden="true" />}
+            <span className="font-semibold text-[var(--color-text-primary)] truncate max-w-[200px]">
+              {source.displayName ?? source.id}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeBadgeClass(source.type)}`}>
               {source.type.replace('_', ' ')}
             </span>
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(source.status)}`}
-            >
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(source.status)}`}>
+              {source.status === 'SCANNING' && (
+                <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" aria-hidden="true" />
+              )}
               {source.status}
             </span>
           </div>
         </div>
+
+        {/* Disconnect button */}
         <button
-          onClick={() => onDisconnect(source.id)}
-          disabled={disconnecting}
-          className="shrink-0 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+          onClick={() => onDisconnect(source)}
+          className="shrink-0 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
         >
           Disconnect
         </button>
       </div>
+
+      {/* Last synced */}
       <p className="text-xs text-[var(--color-text-secondary)]">
         Last synced: {formatDate(source.lastSyncedAt)}
       </p>
+
+      {/* Action row */}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {/* Scan controls */}
+        {canScan && (
+          <>
+            <button
+              onClick={() => onScan(source.id, 'FULL')}
+              disabled={isScanning || source.status === 'SCANNING'}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`h-3 w-3 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />
+              {isScanning ? 'Scanning…' : 'Scan Now'}
+            </button>
+            {source.lastSyncedAt && (
+              <button
+                onClick={() => onScan(source.id, 'INCREMENTAL')}
+                disabled={isScanning || source.status === 'SCANNING'}
+                className="rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] disabled:opacity-50 transition-colors"
+              >
+                Incremental Scan
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Folder picker — Google Drive only */}
+        {source.type === 'GOOGLE_DRIVE' && source.status !== 'DISCONNECTED' && (
+          <button
+            onClick={() => onConfigureFolders(source)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+          >
+            <FolderOpen className="h-3 w-3" aria-hidden="true" />
+            Configure Folders
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -98,7 +155,7 @@ function LoadingSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 3 }).map((_, i) => (
-        <Skeleton key={i} className="h-28 w-full rounded-xl" />
+        <Skeleton key={i} className="h-36 w-full rounded-xl" />
       ))}
     </div>
   );
@@ -113,7 +170,11 @@ export default function SourcesPage() {
   const [sources, setSources] = React.useState<KmsSource[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [disconnectingId, setDisconnectingId] = React.useState<string | null>(null);
+  const [scanningId, setScanningId] = React.useState<string | null>(null);
+
+  // Modal state
+  const [disconnectTarget, setDisconnectTarget] = React.useState<KmsSource | null>(null);
+  const [folderTarget, setFolderTarget] = React.useState<KmsSource | null>(null);
 
   const loadSources = React.useCallback(async () => {
     setIsLoading(true);
@@ -128,11 +189,9 @@ export default function SourcesPage() {
     }
   }, []);
 
-  // Read ?connected= / ?error= query params set by the backend OAuth callback
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('connected') === 'true') {
-      // Remove the query param from the URL without a page reload
       window.history.replaceState({}, '', window.location.pathname);
       loadSources();
     } else if (params.get('error')) {
@@ -145,17 +204,24 @@ export default function SourcesPage() {
     loadSources();
   }, [loadSources]);
 
-  const handleDisconnect = async (id: string) => {
-    setDisconnectingId(id);
+  function handleDisconnectDone(sourceId: string) {
+    setSources((prev) => prev.filter((s) => s.id !== sourceId));
+  }
+
+  async function handleScan(sourceId: string, scanType: 'FULL' | 'INCREMENTAL') {
+    setScanningId(sourceId);
     try {
-      await kmsSourcesApi.disconnect(id);
-      setSources((prev) => prev.filter((s) => s.id !== id));
+      await kmsSourcesApi.triggerScan(sourceId, scanType);
+      // Optimistically flip status to SCANNING
+      setSources((prev) =>
+        prev.map((s) => (s.id === sourceId ? { ...s, status: 'SCANNING' as const } : s)),
+      );
     } catch {
-      setError('Failed to disconnect source. Please try again.');
+      setError('Failed to start scan. Please try again.');
     } finally {
-      setDisconnectingId(null);
+      setScanningId(null);
     }
-  };
+  }
 
   const handleConnectGoogleDrive = () => {
     if (!user?.id) {
@@ -191,19 +257,19 @@ export default function SourcesPage() {
         </div>
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-center justify-between gap-4">
+          <p className="text-sm text-red-700">{error}</p>
+          <button onClick={() => setError(null)} className="text-xs text-red-500 hover:text-red-700">
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Content */}
       {isLoading ? (
         <LoadingSkeleton />
-      ) : error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-          <p className="text-sm text-red-700">{error}</p>
-          <button
-            onClick={loadSources}
-            className="mt-3 text-sm font-medium text-red-700 underline hover:no-underline"
-          >
-            Retry
-          </button>
-        </div>
       ) : sources.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-12 text-center">
           <p className="text-[var(--color-text-secondary)]">No sources connected yet.</p>
@@ -217,11 +283,33 @@ export default function SourcesPage() {
             <SourceCard
               key={source.id}
               source={source}
-              onDisconnect={handleDisconnect}
-              disconnecting={disconnectingId === source.id}
+              onDisconnect={setDisconnectTarget}
+              onConfigureFolders={setFolderTarget}
+              onScan={handleScan}
+              isScanning={scanningId === source.id}
             />
           ))}
         </div>
+      )}
+
+      {/* Disconnect confirmation modal */}
+      {disconnectTarget && (
+        <DisconnectConfirmModal
+          source={disconnectTarget}
+          open={Boolean(disconnectTarget)}
+          onClose={() => setDisconnectTarget(null)}
+          onDone={handleDisconnectDone}
+        />
+      )}
+
+      {/* Folder picker modal */}
+      {folderTarget && (
+        <FolderPickerModal
+          sourceId={folderTarget.id}
+          open={Boolean(folderTarget)}
+          onClose={() => setFolderTarget(null)}
+          onSave={() => setFolderTarget(null)}
+        />
       )}
     </div>
   );

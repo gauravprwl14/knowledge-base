@@ -1,5 +1,31 @@
 import { apiClient } from './client';
 
+// ── Additional types for new features ───────────────────────────────────────
+
+/** A Google Drive folder entry returned by GET /sources/google-drive/folders */
+export interface DriveFolder {
+  id: string;
+  name: string;
+  path: string;
+  childCount: number;
+}
+
+/** Result from DELETE /sources/:id?clearData=true */
+export interface DisconnectResult {
+  jobId?: string;
+}
+
+/** Result from GET /sources/:id/clear-status */
+export interface ClearJobStatus {
+  id: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  filesDeleted?: number;
+  chunksDeleted?: number;
+  errorMsg?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
 /**
  * Source connection status — mirrors the backend SourceStatus enum.
  */
@@ -47,7 +73,14 @@ export interface ScanHistoryItem {
 const _realKmsSourcesApi = {
   list: (): Promise<KmsSource[]> => apiClient.get<KmsSource[]>('/sources'),
   get: (id: string): Promise<KmsSource> => apiClient.get<KmsSource>(`/sources/${id}`),
-  disconnect: (id: string): Promise<void> => apiClient.delete<void>(`/sources/${id}`),
+  disconnect: (id: string, clearData = false): Promise<DisconnectResult> =>
+    apiClient.delete<DisconnectResult>(`/sources/${id}${clearData ? '?clearData=true' : ''}`),
+  getClearStatus: (id: string): Promise<ClearJobStatus | null> =>
+    apiClient.get<ClearJobStatus | null>(`/sources/${id}/clear-status`),
+  listDriveFolders: (sourceId: string, parentId = 'root'): Promise<{ folders: DriveFolder[] }> =>
+    apiClient.get<{ folders: DriveFolder[] }>(`/sources/google-drive/folders?sourceId=${sourceId}&parentId=${parentId}`),
+  updateConfig: (id: string, config: { syncFolderIds?: string[] }): Promise<void> =>
+    apiClient.patch<void>(`/sources/${id}/config`, config),
   initiateGoogleDrive: (userId: string): void => {
     const base =
       typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL
