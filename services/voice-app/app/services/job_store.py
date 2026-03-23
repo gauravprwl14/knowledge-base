@@ -299,6 +299,7 @@ class JobStore:
         job_id: str,
         status: str,
         transcript: str | None = None,
+        transcript_path: str | None = None,
         error_msg: str | None = None,
     ) -> None:
         """Update the status of a job row, setting timestamps appropriately.
@@ -311,6 +312,8 @@ class JobStore:
             status: New status value — ``RUNNING``, ``COMPLETED``, or
                 ``FAILED``.
             transcript: Transcribed text; written only on ``COMPLETED``.
+            transcript_path: MinIO object key for the transcript file; written
+                only when the upload succeeded.
             error_msg: Error description; written only on ``FAILED``.
         """
         now = datetime.now(tz=timezone.utc)
@@ -328,6 +331,9 @@ class JobStore:
         if transcript is not None:
             set_clauses.append(f"transcript = ${len(params) + 1}")
             params.append(transcript)
+        if transcript_path is not None:
+            set_clauses.append(f"transcript_path = ${len(params) + 1}")
+            params.append(transcript_path)
         if error_msg is not None:
             set_clauses.append(f"error_msg = ${len(params) + 1}")
             params.append(error_msg)

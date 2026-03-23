@@ -408,6 +408,7 @@ model KmsVoiceJob {
   userId          String         @map("user_id") @db.Uuid
   status          VoiceJobStatus @default(PENDING)
   transcript      String?        @db.Text
+  transcriptPath  String?        @map("transcript_path") @db.VarChar(512)
   language        String?        @db.VarChar(10)
   durationSeconds Float?         @map("duration_seconds")
   errorMsg        String?        @map("error_msg") @db.Text

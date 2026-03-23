@@ -10,6 +10,7 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
 import { ScanJobPublisher } from '../../queue/publishers/scan-job.publisher';
 import { IngestNoteDto } from './dto/ingest-note.dto';
+import { MinioService } from './minio.service';
 
 /**
  * FilesService — business logic for KMS file management.
@@ -33,6 +34,7 @@ export class FilesService {
     private readonly embedJobPublisher: EmbedJobPublisher,
     private readonly scanJobRepo: ScanJobRepository,
     private readonly scanJobPublisher: ScanJobPublisher,
+    private readonly minioService: MinioService,
   ) {
     // Bind context name so every log line carries `context: FilesService`
     this.logger = logger.child({ context: FilesService.name });
@@ -389,5 +391,72 @@ export class FilesService {
     this.logger.info('file ingested from obsidian', { fileId, userId });
 
     return { fileId, sourceId: obsidianSource.id };
+  }
+
+  // ---------------------------------------------------------------------------
+  // TRANSCRIPT PRE-SIGNED URL
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns a pre-signed URL for the transcript of the given file.
+   *
+   * Looks up the most recent COMPLETED voice job for the file and generates
+   * a 15-minute pre-signed GET URL from MinIO.  Returns `null` when no
+   * completed transcript exists or when `transcript_path` is not set on the job.
+   *
+   * @param userId - Authenticated user UUID (for ownership scoping).
+   * @param fileId - Target file UUID.
+   * @returns An object with the pre-signed `url`, or `null`.
+   */
+  async getTranscriptUrl(userId: string, fileId: string): Promise<{ url: string } | null> {
+    type Row = { id: string; transcript_path: string | null };
+    const rows = await this.prisma.$queryRaw<Row[]>`
+      SELECT id, transcript_path
+      FROM   kms_voice_jobs
+      WHERE  file_id = ${fileId}::uuid
+        AND  user_id = ${userId}::uuid
+        AND  status  = 'COMPLETED'
+      ORDER  BY created_at DESC
+      LIMIT  1
+    `;
+
+    if (!rows.length || !rows[0].transcript_path) return null;
+
+    const url = await this.minioService.getPresignedUrl(rows[0].transcript_path);
+    this.logger.info('transcript presigned url generated', { fileId, userId, objectKey: rows[0].transcript_path });
+    return { url };
+  }
+
+  // ---------------------------------------------------------------------------
+  // TRANSCRIPT RAW TEXT
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns the raw transcript text for the given file by fetching it from MinIO.
+   *
+   * Looks up the most recent COMPLETED voice job; returns `null` when no
+   * transcript path is available.
+   *
+   * @param userId - Authenticated user UUID (for ownership scoping).
+   * @param fileId - Target file UUID.
+   * @returns An object with the raw `text`, or `null`.
+   */
+  async getTranscriptText(userId: string, fileId: string): Promise<{ text: string } | null> {
+    type Row = { id: string; transcript_path: string | null };
+    const rows = await this.prisma.$queryRaw<Row[]>`
+      SELECT id, transcript_path
+      FROM   kms_voice_jobs
+      WHERE  file_id = ${fileId}::uuid
+        AND  user_id = ${userId}::uuid
+        AND  status  = 'COMPLETED'
+      ORDER  BY created_at DESC
+      LIMIT  1
+    `;
+
+    if (!rows.length || !rows[0].transcript_path) return null;
+
+    const text = await this.minioService.getTranscriptText(rows[0].transcript_path);
+    this.logger.info('transcript text fetched from minio', { fileId, userId, objectKey: rows[0].transcript_path, chars: text.length });
+    return { text };
   }
 }
