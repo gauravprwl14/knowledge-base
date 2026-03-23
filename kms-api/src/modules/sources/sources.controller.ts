@@ -43,6 +43,8 @@ import { FeatureFlagGuard } from '../feature-flags/guards/feature-flag.guard';
  * - GET    /sources/google-drive/oauth        Initiate Google Drive OAuth (@Public)
  * - GET    /sources/google-drive/callback     Handle Google OAuth callback (@Public)
  * - GET    /sources/google-drive/folders      List Drive folders for folder picker (JWT)
+ * - POST   /sources/:id/scan                  Trigger a full or incremental scan (JWT)
+ * - GET    /sources/:id/clear-status          Get data-clear job status (JWT)
  * - GET    /sources/:id                       Get a single source (JWT)
  * - DELETE /sources/:id                       Disconnect a source (JWT)
  * - PATCH  /sources/:id/config                Update source sync configuration (JWT)
@@ -85,15 +87,11 @@ export class SourcesController {
   /**
    * Initiates Google Drive OAuth flow.
    *
-   * The `userId` query param is required here because the endpoint is @Public
-   * (the user may not yet have a JWT at the moment of OAuth initiation, or
-   * the browser initiated the flow from a non-authenticated context).
-   * In a fully integrated flow, the frontend passes the logged-in userId
-   * obtained from a prior /auth/login response.
-   *
-   * Redirects the browser to the Google consent screen.
+   * Protected by JwtAuthGuard — the userId is read from the authenticated
+   * token, not from a query parameter. Redirects the browser to the Google
+   * consent screen.
    */
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @RequireFeature('googleDrive')
   @UseGuards(FeatureFlagGuard)
   @Get('google-drive/oauth')
@@ -101,15 +99,14 @@ export class SourcesController {
     summary: 'Initiate Google Drive OAuth',
     description:
       'Builds a Google OAuth consent URL and redirects the browser to it. ' +
-      'Pass the authenticated userId as a query parameter.',
+      'Requires a valid JWT — userId is taken from the authenticated session.',
     responseType: OAuthInitiateResponseDto,
     responses: [
       { status: HttpStatus.FOUND, description: 'Redirects to Google consent screen' },
     ],
   })
-  @ApiQuery({ name: 'userId', required: true, type: String, description: 'Authenticated user UUID' })
   async initiateGoogleDriveOAuth(
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
     @Res() reply: FastifyReply,
   ): Promise<void> {
     const { authUrl } = await this.sourcesService.initiateGoogleDriveOAuth(userId);
@@ -195,8 +192,9 @@ export class SourcesController {
 
   // ---------------------------------------------------------------------------
   // Parameterised authenticated routes (must come after static sub-routes)
-  // IMPORTANT: static sub-paths like :id/clear-status must be declared BEFORE
-  // the bare :id routes to prevent NestJS/Fastify treating "clear-status" as an id.
+  // IMPORTANT: static sub-paths like :id/scan, :id/clear-status must be declared
+  // BEFORE the bare :id routes to prevent NestJS/Fastify treating the sub-path
+  // segment as an id.
   // ---------------------------------------------------------------------------
 
   /**

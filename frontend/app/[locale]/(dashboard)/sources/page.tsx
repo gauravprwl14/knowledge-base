@@ -3,7 +3,6 @@
 import * as React from 'react';
 import { FolderOpen, HardDrive, Loader2, RefreshCw } from 'lucide-react';
 import { kmsSourcesApi, type KmsSource, type SourceStatus, type SourceType } from '@/lib/api/sources';
-import { useCurrentUser } from '@/lib/stores/auth.store';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DisconnectConfirmModal } from '@/components/features/sources/DisconnectConfirmModal';
 import { FolderPickerModal } from '@/components/features/sources/FolderPickerModal';
@@ -166,7 +165,6 @@ function LoadingSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function SourcesPage() {
-  const user = useCurrentUser();
   const [sources, setSources] = React.useState<KmsSource[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -224,11 +222,7 @@ export default function SourcesPage() {
   }
 
   const handleConnectGoogleDrive = () => {
-    if (!user?.id) {
-      setError('Unable to initiate Google Drive connection: user not loaded yet. Please refresh.');
-      return;
-    }
-    kmsSourcesApi.initiateGoogleDrive(user.id);
+    kmsSourcesApi.initiateGoogleDrive();
   };
 
   return (

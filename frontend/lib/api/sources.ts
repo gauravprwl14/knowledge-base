@@ -81,12 +81,13 @@ const _realKmsSourcesApi = {
     apiClient.get<{ folders: DriveFolder[] }>(`/sources/google-drive/folders?sourceId=${sourceId}&parentId=${parentId}`),
   updateConfig: (id: string, config: { syncFolderIds?: string[] }): Promise<void> =>
     apiClient.patch<void>(`/sources/${id}/config`, config),
-  initiateGoogleDrive: (userId: string): void => {
+  initiateGoogleDrive: (): void => {
     const base =
       typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL
         ? process.env.NEXT_PUBLIC_API_URL
         : 'http://localhost:8000';
-    window.location.href = `${base}/api/v1/sources/google-drive/oauth?userId=${encodeURIComponent(userId)}`;
+    // No userId param — backend reads it from the JWT cookie set by the browser
+    window.location.href = `${base}/api/v1/sources/google-drive/oauth`;
   },
   triggerScan: (sourceId: string, scanType: 'FULL' | 'INCREMENTAL' = 'FULL'): Promise<{ id: string; status: string }> =>
     apiClient.post<{ id: string; status: string }>(`/sources/${sourceId}/scan`, { scanType }),

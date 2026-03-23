@@ -70,7 +70,7 @@ export const mockKmsSourcesApi = {
   },
 
   /** In mock mode, just log — no redirect to Google consent screen. */
-  initiateGoogleDrive(_userId: string): void {
+  initiateGoogleDrive(): void {
     console.info('[mock] Google Drive OAuth initiated — skipped in mock mode');
   },
 
