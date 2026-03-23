@@ -278,6 +278,12 @@ services:
       VOICE_APP_URL: http://voice-app:8003
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # MinIO — transcript storage
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_PASSWORD:-minioadmin}
+      MINIO_BUCKET: kms-transcripts
+      MINIO_SECURE: "false"
     # Run migrations (idempotent — already-applied is ok) then start dev server
     command: sh -c "npx prisma migrate deploy --config prisma/config.ts 2>&1 || echo '[startup] Migration already applied, continuing...'; npm run start:dev"
     volumes:
@@ -448,12 +454,20 @@ services:
       OTEL_SERVICE_NAME: voice-app
       LOG_LEVEL: info
       PYTHONUNBUFFERED: "1"
+      # MinIO — transcript storage
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_PASSWORD:-minioadmin}
+      MINIO_BUCKET: kms-transcripts
+      MINIO_SECURE: "false"
     volumes:
       - whisper_model_cache:/root/.cache/whisper
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - backend

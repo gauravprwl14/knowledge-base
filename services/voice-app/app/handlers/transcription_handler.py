@@ -21,6 +21,7 @@ from app.config import settings
 from app.models.messages import TranscriptionResultMessage, VoiceJobMessage
 from app.services.job_store import JobStore
 from app.services.whisper_service import WhisperService
+from app.storage.minio_storage import upload_transcript
 from app.utils.errors import FileTooLargeError, TranscriptionError, UnsupportedAudioFormatError
 
 logger = structlog.get_logger(__name__)
@@ -143,7 +144,29 @@ class TranscriptionHandler:
             return
 
         # ------------------------------------------------------------------
-        # 6. Publish result to kms.embed
+        # 6. Upload transcript to MinIO
+        # ------------------------------------------------------------------
+        transcript_path: str | None = None
+        try:
+            transcript_path = await upload_transcript(
+                job_id=str(msg.job_id),
+                user_id=str(msg.user_id),
+                text=transcript,
+            )
+            log.info("voice_transcript_uploaded", transcript_path=transcript_path)
+        except Exception as exc:
+            # MinIO upload failure is non-fatal: we still complete the job and
+            # fall back to storing full text in the transcript column so no
+            # data is lost.  The missing transcript_path means pre-signed URL
+            # endpoints will return null for this job.
+            log.warning(
+                "voice_minio_upload_failed",
+                error=str(exc),
+                hint="transcript stored in DB column as fallback",
+            )
+
+        # ------------------------------------------------------------------
+        # 7. Publish result to kms.embed
         # ------------------------------------------------------------------
         result_msg = TranscriptionResultMessage(
             scan_job_id=msg.job_id,
@@ -168,12 +191,15 @@ class TranscriptionHandler:
             return
 
         # ------------------------------------------------------------------
-        # 7. Mark job COMPLETED and ack
+        # 8. Mark job COMPLETED and ack
         # ------------------------------------------------------------------
         await self._store.update_status(
-            str(msg.job_id), "COMPLETED", transcript=transcript
+            str(msg.job_id),
+            "COMPLETED",
+            transcript=transcript,
+            transcript_path=transcript_path,
         )
-        log.info("voice_job_completed", transcript_chars=len(transcript))
+        log.info("voice_job_completed", transcript_chars=len(transcript), transcript_path=transcript_path)
         await message.ack()
 
     def _validate(self, msg: VoiceJobMessage) -> None:

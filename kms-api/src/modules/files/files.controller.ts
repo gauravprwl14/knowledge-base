@@ -187,6 +187,59 @@ export class FilesController {
   }
 
   // ---------------------------------------------------------------------------
+  // TRANSCRIPT PRE-SIGNED URL
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns a short-lived pre-signed download URL (15-minute TTL) for the
+   * transcript of the given file.
+   *
+   * Returns `null` when the file has no completed transcription job, or when
+   * the job was completed before `transcript_path` was introduced.
+   *
+   * @param id - File UUID (validated as UUID v4).
+   * @param req - Fastify request carrying `req.user.id`.
+   * @returns An object with `url`, or `null`.
+   */
+  @Get(':id/transcription/url')
+  @ApiOperation({ summary: 'Get pre-signed download URL for the transcript (15-min TTL)' })
+  @ApiParam({ name: 'id', type: String, description: 'File UUID' })
+  @ApiResponse({ status: 200, description: 'Pre-signed URL (null if no transcript)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getTranscriptUrl(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req: any,
+  ): Promise<{ url: string } | null> {
+    return this.filesService.getTranscriptUrl(req.user.id, id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // TRANSCRIPT RAW TEXT
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fetches and returns the full transcript text from MinIO for the given file.
+   *
+   * Returns `null` when the file has no completed transcription job, or when
+   * the job was completed before `transcript_path` was introduced.
+   *
+   * @param id - File UUID (validated as UUID v4).
+   * @param req - Fastify request carrying `req.user.id`.
+   * @returns An object with `text`, or `null`.
+   */
+  @Get(':id/transcription/text')
+  @ApiOperation({ summary: 'Fetch full transcript text from MinIO' })
+  @ApiParam({ name: 'id', type: String, description: 'File UUID' })
+  @ApiResponse({ status: 200, description: 'Transcript text (null if no transcript)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getTranscriptText(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req: any,
+  ): Promise<{ text: string } | null> {
+    return this.filesService.getTranscriptText(req.user.id, id);
+  }
+
+  // ---------------------------------------------------------------------------
   // GET ONE
   // ---------------------------------------------------------------------------
 
