@@ -203,22 +203,170 @@ describe('SemanticService', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Real mode (MOCK_SEMANTIC=false) — throws until Sprint 3 is wired
+  // Real mode (MOCK_SEMANTIC=false) — mocks global fetch + QdrantClient via spy
   // ---------------------------------------------------------------------------
 
   describe('search() — real mode', () => {
     let realModeService: SemanticService;
 
+    /** Base payload shape written by embed-worker into Qdrant. */
+    const BASE_PAYLOAD = {
+      user_id: 'user-real-001',
+      source_id: 'src-001',
+      file_id: 'file-001',
+      filename: 'quarterly-report.pdf',
+      content: 'This quarter saw significant growth in user adoption.',
+      chunk_index: 3,
+      web_view_link: 'https://drive.google.com/file/d/xyz',
+      start_secs: null,
+      source_type: 'google_drive',
+    };
+
+    /** A fake Qdrant search point matching the embed-worker payload schema. */
+    function makeFakeQdrantPoint(payloadOverrides: Record<string, unknown> = {}, topOverrides: Record<string, unknown> = {}) {
+      return {
+        id: 'qdrant-point-uuid-001',
+        score: 0.88,
+        payload: { ...BASE_PAYLOAD, ...payloadOverrides },
+        ...topOverrides,
+      };
+    }
+
+    /** The 1024-dim embedding vector stub. */
+    const STUB_VECTOR = Array(1024).fill(0.01);
+
+    /** Spy on the QdrantClient prototype's `search` method. */
+    let qdrantSearchSpy: jest.SpyInstance;
+
     beforeEach(async () => {
+      // Build the service module with MOCK_SEMANTIC=false
       const module = await buildModule({ MOCK_SEMANTIC: false });
       realModeService = module.get<SemanticService>(SemanticService);
+
+      // Spy on the QdrantClient prototype so any instance's search() is controlled.
+      // The spy is set up AFTER the module is built so the lazy client getter works.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { QdrantClient } = require('@qdrant/js-client-rest');
+      qdrantSearchSpy = jest.spyOn(QdrantClient.prototype, 'search').mockResolvedValue([]);
+
+      // Stub global fetch to simulate the embed-worker /embed endpoint
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ embedding: STUB_VECTOR }),
+      } as unknown as Response);
+
       jest.clearAllMocks();
+
+      // Re-apply stubs after clearAllMocks
+      qdrantSearchSpy.mockResolvedValue([]);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ embedding: STUB_VECTOR }),
+      } as unknown as Response);
     });
 
-    it('should throw an error when real mode is requested (not yet implemented)', async () => {
+    afterEach(() => {
+      qdrantSearchSpy?.mockRestore();
+    });
+
+    it('should call fetch to obtain an embedding from the embed-worker', async () => {
+      qdrantSearchSpy.mockResolvedValue([makeFakeQdrantPoint()]);
+
+      await realModeService.search('semantic query', 'user-real-001', 5);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/embed'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ text: 'semantic query' }),
+        }),
+      );
+    });
+
+    it('should return mapped SearchResult objects from Qdrant points', async () => {
+      qdrantSearchSpy.mockResolvedValue([makeFakeQdrantPoint()]);
+
+      const results = await realModeService.search('semantic query', 'user-real-001', 5);
+
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        id: 'qdrant-point-uuid-001',
+        fileId: 'file-001',
+        filename: 'quarterly-report.pdf',
+        content: 'This quarter saw significant growth in user adoption.',
+        score: 0.88,
+        chunkIndex: 3,
+        webViewLink: 'https://drive.google.com/file/d/xyz',
+        sourceType: 'google_drive',
+      });
+    });
+
+    it('should return an empty array when Qdrant returns no points', async () => {
+      qdrantSearchSpy.mockResolvedValue([]);
+
+      const results = await realModeService.search('no-match query', 'user-real-001', 5);
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('should set startSecs when the Qdrant payload has a numeric start_secs', async () => {
+      qdrantSearchSpy.mockResolvedValue([makeFakeQdrantPoint({ start_secs: 12.3 })]);
+
+      const results = await realModeService.search('voice query', 'user-real-001', 5);
+
+      expect(results[0].startSecs).toBeCloseTo(12.3);
+    });
+
+    it('should set startSecs to undefined when start_secs is null', async () => {
+      qdrantSearchSpy.mockResolvedValue([makeFakeQdrantPoint({ start_secs: null })]);
+
+      const results = await realModeService.search('query', 'user-real-001', 5);
+
+      expect(results[0].startSecs).toBeUndefined();
+    });
+
+    it('should throw when the embed-worker returns a non-OK status', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      } as unknown as Response);
+
       await expect(
-        realModeService.search('any query', 'user-001', 10),
-      ).rejects.toThrow('Semantic real-mode not yet implemented');
+        realModeService.search('any query', 'user-real-001', 5),
+      ).rejects.toThrow('503');
+    });
+
+    it('should throw when the embed-worker returns an empty embedding array', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ embedding: [] }),
+      } as unknown as Response);
+
+      await expect(
+        realModeService.search('any query', 'user-real-001', 5),
+      ).rejects.toThrow('empty or invalid embedding');
+    });
+
+    it('should propagate errors thrown by Qdrant client.search()', async () => {
+      qdrantSearchSpy.mockRejectedValue(new Error('Qdrant collection not found'));
+
+      await expect(
+        realModeService.search('any query', 'user-real-001', 5),
+      ).rejects.toThrow('Qdrant collection not found');
+    });
+
+    it('should map multiple Qdrant points to multiple SearchResult objects', async () => {
+      qdrantSearchSpy.mockResolvedValue([
+        makeFakeQdrantPoint({}, { id: 'p1', score: 0.9 }),
+        makeFakeQdrantPoint({}, { id: 'p2', score: 0.7 }),
+      ]);
+
+      const results = await realModeService.search('query', 'user-real-001', 10);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].id).toBe('p1');
+      expect(results[1].id).toBe('p2');
     });
   });
 });
