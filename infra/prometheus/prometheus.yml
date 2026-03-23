@@ -1,3 +1,8 @@
+# NOTE: This file is no longer used.
+# Metrics are now pushed from OTel Collector → Grafana Mimir (push model).
+# Mimir config: infra/mimir/mimir.yaml
+# OTel Collector config: infra/otel/config.yaml
+
 global:
   scrape_interval: 15s
   evaluation_interval: 15s

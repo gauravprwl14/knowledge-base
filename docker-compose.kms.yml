@@ -176,20 +176,22 @@ services:
     networks:
       - observability
 
-  prometheus:
-    image: prom/prometheus:v3.2.1
+  # ── Grafana Mimir — push-based metrics store (replaces Prometheus) ────────
+  mimir:
+    image: grafana/mimir:2.14.0
+    container_name: kms_mimir
     restart: unless-stopped
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-      - "--web.console.templates=/usr/share/prometheus/consoles"
-      - "--web.enable-remote-write-receiver"   # Tempo metrics-generator pushes here
+    command: ["-config.file=/etc/mimir/mimir.yaml"]
     volumes:
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+      - ./infra/mimir/mimir.yaml:/etc/mimir/mimir.yaml:ro
+      - mimir_data:/data/mimir
     ports:
-      - "9090:9090"   # Prometheus → http://localhost:9090
+      - "9009:9009"   # Mimir HTTP — Prometheus-compatible query API
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9009/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - observability
 
@@ -202,11 +204,10 @@ services:
     ports:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
-      - "8889:8889"   # Collector metrics (scraped by Prometheus)
     depends_on:
       - tempo
       - loki
-      - prometheus
+      - mimir
     networks:
       - backend
       - observability
@@ -226,7 +227,7 @@ services:
     ports:
       - "3000:3000"   # Grafana → http://localhost:3000
     depends_on:
-      - prometheus
+      - mimir
       - tempo
       - loki
     networks:
@@ -592,7 +593,7 @@ volumes:
   neo4j_logs:
   minio_data:
   ollama_data:
-  prometheus_data:
+  mimir_data:
   grafana_data:
   tempo_data:
   loki_data:

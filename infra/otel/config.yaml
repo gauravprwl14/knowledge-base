@@ -19,22 +19,25 @@ processors:
     timeout: 5s
 
 exporters:
-  # Traces → Grafana Tempo
+  # Traces → Grafana Tempo (already wired)
   otlp/tempo:
     endpoint: tempo:4317
     tls:
       insecure: true
 
-  # Logs → Grafana Loki (via OTLP HTTP — loki native exporter removed in collector-contrib v0.97+)
+  # Logs → Grafana Loki (already wired)
   otlphttp/loki:
     endpoint: http://loki:3100/otlp
     tls:
       insecure: true
 
-  # Metrics → Prometheus (scraped via /metrics endpoint)
-  prometheus:
-    endpoint: 0.0.0.0:8889
-    namespace: kms
+  # Metrics → Grafana Mimir via OTLP HTTP push (replaces prometheus pull)
+  otlphttp/mimir:
+    endpoint: http://mimir:9009/otlp
+    tls:
+      insecure: true
+    headers:
+      X-Scope-OrgID: "kms"   # required even with multitenancy disabled
 
   debug:
     verbosity: normal
@@ -51,7 +54,7 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [prometheus]
+      exporters: [otlphttp/mimir]
 
     logs:
       receivers: [otlp]
