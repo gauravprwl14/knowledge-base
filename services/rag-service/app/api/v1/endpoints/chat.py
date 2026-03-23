@@ -15,6 +15,7 @@ import asyncpg
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.retriever import ContextRetriever
 from app.services.generator import LLMGenerator
+from app.services.llm_factory import LLMFactory, LLMCapability
 from app.services.query_classifier import QueryClassifier
 from app.services.tier_router import TierRouter
 from app.services.llm_guard import LLMGuard
@@ -29,6 +30,10 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 # also cheap to construct but reused for connection-pool efficiency.
 _classifier = QueryClassifier()
 _router = TierRouter()
+# LLMFactory is initialised once at module load time.
+# It selects AnthropicProvider when ANTHROPIC_API_KEY is set, falling back
+# to OllamaProvider for local-only operation.
+_llm_factory = LLMFactory(settings)
 # LLMGuard is initialised with Anthropic availability at startup time.
 # If ANTHROPIC_API_KEY is absent, the guard will prefer returning retrieval
 # results directly rather than calling Ollama for LOOKUP/FIND/EXPLAIN.
@@ -132,8 +137,11 @@ async def chat_completions(
             retriever = ContextRetriever(db)
             context, citations = await retriever.retrieve(request.question, top_k)
 
-            generator = LLMGenerator()
-            async for token in generator.generate_stream(request.question, context):
+            # Route to the best available LLM provider via LLMFactory.
+            # AnthropicProvider is used when ANTHROPIC_API_KEY is set;
+            # OllamaProvider is the fallback for local-only deployments.
+            provider = _llm_factory.get_provider(LLMCapability.GENERATION)
+            async for token in provider.stream(request.question, system=context):
                 # Emit each token as an SSE text event
                 yield f"data: {json.dumps({'token': token})}\n\n"
 
@@ -162,16 +170,11 @@ async def chat_completions(
     retriever = ContextRetriever(db)
     context, citations = await retriever.retrieve(request.question, top_k)
 
-    generator = LLMGenerator()
-    answer = await generator.generate(request.question, context)
-
-    # Determine model name for the response envelope
-    if settings.anthropic_api_key:
-        model_name = settings.anthropic_model
-    elif settings.llm_provider == "ollama":
-        model_name = settings.ollama_model
-    else:
-        model_name = settings.openrouter_model
+    # Route to the best available LLM provider via LLMFactory.
+    provider = _llm_factory.get_provider(LLMCapability.GENERATION)
+    response = await provider.complete(request.question, system=context)
+    answer = response.text
+    model_name = response.model
 
     return JSONResponse(ChatResponse(
         answer=answer,

@@ -13,6 +13,7 @@ const mockSourcesService = {
   disconnectSource: jest.fn(),
   registerLocalSource: jest.fn(),
   registerObsidianVault: jest.fn(),
+  getLatestClearJob: jest.fn(),
 };
 
 const userId = 'user-uuid-001';
@@ -68,10 +69,54 @@ describe('SourcesController', () => {
   });
 
   describe('disconnectSource', () => {
-    it('calls disconnectSource and returns void', async () => {
-      mockSourcesService.disconnectSource.mockResolvedValue(undefined);
+    it('calls disconnectSource with clearData=false by default and returns message', async () => {
+      mockSourcesService.disconnectSource.mockResolvedValue({});
 
-      await expect(controller.disconnectSource(sourceId, userId)).resolves.not.toThrow();
+      const result = await controller.disconnectSource(sourceId, userId, 'false');
+
+      expect(mockSourcesService.disconnectSource).toHaveBeenCalledWith(sourceId, userId, false);
+      expect(result).toEqual({ message: 'Source disconnected' });
+    });
+
+    it('passes clearData=true and returns jobId in response', async () => {
+      mockSourcesService.disconnectSource.mockResolvedValue({ jobId: 'clear-job-001' });
+
+      const result = await controller.disconnectSource(sourceId, userId, 'true');
+
+      expect(mockSourcesService.disconnectSource).toHaveBeenCalledWith(sourceId, userId, true);
+      expect(result).toEqual({ message: 'Source disconnected', jobId: 'clear-job-001' });
+    });
+  });
+
+  describe('getClearStatus', () => {
+    it('delegates to sourcesService.getLatestClearJob and returns result', async () => {
+      const clearJob = {
+        id: 'clear-job-001',
+        sourceId,
+        userId,
+        status: 'RUNNING',
+        totalFiles: 5,
+        filesCleared: 2,
+        chunksCleared: 10,
+        vectorsCleared: 10,
+        errorMsg: null,
+        startedAt: new Date(),
+        finishedAt: null,
+      };
+      mockSourcesService.getLatestClearJob.mockResolvedValue(clearJob);
+
+      const result = await controller.getClearStatus(sourceId, userId);
+
+      expect(mockSourcesService.getLatestClearJob).toHaveBeenCalledWith(userId, sourceId);
+      expect(result).toMatchObject({ status: 'RUNNING', filesCleared: 2 });
+    });
+
+    it('returns null when no clear job exists', async () => {
+      mockSourcesService.getLatestClearJob.mockResolvedValue(null);
+
+      const result = await controller.getClearStatus(sourceId, userId);
+
+      expect(result).toBeNull();
     });
   });
 

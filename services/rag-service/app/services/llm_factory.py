@@ -26,6 +26,7 @@ class LLMCapability(str, Enum):
     GENERATION = "generation"
     RESEARCH = "research"
     SUMMARIZATION = "summarization"
+    CHAT_COMPLETION = "chat_completion"
 
 
 class LLMResponse:
@@ -211,6 +212,62 @@ class OllamaProvider:
                         provider="ollama",
                         model=self.model,
                     )
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            raise LLMProviderUnavailableError(f"Ollama unreachable: {e}") from e
+
+    async def stream(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+    ) -> AsyncIterator[str]:
+        """Stream tokens from Ollama via HTTP NDJSON.
+
+        Ollama uses NDJSON streaming — each line is a JSON object with a
+        ``response`` field and a ``done`` boolean.
+
+        Args:
+            prompt: The user prompt text.
+            system: Optional system prompt.
+            max_tokens: Not used by Ollama directly (model controls output).
+
+        Yields:
+            Text token strings as they arrive.
+
+        Raises:
+            LLMProviderUnavailableError: If Ollama is not reachable or returns an error.
+        """
+        import aiohttp
+        import json as _json
+
+        url = f"{self.base_url}/api/generate"
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "system": system or "",
+            "stream": True,
+        }
+        try:
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.timeout)
+            ) as session:
+                async with session.post(url, json=payload) as resp:
+                    if resp.status != 200:
+                        raise LLMProviderUnavailableError(
+                            f"Ollama returned HTTP {resp.status}"
+                        )
+                    async for raw_line in resp.content:
+                        line = raw_line.strip()
+                        if not line:
+                            continue
+                        try:
+                            data = _json.loads(line)
+                        except _json.JSONDecodeError:
+                            continue
+                        if token := data.get("response"):
+                            yield token
+                        if data.get("done"):
+                            break
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             raise LLMProviderUnavailableError(f"Ollama unreachable: {e}") from e
 
