@@ -11,6 +11,29 @@ import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
 import { ScanJobPublisher } from '../../queue/publishers/scan-job.publisher';
 import { IngestNoteDto } from './dto/ingest-note.dto';
 
+// ---------------------------------------------------------------------------
+// DTOs / types
+// ---------------------------------------------------------------------------
+
+/** A single file within a duplicate group. */
+export interface DuplicateFile {
+  id: string;
+  originalFilename: string;
+  fileSize: number;
+  sourceId: string;
+  createdAt: string;
+}
+
+/** A group of files sharing the same SHA-256 checksum. */
+export interface DuplicateGroup {
+  /** SHA-256 hash shared by all files in this group. */
+  checksum: string;
+  /** Bytes that could be reclaimed by deleting the non-canonical duplicates. */
+  totalWastedBytes: number;
+  /** Files ordered oldest → newest; the first entry is the canonical "keep" file. */
+  files: DuplicateFile[];
+}
+
 /**
  * FilesService — business logic for KMS file management.
  *
@@ -274,6 +297,77 @@ export class FilesService {
 
     this.logger.info('transcription status fetched', { fileId, userId, status: job.status });
     return job;
+  }
+
+  // ---------------------------------------------------------------------------
+  // DUPLICATE GROUPS
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns all duplicate file groups for a user, grouped by SHA-256 checksum.
+   *
+   * A group is only returned when at least two non-deleted files share the same
+   * checksum. Within each group, files are ordered oldest → newest so the
+   * caller can treat the first entry as the canonical "keep" file.
+   *
+   * `totalWastedBytes` is the sum of file sizes for all files except the oldest
+   * (i.e. the bytes that could be reclaimed by deleting the duplicates).
+   *
+   * @param userId - Authenticated user UUID.
+   * @returns Array of duplicate groups, each with the shared checksum, wasted
+   *   bytes, and the list of matching files.
+   */
+  async getDuplicateGroups(userId: string): Promise<DuplicateGroup[]> {
+    const rows = await this.prisma.$queryRaw<Array<{
+      checksum: string;
+      file_ids: string;
+      file_names: string;
+      file_sizes: string;
+      source_ids: string;
+      created_ats: string;
+    }>>`
+      SELECT
+        d.checksum_sha256                                              AS checksum,
+        string_agg(f.id::text,           ',' ORDER BY f.created_at)  AS file_ids,
+        string_agg(f.file_name,          '|||' ORDER BY f.created_at) AS file_names,
+        string_agg(f.file_size_bytes::text, ',' ORDER BY f.created_at) AS file_sizes,
+        string_agg(f.source_id::text,    ',' ORDER BY f.created_at)  AS source_ids,
+        string_agg(f.created_at::text,   ',' ORDER BY f.created_at)  AS created_ats
+      FROM kms_file_duplicates d
+      JOIN kms_files f ON f.id = d.file_id
+      WHERE d.user_id = ${userId}::uuid
+        AND f.status != 'DELETED'
+      GROUP BY d.checksum_sha256
+      HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC
+    `;
+
+    this.logger.info('getDuplicateGroups', { userId, count: rows.length });
+
+    return rows.map((row) => {
+      const ids      = row.file_ids.split(',');
+      const names    = row.file_names.split('|||');
+      const sizes    = row.file_sizes.split(',');
+      const sourceIds = row.source_ids.split(',');
+      const dates    = row.created_ats.split(',');
+
+      // Sum of sizes for all files except the canonical (index 0, the oldest)
+      const totalWastedBytes = ids
+        .slice(1)
+        .reduce((sum, _, i) => sum + parseInt(sizes[i + 1] ?? '0', 10), 0);
+
+      return {
+        checksum: row.checksum,
+        totalWastedBytes,
+        files: ids.map((id, i) => ({
+          id,
+          originalFilename: names[i] ?? '',
+          fileSize: parseInt(sizes[i] ?? '0', 10),
+          sourceId: sourceIds[i] ?? '',
+          createdAt: dates[i] ?? '',
+        })),
+      };
+    });
   }
 
   // ---------------------------------------------------------------------------

@@ -22,7 +22,7 @@ import {
   ApiResponse,
   ApiBody,
 } from '@nestjs/swagger';
-import { FilesService } from './files.service';
+import { FilesService, DuplicateGroup } from './files.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ListFilesQueryDto } from './dto/list-files-query.dto';
 import { ListFilesResponseDto } from './dto/list-files-response.dto';
@@ -157,6 +157,32 @@ export class FilesController {
       tags: query.tags,
       search: query.search,
     }) as unknown as ListFilesResponseDto;
+  }
+
+  // ---------------------------------------------------------------------------
+  // DUPLICATES — must be declared BEFORE :id routes to avoid param capture
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns all duplicate file groups for the authenticated user.
+   *
+   * Files are grouped by their SHA-256 checksum. Only groups where two or more
+   * non-deleted files share the same checksum are returned. Within each group
+   * files are ordered oldest → newest; the oldest is treated as the canonical
+   * "keep" file.
+   *
+   * @param req - Fastify request carrying `req.user.id`.
+   * @returns Object with `groups` array of DuplicateGroup objects.
+   */
+  @Get('duplicates')
+  @ApiOperation({ summary: 'List duplicate file groups (grouped by SHA-256 checksum)' })
+  @ApiResponse({ status: 200, description: 'Duplicate groups retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getDuplicateGroups(
+    @Request() req: any,
+  ): Promise<{ groups: DuplicateGroup[] }> {
+    const groups = await this.filesService.getDuplicateGroups(req.user.id);
+    return { groups };
   }
 
   // ---------------------------------------------------------------------------
