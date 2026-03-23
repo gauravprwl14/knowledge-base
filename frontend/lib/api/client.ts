@@ -20,9 +20,27 @@ import axios, {
 // Configuration
 // ---------------------------------------------------------------------------
 
-const BASE_URL =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) ||
-  'http://localhost:8000';
+const BASE_URL = (() => {
+  // Server-side (SSR/Node): use internal Docker URL or explicit env var
+  if (typeof window === 'undefined') {
+    return (
+      process.env.KMS_API_URL ??
+      process.env.NEXT_PUBLIC_API_URL ??
+      'http://localhost:8000'
+    );
+  }
+  // Client-side (browser): use configured env var first
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // Auto-detect: strip trailing path segments, keep first path segment as base
+  // e.g. https://rnd.blr0.geekydev.com/kms/sources → https://rnd.blr0.geekydev.com/kms
+  const pathMatch = window.location.pathname.match(/^(\/[^/]+)/);
+  if (pathMatch) {
+    return window.location.origin + pathMatch[1];
+  }
+  return window.location.origin;
+})();
 
 const API_VERSION = '/api/v1';
 
