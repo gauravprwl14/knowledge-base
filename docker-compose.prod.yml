@@ -314,6 +314,7 @@ services:
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       QDRANT_URL: http://qdrant:6333
+      VOICE_QUEUE: kms.voice
       EMBEDDING_ENABLED: "true"
       MOCK_EMBEDDING: "false"
       MOCK_QDRANT: "false"
@@ -342,6 +343,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+      QDRANT_URL: http://qdrant:6333
+      KMS_VOICE_QUEUE: kms.voice
       VOICE_QUEUE: kms.voice
       EMBED_QUEUE: kms.embed
       WHISPER_MODEL: ${WHISPER_MODEL:-base}
