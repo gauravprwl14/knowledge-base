@@ -42,3 +42,30 @@ scrape_configs:
     static_configs:
       - targets: [rabbitmq:15692]
     metrics_path: /metrics
+
+  - job_name: rag-service
+    static_configs:
+      - targets: [rag-service:8002]
+    metrics_path: /metrics
+
+  - job_name: voice-app
+    static_configs:
+      - targets: [voice-app:8003]
+    metrics_path: /metrics
+
+  # Note: postgres does not expose Prometheus metrics natively.
+  # Scrape will fail gracefully until a postgres_exporter sidecar is added.
+  # Future improvement: add postgres_exporter container targeting postgres:5432.
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres:5432]
+
+  - job_name: qdrant
+    static_configs:
+      - targets: [qdrant:6333]
+    metrics_path: /metrics
+
+# Python workers (embed-worker, scan-worker, dedup-worker, graph-worker) do NOT
+# need direct scrape entries here. They push metrics via the OTel SDK to
+# otel-collector:8889, and Prometheus scrapes the otel-collector job above.
+# No per-worker scrape target is required.
