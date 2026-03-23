@@ -252,12 +252,16 @@ class GoogleDriveConnector(BaseConnector):
     async def _list_full(self, job: ScanJobMessage) -> AsyncIterator[FileDiscoveredMessage]:
         """Paginate the full Drive ``files.list`` API.
 
+        Applies folder filter (``syncFolderIds``) and file extension filters
+        (``includeExtensions`` / ``excludeExtensions``) from ``job.config``
+        when they are present.
+
         Args:
             job: The scan job providing source/user context.
 
         Yields:
             :class:`~app.models.messages.FileDiscoveredMessage` for each
-            non-GApps file found.
+            non-GApps file that passes the configured filters.
 
         Raises:
             DriveRateLimitError: On HTTP 429.
@@ -265,13 +269,21 @@ class GoogleDriveConnector(BaseConnector):
         """
         page_token: str | None = None
         page_num = 0
+        drive_query = self._build_drive_query(job.config)
+
+        logger.info(
+            "drive_full_scan_query",
+            source_id=str(job.source_id),
+            query=drive_query,
+            sync_folder_ids=job.config.get("syncFolderIds", []),
+        )
 
         while True:
             page_num += 1
             try:
                 result = await self._execute_with_retry(
                     lambda pt=page_token: self._service.files().list(
-                        q=_DRIVE_QUERY,
+                        q=drive_query,
                         pageSize=_PAGE_SIZE,
                         fields=_DRIVE_FIELDS,
                         pageToken=pt,
@@ -291,6 +303,19 @@ class GoogleDriveConnector(BaseConnector):
             )
 
             for item in items:
+                # Apply file extension filter before building the message
+                if not self._should_include_file(
+                    item.get("name", ""),
+                    item.get("mimeType", ""),
+                    job.config,
+                ):
+                    logger.debug(
+                        "drive_file_excluded_by_extension_filter",
+                        source_id=str(job.source_id),
+                        filename=item.get("name"),
+                    )
+                    continue
+
                 msg = self._item_to_message(item, job)
                 if msg:
                     yield msg
@@ -298,6 +323,76 @@ class GoogleDriveConnector(BaseConnector):
             page_token = result.get("nextPageToken")
             if not page_token:
                 break
+
+    # ------------------------------------------------------------------
+    # Filter helpers
+    # ------------------------------------------------------------------
+
+    def _build_drive_query(self, config: dict) -> str:
+        """Build Drive API query string respecting the folder filter.
+
+        When ``syncFolderIds`` is provided and non-empty, the query restricts
+        results to files that are direct children of any of those folders.
+        Otherwise all non-trashed files are returned (original behaviour).
+
+        Args:
+            config: Scan job config dict (``ScanJobMessage.config``).
+
+        Returns:
+            A Drive API query string suitable for the ``q`` parameter.
+        """
+        base_query = "trashed=false"
+
+        sync_folder_ids = config.get("syncFolderIds", [])
+        if sync_folder_ids:
+            parent_conditions = " or ".join(
+                f"'{folder_id}' in parents" for folder_id in sync_folder_ids
+            )
+            return f"{base_query} and ({parent_conditions})"
+
+        return base_query
+
+    def _should_include_file(self, filename: str, mime_type: str, config: dict) -> bool:
+        """Check whether a file passes the configured extension filters.
+
+        When neither ``includeExtensions`` nor ``excludeExtensions`` is set the
+        function returns ``True`` (no filtering — preserve existing behaviour).
+
+        ``includeExtensions`` acts as an allowlist: if set, only files whose
+        extension is in the list are kept.  ``excludeExtensions`` acts as a
+        blocklist applied after the allowlist check.
+
+        Extensions are compared case-insensitively.  Dot prefix is optional in
+        the config (both ``".pdf"`` and ``"pdf"`` are accepted).
+
+        Args:
+            filename: Original filename from the Drive API.
+            mime_type: MIME type from the Drive API (currently unused but kept
+                for future content-type filtering).
+            config: Scan job config dict (``ScanJobMessage.config``).
+
+        Returns:
+            ``True`` if the file should be included in the scan results.
+        """
+        def _normalise(e: str) -> str:
+            """Ensure extension has a leading dot and is lowercase."""
+            e = e.lower()
+            return e if e.startswith(".") else f".{e}"
+
+        include_exts = [_normalise(e) for e in config.get("includeExtensions", [])]
+        exclude_exts = [_normalise(e) for e in config.get("excludeExtensions", [])]
+
+        if not include_exts and not exclude_exts:
+            return True
+
+        ext = (f".{filename.rsplit('.', 1)[-1].lower()}" if "." in filename else "")
+
+        if include_exts and ext not in include_exts:
+            return False
+        if exclude_exts and ext in exclude_exts:
+            return False
+
+        return True
 
     # ------------------------------------------------------------------
     # Incremental scan implementation (Changes API)

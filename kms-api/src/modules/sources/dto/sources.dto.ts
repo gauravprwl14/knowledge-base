@@ -2,6 +2,26 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
+// Source config update schema
+// ---------------------------------------------------------------------------
+
+/**
+ * Schema for updating a source's sync configuration.
+ * Supports folder filtering, file type filtering, and transcription rules.
+ * All fields are optional — only provided fields are merged into the stored config.
+ */
+export const updateSourceConfigSchema = z.object({
+  syncFolderIds: z.array(z.string()).optional(),
+  includeExtensions: z.array(z.string()).optional(),
+  excludeExtensions: z.array(z.string()).optional(),
+  transcribeVideos: z.boolean().optional(),
+  transcriptionMinDurationSecs: z.number().min(0).max(3600).optional(),
+  transcriptionExcludePatterns: z.array(z.string()).optional(),
+});
+
+export type UpdateSourceConfigDto = z.infer<typeof updateSourceConfigSchema>;
+
+// ---------------------------------------------------------------------------
 // Zod schemas
 // ---------------------------------------------------------------------------
 
@@ -157,4 +177,78 @@ export class OAuthInitiateResponseDto {
     example: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=...',
   })
   authUrl: string;
+}
+
+// ---------------------------------------------------------------------------
+// Swagger request/response DTOs for config and folder endpoints
+// ---------------------------------------------------------------------------
+
+/**
+ * Request body DTO for PATCH /sources/:id/config (Swagger documentation only).
+ * Fields map to `updateSourceConfigSchema` — all are optional for partial updates.
+ */
+export class UpdateSourceConfigRequestDto {
+  @ApiPropertyOptional({
+    description: 'Google Drive folder IDs to include in the sync. Empty array means all folders.',
+    example: ['1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs'],
+    type: [String],
+  })
+  syncFolderIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'File extensions to include (e.g. [".pdf", ".docx"]). Empty means all.',
+    example: ['.pdf', '.docx'],
+    type: [String],
+  })
+  includeExtensions?: string[];
+
+  @ApiPropertyOptional({
+    description: 'File extensions to exclude (e.g. [".tmp", ".log"]).',
+    example: ['.tmp', '.log'],
+    type: [String],
+  })
+  excludeExtensions?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Whether to transcribe video files found in the source.',
+    example: false,
+  })
+  transcribeVideos?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Minimum video duration in seconds before transcription is triggered.',
+    example: 60,
+  })
+  transcriptionMinDurationSecs?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filename patterns to exclude from transcription (glob-style).',
+    example: ['*_preview*', '*_draft*'],
+    type: [String],
+  })
+  transcriptionExcludePatterns?: string[];
+}
+
+/**
+ * Response DTO for a single Google Drive folder entry.
+ * Returned by GET /sources/google-drive/folders.
+ */
+export class DriveFolderDto {
+  @ApiProperty({ description: 'Google Drive folder ID', example: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs' })
+  id: string;
+
+  @ApiProperty({ description: 'Human-readable folder name', example: 'Work Documents' })
+  name: string;
+
+  @ApiProperty({
+    description: 'Slash-separated path from the queried parent. For root children this equals the folder name.',
+    example: 'Work Documents',
+  })
+  path: string;
+
+  @ApiProperty({
+    description: 'Approximate number of immediate children folders (0 if uncounted).',
+    example: 0,
+  })
+  childCount: number;
 }

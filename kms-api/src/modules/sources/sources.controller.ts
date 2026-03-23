@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -19,9 +20,14 @@ import {
   OAuthInitiateResponseDto,
   RegisterLocalSourceRequestDto,
   RegisterObsidianVaultRequestDto,
+  UpdateSourceConfigRequestDto,
+  DriveFolderDto,
   registerLocalSourceSchema,
   registerObsidianVaultSchema,
+  updateSourceConfigSchema,
+  UpdateSourceConfigDto,
 } from './dto/sources.dto';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ApiEndpoint } from '../../common/decorators/swagger.decorator';
@@ -33,16 +39,18 @@ import { FeatureFlagGuard } from '../feature-flags/guards/feature-flag.guard';
  * SourcesController — REST endpoints for managing knowledge source connections.
  *
  * Routes:
- * - GET    /sources                       List connected sources (JWT)
- * - GET    /sources/google-drive/oauth    Initiate Google Drive OAuth (@Public)
- * - GET    /sources/google-drive/callback Handle Google OAuth callback (@Public)
- * - GET    /sources/:id                   Get a single source (JWT)
- * - DELETE /sources/:id                   Disconnect a source (JWT)
- * - POST   /sources/local                 Register a local filesystem folder (JWT)
- * - POST   /sources/obsidian              Register an Obsidian vault (JWT)
+ * - GET    /sources                           List connected sources (JWT)
+ * - GET    /sources/google-drive/oauth        Initiate Google Drive OAuth (@Public)
+ * - GET    /sources/google-drive/callback     Handle Google OAuth callback (@Public)
+ * - GET    /sources/google-drive/folders      List Drive folders for folder picker (JWT)
+ * - GET    /sources/:id                       Get a single source (JWT)
+ * - DELETE /sources/:id                       Disconnect a source (JWT)
+ * - PATCH  /sources/:id/config                Update source sync configuration (JWT)
+ * - POST   /sources/local                     Register a local filesystem folder (JWT)
+ * - POST   /sources/obsidian                  Register an Obsidian vault (JWT)
  *
- * IMPORTANT: The two static sub-routes (`google-drive/oauth`,
- * `google-drive/callback`) are declared BEFORE the dynamic `:id` route so that
+ * IMPORTANT: Static sub-routes (`google-drive/oauth`, `google-drive/callback`,
+ * `google-drive/folders`) are declared BEFORE the dynamic `:id` route so that
  * NestJS/Fastify routes them correctly without treating "google-drive" as an id.
  */
 @ApiTags('Sources')
@@ -158,6 +166,33 @@ export class SourcesController {
     }
   }
 
+  /**
+   * Lists Google Drive folders one level below a given parent folder.
+   * Used by the UI folder-picker to let users select which folders to sync.
+   * Requires an authenticated, connected GOOGLE_DRIVE source.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Get('google-drive/folders')
+  @RequireFeature('googleDrive')
+  @UseGuards(FeatureFlagGuard)
+  @ApiEndpoint({
+    summary: 'List Google Drive folders',
+    description: 'Returns folder list one level deep from the specified parent. Use parentId=root for the Drive root.',
+    responses: [
+      { status: HttpStatus.NOT_FOUND, description: 'Source not found or not owned by caller' },
+    ],
+  })
+  @ApiQuery({ name: 'sourceId', required: true, type: String, description: 'Source UUID (must be GOOGLE_DRIVE type)' })
+  @ApiQuery({ name: 'parentId', required: false, type: String, description: 'Parent Drive folder ID (default: root)' })
+  async listDriveFolders(
+    @CurrentUser('id') userId: string,
+    @Query('sourceId') sourceId: string,
+    @Query('parentId') parentId: string = 'root',
+  ): Promise<{ folders: DriveFolderDto[] }> {
+    return this.sourcesService.listDriveFolders(userId, sourceId, parentId);
+  }
+
   // ---------------------------------------------------------------------------
   // Parameterised authenticated routes (must come after static sub-routes)
   // ---------------------------------------------------------------------------
@@ -203,6 +238,32 @@ export class SourcesController {
     @CurrentUser('id') userId: string,
   ): Promise<void> {
     return this.sourcesService.disconnectSource(id, userId);
+  }
+
+  /**
+   * Updates the sync configuration for a source.
+   * Merges provided fields into the existing configJson — partial update, not replacement.
+   * Returns 404 if the source does not exist or belongs to a different user.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Patch(':id/config')
+  @ApiParam({ name: 'id', type: String, description: 'Source UUID' })
+  @ApiEndpoint({
+    summary: 'Update source sync configuration',
+    description: 'Updates folder filter, file type filter, and transcription rules. Fields are merged (not replaced).',
+    responseType: SourceResponseDto,
+    responses: [
+      { status: HttpStatus.NOT_FOUND, description: 'Source not found' },
+      { status: HttpStatus.BAD_REQUEST, description: 'Invalid configuration payload' },
+    ],
+  })
+  async updateConfig(
+    @CurrentUser('id') userId: string,
+    @Param('id') sourceId: string,
+    @Body(new ZodValidationPipe(updateSourceConfigSchema)) dto: UpdateSourceConfigDto,
+  ): Promise<SourceResponseDto> {
+    return this.sourcesService.updateConfig(userId, sourceId, dto);
   }
 
   /**
