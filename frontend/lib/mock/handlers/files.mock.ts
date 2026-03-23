@@ -97,6 +97,13 @@ export const mockFilesApi = {
     _tags = _tags.map((t) => ({ ...t, fileCount: _files.filter((f) => f.tags.some((ft) => ft.id === t.id)).length }));
   },
 
+  async retry(id: string): Promise<void> {
+    await delay(300);
+    const file = _files.find((f) => f.id === id);
+    if (!file) throw new Error(`File not found: ${id}`);
+    _files = _files.map((f) => (f.id === id ? { ...f, status: 'PENDING' } : f));
+  },
+
   async getTranscription(fileId: string): Promise<TranscriptionStatus | null> {
     await delay(150);
     const file = _files.find((f) => f.id === fileId);
