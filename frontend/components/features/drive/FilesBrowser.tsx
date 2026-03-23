@@ -28,7 +28,8 @@ import { useAddFilesToCollection } from '@/lib/hooks/use-collections';
 import { useSources } from '@/lib/hooks/use-sources';
 import type { ActiveFilters } from './FilesFilterPanel';
 import type { ViewMode, SortState } from './FilesToolbar';
-import type { KmsFile } from '@/lib/api/files';
+import { filesApi } from '@/lib/api/files';
+import type { KmsFile, TranscriptionStatus } from '@/lib/api/files';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -188,6 +189,44 @@ export function FilesBrowser() {
     setSelectedIds(new Set());
   }, [filters, search, sort]);
 
+  // ---- Transcription status map ----
+  // Lazily fetched for audio/video files; keyed by file ID.
+  const [transcriptionMap, setTranscriptionMap] = React.useState<
+    Map<string, TranscriptionStatus | null>
+  >(new Map());
+
+  // When allFiles changes, fetch transcription status for any new audio/video files
+  React.useEffect(() => {
+    const audioVideoFiles = allFiles.filter(
+      (f) =>
+        (f.mimeType.startsWith('audio/') || f.mimeType.startsWith('video/')) &&
+        !transcriptionMap.has(f.id),
+    );
+    if (audioVideoFiles.length === 0) return;
+
+    audioVideoFiles.forEach((f) => {
+      filesApi.getTranscription(f.id).then((job) => {
+        setTranscriptionMap((prev) => {
+          const next = new Map(prev);
+          next.set(f.id, job);
+          return next;
+        });
+      }).catch(() => {
+        setTranscriptionMap((prev) => {
+          const next = new Map(prev);
+          next.set(f.id, null);
+          return next;
+        });
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allFiles]);
+
+  // Reset transcription map when filters/sort/search change
+  React.useEffect(() => {
+    setTranscriptionMap(new Map());
+  }, [filters, search, sort]);
+
   // ---- Source name lookup ----
   const { data: sources } = useSources();
   const sourceNameMap = React.useMemo(() => {
@@ -322,6 +361,7 @@ export function FilesBrowser() {
                 onSelect={handleSelect}
                 onDelete={handleSingleDelete}
                 onAddToCollection={handleSingleAddToCollection}
+                transcriptionJob={transcriptionMap.get(file.id)}
               />
             ))}
           </div>
@@ -355,6 +395,7 @@ export function FilesBrowser() {
                     onSelect={handleSelect}
                     onDelete={handleSingleDelete}
                     onAddToCollection={handleSingleAddToCollection}
+                    transcriptionJob={transcriptionMap.get(file.id)}
                   />
                 ))}
               </tbody>

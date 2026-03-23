@@ -10,7 +10,8 @@
 import * as React from 'react';
 import { Eye, FolderPlus, Trash2 } from 'lucide-react';
 import { FileTypeIcon } from './FileTypeIcon';
-import type { KmsFile } from '@/lib/api/files';
+import { TranscriptionStatusBadge } from './TranscriptionStatusBadge';
+import type { KmsFile, TranscriptionStatus } from '@/lib/api/files';
 import { formatDistanceToNow, cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -50,6 +51,8 @@ export interface FileRowProps {
   onSelect: (id: string, selected: boolean) => void;
   onDelete: (id: string) => void;
   onAddToCollection: (id: string) => void;
+  /** Transcription job status; shown for audio/video files when provided. */
+  transcriptionJob?: TranscriptionStatus | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,8 +71,13 @@ export function FileRow({
   onSelect,
   onDelete,
   onAddToCollection,
+  transcriptionJob,
 }: FileRowProps) {
   const [hovered, setHovered] = React.useState(false);
+
+  // Detect audio/video files to conditionally show transcription badge
+  const isAudioVideo =
+    file.mimeType.startsWith('audio/') || file.mimeType.startsWith('video/');
 
   const { text: statusText, bg: statusBg } = statusBadgeClass[file.status];
   const relativeTime = formatDistanceToNow(
@@ -127,6 +135,9 @@ export function FileRow({
         <p className="truncate text-xs text-[var(--color-text-secondary)]">
           {file.path}
         </p>
+        {isAudioVideo && transcriptionJob && (
+          <TranscriptionStatusBadge job={transcriptionJob} className="mt-1" />
+        )}
       </td>
 
       {/* Source name cell */}

@@ -49,6 +49,25 @@ export interface KmsFile {
 }
 
 // ===========================================================================
+// Transcription types
+// ===========================================================================
+
+/**
+ * Transcription job status for an audio or video file.
+ * Mirrors the backend VoiceJob schema returned by GET /files/:id/transcription.
+ */
+export interface TranscriptionStatus {
+  id: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
+  language: string | null;
+  durationSeconds: number | null;
+  completedAt: string | null;
+  errorMsg: string | null;
+  modelUsed: string | null;
+  createdAt: string;
+}
+
+// ===========================================================================
 // Files API
 // ===========================================================================
 
@@ -128,6 +147,13 @@ const _realFilesApi = {
    */
   bulkDelete: (fileIds: string[]): Promise<void> =>
     apiClient.post<void>('/files/bulk-delete', { fileIds }),
+
+  /**
+   * GET /files/:id/transcription — returns transcription job status for audio/video files.
+   * Returns null when no transcription job exists for the file.
+   */
+  getTranscription: (fileId: string): Promise<TranscriptionStatus | null> =>
+    apiClient.get<TranscriptionStatus | null>(`/files/${fileId}/transcription`),
 };
 
 // ===========================================================================

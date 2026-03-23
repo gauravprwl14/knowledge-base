@@ -12,7 +12,8 @@
 import * as React from 'react';
 import { Eye, FolderPlus, Trash2 } from 'lucide-react';
 import { FileTypeIcon, getFileTypeInfo } from './FileTypeIcon';
-import type { KmsFile } from '@/lib/api/files';
+import { TranscriptionStatusBadge } from './TranscriptionStatusBadge';
+import type { KmsFile, TranscriptionStatus } from '@/lib/api/files';
 import { formatDistanceToNow } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +49,8 @@ export interface FileCardProps {
   onSelect: (id: string, selected: boolean) => void;
   onDelete: (id: string) => void;
   onAddToCollection: (id: string) => void;
+  /** Transcription job status; shown for audio/video files when provided. */
+  transcriptionJob?: TranscriptionStatus | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,11 +68,16 @@ export function FileCard({
   onSelect,
   onDelete,
   onAddToCollection,
+  transcriptionJob,
 }: FileCardProps) {
   const [hovered, setHovered] = React.useState(false);
 
   // Resolve icon + label from MIME type
   const { label: typeLabel, colorClass } = getFileTypeInfo(file.mimeType);
+
+  // Detect audio/video files to conditionally show transcription badge
+  const isAudioVideo =
+    file.mimeType.startsWith('audio/') || file.mimeType.startsWith('video/');
 
   // Compute relative time since indexing (or creation if not yet indexed)
   const relativeTime = formatDistanceToNow(
@@ -158,6 +166,9 @@ export function FileCard({
         >
           {file.name}
         </p>
+        {isAudioVideo && transcriptionJob && (
+          <TranscriptionStatusBadge job={transcriptionJob} />
+        )}
       </div>
 
       {/* ------------------------------------------------------------------ */}

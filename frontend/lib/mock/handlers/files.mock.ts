@@ -15,6 +15,7 @@ import type {
   KmsTag,
   ListFilesParams,
   ListFilesResponse,
+  TranscriptionStatus,
 } from '@/lib/api/files';
 
 // ── In-memory state ──────────────────────────────────────────────────────────
@@ -94,6 +95,26 @@ export const mockFilesApi = {
     await delay(400);
     _files = _files.filter((f) => !fileIds.includes(f.id));
     _tags = _tags.map((t) => ({ ...t, fileCount: _files.filter((f) => f.tags.some((ft) => ft.id === t.id)).length }));
+  },
+
+  async getTranscription(fileId: string): Promise<TranscriptionStatus | null> {
+    await delay(150);
+    const file = _files.find((f) => f.id === fileId);
+    if (!file) return null;
+    // Only return a mock job for audio/video files
+    if (!file.mimeType.startsWith('audio/') && !file.mimeType.startsWith('video/')) {
+      return null;
+    }
+    return {
+      id: `transcription-${fileId}`,
+      status: 'COMPLETED',
+      language: 'en',
+      durationSeconds: 123,
+      completedAt: file.indexedAt ?? file.createdAt,
+      errorMsg: null,
+      modelUsed: 'whisper-large-v3',
+      createdAt: file.createdAt,
+    };
   },
 };
 
