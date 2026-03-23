@@ -194,6 +194,12 @@ services:
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000/kms}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-kms-transcripts}
     volumes:
       - ./.kms/config.json:/app/.kms/config.json:ro
     depends_on:
@@ -202,6 +208,8 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/api/v1/health/live || exit 1"]

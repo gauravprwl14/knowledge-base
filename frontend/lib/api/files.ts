@@ -149,6 +149,13 @@ const _realFilesApi = {
     apiClient.post<void>('/files/bulk-delete', { fileIds }),
 
   /**
+   * POST /files/:id/retry — re-queues a failed file for processing.
+   * Resets the file status to PENDING and triggers a new scan/embed pipeline run.
+   */
+  retry: (id: string): Promise<void> =>
+    apiClient.post<void>(`/files/${id}/retry`),
+
+  /**
    * GET /files/:id/transcription — returns transcription job status for audio/video files.
    * Returns null when no transcription job exists for the file.
    */
