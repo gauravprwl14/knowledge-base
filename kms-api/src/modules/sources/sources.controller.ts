@@ -87,30 +87,29 @@ export class SourcesController {
   /**
    * Initiates Google Drive OAuth flow.
    *
-   * Protected by JwtAuthGuard — the userId is read from the authenticated
-   * token, not from a query parameter. Redirects the browser to the Google
-   * consent screen.
+   * Returns JSON { authUrl } so the frontend can redirect client-side using
+   * the apiClient (which attaches the JWT Bearer token). A browser redirect
+   * cannot be used here because the JWT cookie is scoped to the frontend
+   * origin, not the API origin.
    */
   @UseGuards(JwtAuthGuard)
   @RequireFeature('googleDrive')
   @UseGuards(FeatureFlagGuard)
   @Get('google-drive/oauth')
   @ApiEndpoint({
-    summary: 'Initiate Google Drive OAuth',
+    summary: 'Get Google Drive OAuth URL',
     description:
-      'Builds a Google OAuth consent URL and redirects the browser to it. ' +
-      'Requires a valid JWT — userId is taken from the authenticated session.',
+      'Returns { authUrl } — the frontend redirects the browser to this URL. ' +
+      'Requires a valid JWT Bearer token.',
     responseType: OAuthInitiateResponseDto,
     responses: [
-      { status: HttpStatus.FOUND, description: 'Redirects to Google consent screen' },
+      { status: HttpStatus.OK, description: 'Returns the Google consent screen URL' },
     ],
   })
   async initiateGoogleDriveOAuth(
     @CurrentUser('id') userId: string,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
-    const { authUrl } = await this.sourcesService.initiateGoogleDriveOAuth(userId);
-    reply.redirect(authUrl, 302);
+  ): Promise<{ authUrl: string }> {
+    return this.sourcesService.initiateGoogleDriveOAuth(userId);
   }
 
   /**

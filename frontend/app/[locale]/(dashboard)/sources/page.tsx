@@ -221,8 +221,12 @@ export default function SourcesPage() {
     }
   }
 
-  const handleConnectGoogleDrive = () => {
-    kmsSourcesApi.initiateGoogleDrive();
+  const handleConnectGoogleDrive = async () => {
+    try {
+      await kmsSourcesApi.initiateGoogleDrive();
+    } catch {
+      setError('Failed to start Google Drive connection. Please try again.');
+    }
   };
 
   return (
