@@ -7,7 +7,8 @@
  * - Returns COMPLETED job with language populated
  * - Scopes by userId — returns null for file belonging to a different user
  * - FAILED status with error message
- * - Response shape uses camelCase (mapped from snake_case DB columns)
+ * - Response shape uses camelCase (Prisma accessor output)
+ * - select guard: transcript field is not included in the select
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -20,20 +21,20 @@ import { EmbedJobPublisher } from '../../../queue/publishers/embed-job.publisher
 import { ScanJobPublisher } from '../../../queue/publishers/scan-job.publisher';
 
 // ---------------------------------------------------------------------------
-// Helpers — raw row shapes as returned by $queryRaw (snake_case column names)
+// Helpers — camelCase job shape as returned by Prisma kmsVoiceJob.findFirst()
 // ---------------------------------------------------------------------------
 
-function makeVoiceRow(overrides: Record<string, unknown> = {}): object {
+function makeVoiceJob(overrides: Record<string, unknown> = {}): object {
   return {
     id: 'job-001',
     status: 'PENDING',
     language: null,
-    duration_seconds: null,
-    completed_at: null,
-    error_msg: null,
-    model_used: null,
-    created_at: new Date('2026-03-22T00:00:00Z'),
-    updated_at: new Date('2026-03-22T00:00:00Z'),
+    durationSeconds: null,
+    completedAt: null,
+    errorMsg: null,
+    modelUsed: null,
+    createdAt: new Date('2026-03-22T00:00:00Z'),
+    updatedAt: new Date('2026-03-22T00:00:00Z'),
     ...overrides,
   };
 }
@@ -45,13 +46,13 @@ function makeVoiceRow(overrides: Record<string, unknown> = {}): object {
 describe('FilesService.getTranscription()', () => {
   let service: FilesService;
 
-  // $queryRaw mock — returns an array of raw rows
-  const prismaQueryRaw = jest.fn();
+  // Prisma kmsVoiceJob.findFirst mock
+  const prismaVoiceJobFindFirst = jest.fn();
   const prismaKmsSourceFindFirst = jest.fn();
   const prismaKmsFileCreate = jest.fn();
 
   const mockPrisma = {
-    $queryRaw: prismaQueryRaw,
+    kmsVoiceJob: { findFirst: prismaVoiceJobFindFirst },
     kmsSource: {
       findFirst: prismaKmsSourceFindFirst,
       create: jest.fn(),
@@ -111,12 +112,18 @@ describe('FilesService.getTranscription()', () => {
   // -------------------------------------------------------------------------
 
   it('returns null when no voice job exists for the file', async () => {
-    prismaQueryRaw.mockResolvedValue([]);
+    prismaVoiceJobFindFirst.mockResolvedValue(null);
 
     const result = await service.getTranscription('user-001', 'file-001');
 
     expect(result).toBeNull();
-    expect(prismaQueryRaw).toHaveBeenCalledTimes(1);
+    expect(prismaVoiceJobFindFirst).toHaveBeenCalledTimes(1);
+    expect(prismaVoiceJobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { fileId: 'file-001', userId: 'user-001' },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -124,8 +131,7 @@ describe('FilesService.getTranscription()', () => {
   // -------------------------------------------------------------------------
 
   it('returns PENDING job status when transcription is queued', async () => {
-    const pendingRow = makeVoiceRow({ status: 'PENDING' });
-    prismaQueryRaw.mockResolvedValue([pendingRow]);
+    prismaVoiceJobFindFirst.mockResolvedValue(makeVoiceJob({ status: 'PENDING' }));
 
     const result = await service.getTranscription('user-001', 'file-001') as any;
 
@@ -138,15 +144,16 @@ describe('FilesService.getTranscription()', () => {
   // COMPLETED status with language and duration
   // -------------------------------------------------------------------------
 
-  it('returns COMPLETED job with camelCase fields mapped from snake_case columns', async () => {
-    const completedRow = makeVoiceRow({
-      status: 'COMPLETED',
-      language: 'en',
-      duration_seconds: 120.5,
-      completed_at: new Date('2026-03-22T01:00:00Z'),
-      model_used: 'base',
-    });
-    prismaQueryRaw.mockResolvedValue([completedRow]);
+  it('returns COMPLETED job with camelCase fields', async () => {
+    prismaVoiceJobFindFirst.mockResolvedValue(
+      makeVoiceJob({
+        status: 'COMPLETED',
+        language: 'en',
+        durationSeconds: 120.5,
+        completedAt: new Date('2026-03-22T01:00:00Z'),
+        modelUsed: 'base',
+      }),
+    );
 
     const result = await service.getTranscription('user-001', 'file-001') as any;
 
@@ -165,11 +172,9 @@ describe('FilesService.getTranscription()', () => {
   // -------------------------------------------------------------------------
 
   it('returns FAILED job with errorMsg when transcription failed', async () => {
-    const failedRow = makeVoiceRow({
-      status: 'FAILED',
-      error_msg: 'Audio file is corrupt',
-    });
-    prismaQueryRaw.mockResolvedValue([failedRow]);
+    prismaVoiceJobFindFirst.mockResolvedValue(
+      makeVoiceJob({ status: 'FAILED', errorMsg: 'Audio file is corrupt' }),
+    );
 
     const result = await service.getTranscription('user-001', 'file-001') as any;
 
@@ -182,14 +187,12 @@ describe('FilesService.getTranscription()', () => {
   // -------------------------------------------------------------------------
 
   it('returns null for a file belonging to a different user', async () => {
-    // $queryRaw returns empty array when user_id filter finds no match
-    prismaQueryRaw.mockResolvedValue([]);
+    prismaVoiceJobFindFirst.mockResolvedValue(null);
 
     const result = await service.getTranscription('other-user', 'file-001');
 
     expect(result).toBeNull();
-    // $queryRaw should still be called (filter is in the SQL itself)
-    expect(prismaQueryRaw).toHaveBeenCalledTimes(1);
+    expect(prismaVoiceJobFindFirst).toHaveBeenCalledTimes(1);
   });
 
   // -------------------------------------------------------------------------
@@ -197,8 +200,7 @@ describe('FilesService.getTranscription()', () => {
   // -------------------------------------------------------------------------
 
   it('preserves null for optional fields when job is still PENDING', async () => {
-    const pendingRow = makeVoiceRow({ status: 'PENDING' });
-    prismaQueryRaw.mockResolvedValue([pendingRow]);
+    prismaVoiceJobFindFirst.mockResolvedValue(makeVoiceJob({ status: 'PENDING' }));
 
     const result = await service.getTranscription('user-001', 'file-001') as any;
 
@@ -214,12 +216,25 @@ describe('FilesService.getTranscription()', () => {
   // -------------------------------------------------------------------------
 
   it('includes createdAt and updatedAt in the response', async () => {
-    const row = makeVoiceRow({ status: 'PENDING' });
-    prismaQueryRaw.mockResolvedValue([row]);
+    prismaVoiceJobFindFirst.mockResolvedValue(makeVoiceJob({ status: 'PENDING' }));
 
     const result = await service.getTranscription('user-001', 'file-001') as any;
 
     expect(result.createdAt).toEqual(new Date('2026-03-22T00:00:00Z'));
     expect(result.updatedAt).toEqual(new Date('2026-03-22T00:00:00Z'));
+  });
+
+  // -------------------------------------------------------------------------
+  // Select guard — transcript must not be included
+  // -------------------------------------------------------------------------
+
+  it('does not include transcript in the select clause', async () => {
+    prismaVoiceJobFindFirst.mockResolvedValue(makeVoiceJob({ status: 'PENDING' }));
+
+    await service.getTranscription('user-001', 'file-001');
+
+    const callArg = prismaVoiceJobFindFirst.mock.calls[0][0];
+    expect(callArg.select).toBeDefined();
+    expect(callArg.select).not.toHaveProperty('transcript');
   });
 });

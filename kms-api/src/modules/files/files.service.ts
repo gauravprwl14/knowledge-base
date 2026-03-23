@@ -253,46 +253,24 @@ export class FilesService {
    * @returns The latest KmsVoiceJob summary or `null`.
    */
   async getTranscription(userId: string, fileId: string): Promise<object | null> {
-    // Use $queryRaw so we don't depend on generated Prisma client types for
-    // KmsVoiceJob — the migration adds the table but `prisma generate` has
-    // not been re-run in this environment yet.
-    type Row = {
-      id: string;
-      status: string;
-      language: string | null;
-      duration_seconds: number | null;
-      completed_at: Date | null;
-      error_msg: string | null;
-      model_used: string | null;
-      created_at: Date;
-      updated_at: Date;
-    };
+    const job = await this.prisma.kmsVoiceJob.findFirst({
+      where: { fileId, userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        language: true,
+        durationSeconds: true,
+        completedAt: true,
+        errorMsg: true,
+        modelUsed: true,
+        createdAt: true,
+        updatedAt: true,
+        // transcript excluded intentionally — too large for summary response
+      },
+    });
 
-    const rows = await this.prisma.$queryRaw<Row[]>`
-      SELECT id, status, language,
-             duration_seconds, completed_at, error_msg,
-             model_used, created_at, updated_at
-      FROM   kms_voice_jobs
-      WHERE  file_id  = ${fileId}::uuid
-        AND  user_id  = ${userId}::uuid
-      ORDER  BY created_at DESC
-      LIMIT  1
-    `;
-
-    if (!rows.length) return null;
-
-    const row = rows[0];
-    const job = {
-      id: row.id,
-      status: row.status,
-      language: row.language,
-      durationSeconds: row.duration_seconds,
-      completedAt: row.completed_at,
-      errorMsg: row.error_msg,
-      modelUsed: row.model_used,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    if (!job) return null;
 
     this.logger.info('transcription status fetched', { fileId, userId, status: job.status });
     return job;
