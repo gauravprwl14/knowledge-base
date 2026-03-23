@@ -5,7 +5,7 @@ WORKDIR /app
 # Install all deps (dev+prod) — needed for both dev hot-reload and production build
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
-RUN npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps && npm install chokidar@^5.0.0 @fastify/static --legacy-peer-deps --no-save
 
 # ---- development stage (hot reload via volume mount) ----
 FROM node:20-alpine AS development
@@ -14,6 +14,9 @@ WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma/
+
+# Generate Prisma client so TypeScript types are available in the dev container
+RUN npx prisma generate
 
 EXPOSE 8001
 ENV NODE_ENV=development
