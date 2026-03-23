@@ -334,6 +334,32 @@ services:
     networks:
       - backend
 
+  voice-app:
+    build:
+      context: ./services/voice-app
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+      VOICE_QUEUE: kms.voice
+      EMBED_QUEUE: kms.embed
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      MAX_AUDIO_SIZE_MB: ${MAX_AUDIO_SIZE_MB:-500}
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: voice-app
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - whisper_model_cache:/root/.cache/whisper
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+
   dedup-worker:
     build:
       context: ./services/dedup-worker
@@ -430,4 +456,5 @@ volumes:
   neo4j_data:
   neo4j_logs:
   minio_data:
-  hf_model_cache:    # BAAI/bge-m3 model — persisted to avoid 1.4 GB re-download on restart
+  hf_model_cache:        # BAAI/bge-m3 model — persisted to avoid 1.4 GB re-download on restart
+  whisper_model_cache:   # Whisper model cache — persisted to avoid re-download on restart

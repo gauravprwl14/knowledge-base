@@ -73,7 +73,7 @@
       "comment": "Requires Neo4j. Auto-disables if neo4j unreachable."
     },
     "voiceTranscription": {
-      "enabled": false,
+      "enabled": true,
       "defaultProvider": "whisper",
       "maxFileSizeMb": 500,
       "supportedFormats": ["mp3", "wav", "mp4", "mov", "m4a", "ogg", "webm"]
@@ -140,7 +140,7 @@
       "concurrency": 2
     },
     "voiceWorker": {
-      "enabled": false,
+      "enabled": true,
       "concurrency": 2,
       "jobTimeoutMinutes": 60
     }

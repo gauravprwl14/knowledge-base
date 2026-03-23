@@ -160,6 +160,33 @@ export class FilesController {
   }
 
   // ---------------------------------------------------------------------------
+  // TRANSCRIPTION STATUS
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns the latest voice transcription job status for a file.
+   *
+   * Returns `null` when no transcription job has been created for the file
+   * (e.g. the file is not audio/video, or the feature flag was disabled when
+   * the file was first discovered).
+   *
+   * @param id - File UUID (validated as UUID v4).
+   * @param req - Fastify request carrying `req.user.id`.
+   * @returns The latest KmsVoiceJob summary, or `null`.
+   */
+  @Get(':id/transcription')
+  @ApiOperation({ summary: 'Get transcription status for a file' })
+  @ApiParam({ name: 'id', type: String, description: 'File UUID' })
+  @ApiResponse({ status: 200, description: 'Transcription job status (null if none)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getTranscription(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req: any,
+  ): Promise<object | null> {
+    return this.filesService.getTranscription(req.user.id, id);
+  }
+
+  // ---------------------------------------------------------------------------
   // GET ONE
   // ---------------------------------------------------------------------------
 
