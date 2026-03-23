@@ -458,13 +458,27 @@ class GoogleDriveConnector(BaseConnector):
             )
 
             for change in changes:
-                if change.get("removed"):
-                    # File was deleted — log for future tombstone pipeline
-                    logger.info(
-                        "drive_file_deleted_detected",
-                        source_id=source_id,
-                        file_id=change.get("fileId"),
-                    )
+                drive_file_id = change.get("fileId")
+
+                if change.get("removed") or not change.get("file"):
+                    # File was deleted from Drive — yield a deletion tombstone message
+                    # so the scan handler can soft-delete the kms_files row and chunks.
+                    if drive_file_id:
+                        logger.info(
+                            "drive_file_deleted_detected",
+                            source_id=source_id,
+                            file_id=drive_file_id,
+                        )
+                        yield FileDiscoveredMessage(
+                            scan_job_id=job.scan_job_id,
+                            source_id=job.source_id,
+                            user_id=job.user_id,
+                            external_id=drive_file_id,
+                            file_path=drive_file_id,
+                            original_filename="",
+                            source_type=SourceType.GOOGLE_DRIVE,
+                            is_deleted=True,
+                        )
                     continue
 
                 file_item = change.get("file")

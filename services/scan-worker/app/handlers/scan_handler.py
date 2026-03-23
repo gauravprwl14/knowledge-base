@@ -287,6 +287,33 @@ class ScanHandler:
 
         try:
             async for file_msg in connector.list_files(job):
+                # Handle deletion tombstones emitted by the Drive connector
+                if file_msg.is_deleted:
+                    external_id = file_msg.external_id or file_msg.file_path
+                    try:
+                        deleted_id = await self._file_sync.handle_file_deleted(
+                            external_file_id=external_id,
+                            source_id=str(job.source_id),
+                            user_id=str(job.user_id),
+                        )
+                        if deleted_id:
+                            logger.bind(
+                                scan_job_id=str(job.scan_job_id),
+                                source_id=str(job.source_id),
+                            ).info(
+                                "drive_file_deletion_processed",
+                                file_id=deleted_id,
+                                external_id=external_id,
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "drive_file_deletion_failed_non_fatal",
+                            source_id=str(job.source_id),
+                            external_id=external_id,
+                            error=str(exc),
+                        )
+                    continue
+
                 # Dedup check is best-effort (non-blocking)
                 if file_msg.checksum_sha256:
                     await self._publish_dedup_check(file_msg)

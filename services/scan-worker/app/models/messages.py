@@ -4,6 +4,7 @@ These Pydantic models are the canonical wire format exchanged between:
 - **kms.scan** queue: :class:`ScanJobMessage` consumed by ``ScanHandler``
 - **kms.embed** queue: :class:`FileDiscoveredMessage` published by connectors
 - **kms.dedup** queue: :class:`DedupCheckMessage` published alongside embed msgs
+- **kms.delete** queue: :class:`FileDeletedMessage` published when a file is removed
 """
 
 from pydantic import BaseModel, Field
@@ -57,6 +58,10 @@ class FileDiscoveredMessage(BaseModel):
     Published by each connector for every file that should be embedded.
     The ``external_id`` and ``external_modified_at`` fields are used by the
     incremental scan logic to detect unchanged files on subsequent runs.
+
+    When ``is_deleted`` is ``True`` the message signals that the file has been
+    removed from the source.  The scan handler will soft-delete the corresponding
+    ``kms_files`` row and its chunks instead of publishing an embed job.
     """
 
     scan_job_id: UUID
@@ -74,6 +79,45 @@ class FileDiscoveredMessage(BaseModel):
     external_modified_at: Optional[datetime.datetime] = None
     source_type: SourceType
     source_metadata: dict = Field(default_factory=dict)
+    # Set to True when the file has been removed from the source (Drive removed=True)
+    is_deleted: bool = False
+
+
+KMS_DELETE_QUEUE = "kms.delete"
+"""AMQP routing key for file-deletion events."""
+
+
+class FileDeletedMessage(BaseModel):
+    """Published when a file is removed from the source (e.g. deleted from Google Drive).
+
+    Consumers of the ``kms.delete`` queue should:
+
+    1. Delete Qdrant points filtered by ``file_id``.
+    2. Delete ``kms_chunks`` rows for ``file_id``.
+    3. Soft-delete the ``kms_files`` row (``status = 'DELETED'``).
+
+    The scan-worker currently handles steps 2–3 inline rather than publishing
+    to this queue.  The model is provided so a dedicated delete-worker can be
+    wired up in a future iteration without changing the wire format.
+    """
+
+    file_id: str
+    """UUID string of the ``kms_files`` row."""
+
+    source_id: str
+    """UUID string of the parent ``kms_sources`` row."""
+
+    user_id: str
+    """UUID string of the owning ``auth_users`` row."""
+
+    external_id: str
+    """Drive file ID (or other source-native identifier) — for logging."""
+
+    original_filename: str | None = None
+    """Human-readable filename, if available at deletion time."""
+
+    deleted_at: str
+    """ISO-8601 UTC timestamp when the deletion was detected."""
 
 
 class DedupCheckMessage(BaseModel):

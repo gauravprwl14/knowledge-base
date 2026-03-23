@@ -83,11 +83,15 @@ export class FilesService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Hard-deletes a file and returns a confirmation flag.
+   * Soft-deletes a file by setting its status to DELETED and recording a
+   * `deleted_at` timestamp for the audit trail.
+   *
+   * Also deletes all associated `kms_chunks` rows so they no longer appear in
+   * full-text search results.  Qdrant vector point cleanup is deferred — orphaned
+   * vectors are purged in the background reset/clear flow (tracked in backlog).
    *
    * Verifies ownership first; throws FILE_NOT_FOUND if the file does not
-   * belong to `userId`. Cascade rules in the schema remove related chunks,
-   * collection memberships, and file-tag rows automatically.
+   * belong to `userId` or does not exist.
    *
    * @param id - File UUID.
    * @param userId - Authenticated user UUID.
@@ -100,10 +104,25 @@ export class FilesService {
       throw new AppError({ code: ERROR_CODES.FIL.FILE_NOT_FOUND.code });
     }
 
-    // Hard-delete the file; cascade handles related rows
-    await this.fileRepo.deleteById(id);
+    // Delete associated chunks first (FK constraint: chunks reference files)
+    await this.prisma.$executeRaw`
+      DELETE FROM kms_chunks WHERE file_id = ${id}::uuid
+    `;
 
-    this.logger.info('file deleted', { fileId: id, userId });
+    // Soft-delete the file record — keeps audit trail.
+    // `deletedAt` and the DELETED status value are added by migration
+    // 20260323000001_add_file_deleted_status; cast to `any` until Prisma
+    // client is regenerated against the updated schema.
+    await this.prisma.kmsFile.update({
+      where: { id },
+      data: {
+        status: 'DELETED' as any,
+        deletedAt: new Date() as any,
+        updatedAt: new Date(),
+      } as any,
+    });
+
+    this.logger.info('file soft-deleted', { fileId: id, userId });
     return { deleted: true };
   }
 

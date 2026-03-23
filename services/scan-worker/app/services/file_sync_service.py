@@ -278,3 +278,90 @@ class FileSyncService:
             return dict(row) if row else None
         finally:
             await conn.close()
+
+    async def handle_file_deleted(
+        self,
+        external_file_id: str,
+        source_id: str,
+        user_id: str,
+    ) -> str | None:
+        """Soft-delete a file that was removed from the source.
+
+        Looks up ``kms_files`` by ``external_id`` and ``source_id``, deletes
+        all associated ``kms_chunks`` rows, then sets the file status to
+        ``DELETED`` with a ``deleted_at`` timestamp.
+
+        Qdrant point cleanup is deferred — the reset/clear flow handles orphaned
+        vectors in a background pass (tracked in backlog).
+
+        Args:
+            external_file_id: The Drive file ID (or other source-native key).
+            source_id: UUID string of the parent source.
+            user_id: UUID string of the owning user (for log context).
+
+        Returns:
+            The ``kms_files.id`` UUID string of the soft-deleted row, or
+            ``None`` when no matching row was found (already deleted or never
+            indexed).
+        """
+        log = logger.bind(
+            external_id=external_file_id,
+            source_id=source_id,
+            user_id=user_id,
+        )
+
+        conn: asyncpg.Connection = await asyncpg.connect(settings.database_url)
+        try:
+            # Look up the kms_files row by external_id + source_id
+            row = await conn.fetchrow(
+                """
+                SELECT id
+                FROM kms_files
+                WHERE source_id = $1::uuid AND external_id = $2
+                  AND status::text != 'DELETED'
+                """,
+                source_id,
+                external_file_id,
+            )
+
+            if not row:
+                log.debug(
+                    "removed_file_not_found_in_kms_files",
+                    detail="already deleted or never indexed",
+                )
+                return None
+
+            file_id = str(row["id"])
+
+            # Delete orphaned chunk rows first (FK constraint: chunks ref files)
+            deleted_chunks = await conn.fetchval(
+                """
+                WITH deleted AS (
+                    DELETE FROM kms_chunks WHERE file_id = $1::uuid RETURNING id
+                )
+                SELECT count(*) FROM deleted
+                """,
+                file_id,
+            )
+
+            # Soft-delete the file record
+            await conn.execute(
+                """
+                UPDATE kms_files
+                SET status = 'DELETED'::"FileStatus",
+                    deleted_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $1::uuid
+                """,
+                file_id,
+            )
+
+            log.info(
+                "file_soft_deleted_after_drive_removal",
+                file_id=file_id,
+                chunks_deleted=deleted_chunks,
+            )
+            return file_id
+
+        finally:
+            await conn.close()
