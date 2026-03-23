@@ -273,6 +273,7 @@ model KmsFile {
   source               KmsSource              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   chunks               KmsChunk[]
   transcriptionLinks   KmsTranscriptionLink[]
+  voiceJobs            KmsVoiceJob[]
   duplicates           KmsFileDuplicate[]
   collectionFiles      KmsCollectionFile[]
   /// Tag associations for this file (see KmsFileTag join table)
@@ -390,6 +391,39 @@ model KmsFileDuplicate {
 // =============================================================================
 // TRANSCRIPTION DOMAIN (M08)
 // =============================================================================
+
+enum VoiceJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+/// Voice transcription job created when an audio/video file is discovered
+model KmsVoiceJob {
+  id              String         @id @default(uuid()) @db.Uuid
+  fileId          String         @map("file_id") @db.Uuid
+  sourceId        String         @map("source_id") @db.Uuid
+  userId          String         @map("user_id") @db.Uuid
+  status          VoiceJobStatus @default(PENDING)
+  transcript      String?        @db.Text
+  language        String?        @db.VarChar(10)
+  durationSeconds Float?         @map("duration_seconds")
+  errorMsg        String?        @map("error_msg") @db.Text
+  modelUsed       String?        @map("model_used") @db.VarChar(50)
+  startedAt       DateTime?      @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  file KmsFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([userId])
+  @@index([status])
+  @@map("kms_voice_jobs")
+}
 
 /// Link between a KMS file and a voice-app transcription record
 model KmsTranscriptionLink {

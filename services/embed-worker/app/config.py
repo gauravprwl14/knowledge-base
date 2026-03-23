@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     database_url: str = Field(..., env="DATABASE_URL")
     rabbitmq_url: str = Field(default="amqp://guest:guest@localhost:5672/", env="RABBITMQ_URL")
     embed_queue: str = "kms.embed"
+    voice_queue: str = Field(default="kms.voice", env="VOICE_QUEUE")
     dead_letter_exchange: str = "kms.dlx"
     prefetch_count: int = 2
     max_retries: int = 3

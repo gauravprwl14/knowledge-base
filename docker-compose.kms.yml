@@ -415,6 +415,36 @@ services:
       - backend
       - observability
 
+  voice-app:
+    build:
+      context: ./services/voice-app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      VOICE_QUEUE: kms.voice
+      EMBED_QUEUE: kms.embed
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      MAX_AUDIO_SIZE_MB: 500
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: voice-app
+      LOG_LEVEL: info
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - whisper_model_cache:/root/.cache/whisper
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
   dedup-worker:
     build:
       context: ./services/dedup-worker
@@ -553,3 +583,4 @@ volumes:
   grafana_data:
   tempo_data:
   loki_data:
+  whisper_model_cache:    # Whisper model cache — persisted to avoid re-download on restart
