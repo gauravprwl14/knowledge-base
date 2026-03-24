@@ -35,6 +35,8 @@ const statusBadgeClass: Record<
   PENDING: { text: 'text-amber-700', bg: 'bg-amber-50' },
   PROCESSING: { text: 'text-blue-700', bg: 'bg-blue-50' },
   ERROR: { text: 'text-red-700', bg: 'bg-red-50' },
+  UNSUPPORTED: { text: 'text-yellow-700', bg: 'bg-yellow-50' },
+  DELETED: { text: 'text-gray-500', bg: 'bg-gray-100' },
 };
 
 // ---------------------------------------------------------------------------
