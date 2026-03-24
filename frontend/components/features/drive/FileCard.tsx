@@ -35,6 +35,8 @@ const statusDotClass: Record<KmsFile['status'], string> = {
   PENDING: 'bg-amber-400',
   PROCESSING: 'bg-blue-400',
   ERROR: 'bg-red-400',
+  UNSUPPORTED: 'bg-yellow-400',
+  DELETED: 'bg-gray-300',
 };
 
 // ---------------------------------------------------------------------------
