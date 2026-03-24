@@ -96,6 +96,48 @@ describe('Sources page — Connect Google Drive button', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Loading state
+  // -------------------------------------------------------------------------
+
+  it('shows "Connecting…" text and disables the button while initiateGoogleDrive is in flight', async () => {
+    let resolveConnect!: () => void;
+    const connectPromise = new Promise<void>((r) => { resolveConnect = r; });
+    mockInitiateGoogleDrive.mockReturnValue(connectPromise);
+
+    renderPage();
+
+    const btn = screen.getByRole('button', { name: /connect google drive/i });
+    fireEvent.click(btn);
+
+    // While the promise is pending the button label should change and be disabled
+    await waitFor(() => {
+      expect(screen.getByText(/connecting…/i)).toBeInTheDocument();
+    });
+    expect(btn).toBeDisabled();
+
+    // After resolve the button returns to its normal state
+    resolveConnect();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /connect google drive/i })).not.toBeDisabled();
+    });
+    expect(screen.queryByText(/connecting…/i)).not.toBeInTheDocument();
+  });
+
+  it('button is re-enabled after initiateGoogleDrive rejects', async () => {
+    mockInitiateGoogleDrive.mockRejectedValue(new Error('network error'));
+
+    renderPage();
+
+    const btn = screen.getByRole('button', { name: /connect google drive/i });
+    fireEvent.click(btn);
+
+    // Wait for the async rejection to be handled
+    await waitFor(() => {
+      expect(btn).not.toBeDisabled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Error path
   // -------------------------------------------------------------------------
 

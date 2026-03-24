@@ -27,7 +27,7 @@ export interface ConnectDriveButtonProps {
 export function ConnectDriveButton({ userId, enabled }: ConnectDriveButtonProps) {
   const handleClick = () => {
     if (!enabled) return;
-    kmsSourcesApi.initiateGoogleDrive(userId);
+    kmsSourcesApi.initiateGoogleDrive();
   };
 
   return (

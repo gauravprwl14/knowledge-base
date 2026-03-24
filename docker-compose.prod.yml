@@ -202,6 +202,8 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-kms-transcripts}
     volumes:
       - ./.kms/config.json:/app/.kms/config.json:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -237,6 +239,8 @@ services:
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: search-api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     depends_on:
       postgres:
         condition: service_healthy
@@ -269,6 +273,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: rag-service
       PYTHONUNBUFFERED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     depends_on:
       postgres:
         condition: service_healthy
@@ -301,8 +307,11 @@ services:
       API_KEY_ENCRYPTION_SECRET: ${API_KEY_ENCRYPTION_SECRET}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: scan-worker
       PYTHONUNBUFFERED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     depends_on:
       postgres:
         condition: service_healthy
@@ -327,8 +336,11 @@ services:
       MOCK_EMBEDDING: "false"
       MOCK_QDRANT: "false"
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: embed-worker
       PYTHONUNBUFFERED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     volumes:
       # Persist the BAAI/bge-m3 model across container restarts (1.4 GB download).
       # Without this volume the model re-downloads on every container restart.
@@ -361,6 +373,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: voice-app
       PYTHONUNBUFFERED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     volumes:
       - whisper_model_cache:/root/.cache/whisper
     depends_on:
@@ -382,8 +396,11 @@ services:
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: dedup-worker
       PYTHONUNBUFFERED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     depends_on:
       postgres:
         condition: service_healthy
@@ -407,8 +424,11 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: graph-worker
       PYTHONUNBUFFERED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     depends_on:
       postgres:
         condition: service_healthy

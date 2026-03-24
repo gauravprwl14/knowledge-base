@@ -401,6 +401,14 @@ export const AUT_ERROR_CODES = {
     retryable: false,
     userFacing: true,
   },
+  ADMIN_ACCESS_REQUIRED: {
+    code: 'KBAUT0010',
+    message: 'Admin access required',
+    httpStatus: 403,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
@@ -933,6 +941,14 @@ export const FIL_ERROR_CODES = {
     retryable: false,
     userFacing: true,
   },
+  BULK_LIMIT_EXCEEDED: {
+    code: 'FIL0002',
+    message: 'Bulk operation exceeds maximum of 100 files',
+    httpStatus: 422,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
@@ -997,6 +1013,7 @@ export type ErrorCode =
   | (typeof WRK_ERROR_CODES)[keyof typeof WRK_ERROR_CODES]['code']
   | (typeof FIL_ERROR_CODES)[keyof typeof FIL_ERROR_CODES]['code']
   | (typeof TAG_ERROR_CODES)[keyof typeof TAG_ERROR_CODES]['code'];
+
 
 /**
  * Helper type to extract error definition from error codes object

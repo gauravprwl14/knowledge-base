@@ -24,10 +24,11 @@ import {
 } from '@nestjs/swagger';
 import { FilesService, DuplicateGroup } from './files.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ListFilesQueryDto } from './dto/list-files-query.dto';
+import { ListFilesQueryDto, EMBEDDING_STATUS_TO_FILE_STATUS } from './dto/list-files-query.dto';
 import { ListFilesResponseDto } from './dto/list-files-response.dto';
 import { BulkDeleteDto } from './dto/bulk-delete.dto';
 import { BulkMoveDto } from './dto/bulk-move.dto';
+import { BulkReEmbedDto, BulkReEmbedResponseDto } from './dto/bulk-re-embed.dto';
 import { IngestNoteDto } from './dto/ingest-note.dto';
 
 /**
@@ -124,6 +125,31 @@ export class FilesController {
     return this.filesService.bulkMoveFiles(dto.fileIds, dto.collectionId, req.user.id);
   }
 
+  /**
+   * Bulk re-queues up to 100 files owned by the authenticated user for
+   * re-embedding. Files belonging to other users are silently ignored.
+   *
+   * Resets each matched file's status to PENDING and publishes an embed job
+   * message to the `kms.embed` queue so the embed-worker will reprocess them.
+   *
+   * @param dto - Body containing the array of file UUIDs (max 100).
+   * @param req - Fastify request carrying `req.user.id`.
+   * @returns Count of files actually queued for re-embedding.
+   */
+  @Post('bulk-re-embed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk re-queue files for re-embedding (max 100)' })
+  @ApiResponse({ status: 200, description: 'Files queued for re-embedding', type: BulkReEmbedResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 422, description: 'Exceeds 100-file limit' })
+  async bulkReEmbedFiles(
+    @Body() dto: BulkReEmbedDto,
+    @Request() req: any,
+  ): Promise<BulkReEmbedResponseDto> {
+    return this.filesService.bulkReEmbed(dto.ids, req.user.id);
+  }
+
   // ---------------------------------------------------------------------------
   // LIST
   // ---------------------------------------------------------------------------
@@ -152,10 +178,16 @@ export class FilesController {
       limit: query.limit ?? 20,
       sourceId: query.sourceId,
       mimeGroup: query.mimeGroup,
-      status: query.status,
+      // FR-13: embeddingStatus takes precedence over status when both are present
+      status: query.embeddingStatus
+        ? EMBEDDING_STATUS_TO_FILE_STATUS[query.embeddingStatus]
+        : query.status,
       collectionId: query.collectionId,
       tags: query.tags,
       search: query.search,
+      sortBy: query.sortBy,
+      sortDir: query.sortDir,
+      embeddingStatus: query.embeddingStatus,
     }) as unknown as ListFilesResponseDto;
   }
 

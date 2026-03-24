@@ -6,6 +6,9 @@ import { PrismaService } from '../prisma/prisma.service';
 /**
  * Filter parameters accepted by the paginated list query.
  */
+/** Sortable columns — must match KmsFile Prisma model field names exactly. */
+export type FilesSortBy = 'createdAt' | 'updatedAt' | 'name' | 'sizeBytes';
+
 export interface ListFilesParams {
   userId: string;
   cursor?: string;
@@ -16,6 +19,10 @@ export interface ListFilesParams {
   collectionId?: string;
   tags?: string[];
   search?: string;
+  /** Column to order by. Defaults to createdAt. */
+  sortBy?: FilesSortBy;
+  /** Sort direction. Defaults to desc. */
+  sortDir?: 'asc' | 'desc';
 }
 
 /**
@@ -81,6 +88,8 @@ export class FileRepository extends BaseRepository<
       collectionId,
       tags,
       search,
+      sortBy = 'createdAt',
+      sortDir = 'desc',
     } = params;
 
     // Build the where clause starting with mandatory userId scope
@@ -116,7 +125,7 @@ export class FileRepository extends BaseRepository<
     const [items, total] = await Promise.all([
       this.prisma.kmsFile.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [sortBy]: sortDir },
         take: limit + 1, // fetch one extra to detect next page
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       }),

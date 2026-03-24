@@ -17,12 +17,14 @@
 const mockFilesList = jest.fn();
 const mockFilesDelete = jest.fn();
 const mockFilesBulkDelete = jest.fn();
+const mockFilesBulkReEmbed = jest.fn();
 
 jest.mock('@/lib/api/files', () => ({
   filesApi: {
     list: (...args: unknown[]) => mockFilesList(...args),
     delete: (...args: unknown[]) => mockFilesDelete(...args),
     bulkDelete: (...args: unknown[]) => mockFilesBulkDelete(...args),
+    bulkReEmbed: (...args: unknown[]) => mockFilesBulkReEmbed(...args),
   },
 }));
 
@@ -231,9 +233,9 @@ describe('FilesBrowserPage', () => {
 
   // ── Test 6: Bulk delete button appears when files are selected ───────────
 
-  it('shows bulk delete bar when checkboxes are checked and calls bulkDelete', async () => {
+  it('shows bulk action toolbar when checkboxes are checked, opens modal, and calls bulkDelete on confirm', async () => {
     mockFilesList.mockResolvedValue(makeListResponse(MOCK_FILES));
-    mockFilesBulkDelete.mockResolvedValue(undefined);
+    mockFilesBulkDelete.mockResolvedValue({ deleted: 2 });
 
     renderPage();
 
@@ -251,25 +253,136 @@ describe('FilesBrowserPage', () => {
     fireEvent.click(checkbox1);
     fireEvent.click(checkbox2);
 
-    // Bulk action bar should now be visible
+    // Bulk action toolbar should now be visible
     expect(screen.getByTestId('bulk-action-bar')).toBeInTheDocument();
     expect(screen.getByText(/2 files selected/i)).toBeInTheDocument();
 
-    // Click bulk delete
+    // Click bulk delete — opens confirmation modal
     const bulkDeleteBtn = screen.getByTestId('bulk-delete-btn');
     await act(async () => {
       fireEvent.click(bulkDeleteBtn);
     });
 
+    // Modal should appear
+    expect(screen.getByTestId('bulk-delete-confirm-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('modal-title')).toHaveTextContent(/delete 2 files/i);
+
+    // Confirm deletion
+    const confirmBtn = screen.getByTestId('modal-confirm-btn');
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
     expect(mockFilesBulkDelete).toHaveBeenCalledWith(['file-001', 'file-002']);
 
-    // Both cards should be removed
+    // Both cards should be removed (optimistic)
     await waitFor(() => {
       expect(screen.getAllByTestId('file-card')).toHaveLength(1);
     });
 
-    // Bulk action bar should be gone
-    expect(screen.queryByTestId('bulk-action-bar')).not.toBeInTheDocument();
+    // Bulk action bar should be gone after selection cleared
+    await waitFor(() => {
+      expect(screen.queryByTestId('bulk-action-bar')).not.toBeInTheDocument();
+    });
+  });
+
+  // ── Test 6b: Re-embed button calls bulkReEmbed API ───────────────────────
+
+  it('re-embed button calls bulkReEmbed API and clears selection on success', async () => {
+    mockFilesList.mockResolvedValue(makeListResponse(MOCK_FILES));
+    mockFilesBulkReEmbed.mockResolvedValue({ queued: 2 });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('file-card')).toHaveLength(3);
+    });
+
+    // Select two files
+    fireEvent.click(screen.getByTestId('checkbox-file-001'));
+    fireEvent.click(screen.getByTestId('checkbox-file-002'));
+
+    expect(screen.getByTestId('bulk-action-bar')).toBeInTheDocument();
+
+    // Click re-embed button
+    const reEmbedBtn = screen.getByTestId('bulk-re-embed-btn');
+    await act(async () => {
+      fireEvent.click(reEmbedBtn);
+    });
+
+    expect(mockFilesBulkReEmbed).toHaveBeenCalledWith(['file-001', 'file-002']);
+
+    // Selection cleared after success
+    await waitFor(() => {
+      expect(screen.queryByTestId('bulk-action-bar')).not.toBeInTheDocument();
+    });
+  });
+
+  // ── Test 6c: Cancel on modal does not call bulkDelete ─────────────────────
+
+  it('cancelling bulk delete modal does not call bulkDelete API', async () => {
+    mockFilesList.mockResolvedValue(makeListResponse(MOCK_FILES));
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('file-card')).toHaveLength(3);
+    });
+
+    fireEvent.click(screen.getByTestId('checkbox-file-001'));
+
+    const bulkDeleteBtn = screen.getByTestId('bulk-delete-btn');
+    await act(async () => { fireEvent.click(bulkDeleteBtn); });
+
+    // Modal is shown
+    expect(screen.getByTestId('bulk-delete-confirm-modal')).toBeInTheDocument();
+
+    // Click Cancel
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('modal-cancel-btn'));
+    });
+
+    // Modal dismissed, API not called
+    expect(screen.queryByTestId('bulk-delete-confirm-modal')).not.toBeInTheDocument();
+    expect(mockFilesBulkDelete).not.toHaveBeenCalled();
+    // Selection still intact
+    expect(screen.getByTestId('bulk-action-bar')).toBeInTheDocument();
+  });
+
+  // ── Test 6d: Bulk actions disabled when > 100 files selected ─────────────
+
+  it('shows warning and disables actions when > 100 files are selected', async () => {
+    const manyFiles = Array.from({ length: 101 }, (_, i) =>
+      makeFile({ id: `file-${String(i + 1).padStart(3, '0')}`, name: `file-${i + 1}.pdf` }),
+    );
+    mockFilesList.mockResolvedValue(makeListResponse(manyFiles));
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading-skeleton')).not.toBeInTheDocument();
+    });
+
+    // Select all 101 via "select all" header checkbox in table view
+    // Switch to table view first
+    const tableViewBtn = screen.getByRole('button', { name: /table view/i });
+    fireEvent.click(tableViewBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('files-table')).toBeInTheDocument();
+    });
+
+    const selectAllCheckbox = screen.getByRole('checkbox', { name: /select all/i });
+    fireEvent.click(selectAllCheckbox);
+
+    // Over-limit warning should appear
+    await waitFor(() => {
+      expect(screen.getByTestId('bulk-over-limit-warning')).toBeInTheDocument();
+    });
+
+    // Delete and re-embed buttons should be disabled
+    expect(screen.getByTestId('bulk-delete-btn')).toBeDisabled();
+    expect(screen.getByTestId('bulk-re-embed-btn')).toBeDisabled();
   });
 
   // ── Test 7: Empty state when no files ───────────────────────────────────

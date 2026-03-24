@@ -177,7 +177,12 @@ export class KmsApiClient {
     // error that destroys the session.
     const restorePromise = this.tokenProvider?.getAuthRestorePromise?.();
     if (restorePromise) {
-      await restorePromise;
+      // Race with a 10s timeout so a stuck restore promise (e.g. circular
+      // dependency or network hang) never permanently blocks API calls.
+      await Promise.race([
+        restorePromise,
+        new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+      ]);
     }
     const token = this.tokenProvider?.getAccessToken();
     if (token) {

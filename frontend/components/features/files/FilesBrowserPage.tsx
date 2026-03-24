@@ -7,19 +7,24 @@
  * - Cursor-based infinite scroll ("Load more" button)
  * - Filter bar (search, MIME group, status, sort)
  * - Grid / table view toggle
- * - Multi-select with bulk delete
+ * - Multi-select with bulk delete + bulk re-embed
+ * - Bulk delete confirmation modal
+ * - Embedding status badges
  * - Loading skeleton and empty state
  */
 
 import * as React from 'react';
-import { Files, LayoutGrid, List, Trash2, RefreshCw } from 'lucide-react';
+import { Files, LayoutGrid, List, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { filesApi } from '@/lib/api/files';
 import type { KmsFile } from '@/lib/api/files';
+import { ApiError } from '@/lib/api/client';
 import { FilesFilterBar, sortOptionToParams } from './FilesFilterBar';
 import type { FilesFilterState } from './FilesFilterBar';
 import { FileCard } from './FileCard';
 import { FilesTable } from './FilesTable';
+import { BulkActionToolbar } from './BulkActionToolbar';
+import { BulkDeleteConfirmModal } from './BulkDeleteConfirmModal';
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
@@ -117,6 +122,8 @@ export function FilesBrowserPage() {
   const [view, setView] = React.useState<'grid' | 'table'>('grid');
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = React.useState(false);
+  const [isBulkReEmbedding, setIsBulkReEmbedding] = React.useState(false);
+  const [showDeleteModal, setShowDeleteModal] = React.useState(false);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -147,8 +154,8 @@ export function FilesBrowserPage() {
         setNextCursor(res.nextCursor);
         setTotal(res.total);
       })
-      .catch(() => {
-        if (!cancelled) setError('Failed to load files. Please try again.');
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load files. Please try again.');
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -176,8 +183,8 @@ export function FilesBrowserPage() {
       const res = await fetchFiles(filters, nextCursor);
       setFiles((prev) => [...prev, ...res.items]);
       setNextCursor(res.nextCursor);
-    } catch {
-      setError('Failed to load more files.');
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Failed to load more files.');
     } finally {
       setIsLoadingMore(false);
     }
@@ -206,20 +213,54 @@ export function FilesBrowserPage() {
     setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
   }
 
-  async function handleBulkDelete() {
+  // Opens the confirmation modal
+  function handleBulkDeleteClick() {
+    if (selectedIds.size === 0) return;
+    setShowDeleteModal(true);
+  }
+
+  // Confirmed from modal — execute bulk delete
+  async function handleBulkDeleteConfirm() {
     if (selectedIds.size === 0 || isBulkDeleting) return;
     setIsBulkDeleting(true);
     setError(null);
     const ids = Array.from(selectedIds);
+    // Optimistic: remove rows immediately
+    const prevFiles = files;
+    const prevTotal = total;
+    setFiles((prev) => prev.filter((f) => !ids.includes(f.id)));
+    setTotal((t) => Math.max(0, t - ids.length));
+    setShowDeleteModal(false);
     try {
       await filesApi.bulkDelete(ids);
-      setFiles((prev) => prev.filter((f) => !ids.includes(f.id)));
-      setTotal((t) => Math.max(0, t - ids.length));
       setSelectedIds(new Set());
-    } catch {
-      setError('Failed to delete selected files. Please try again.');
+    } catch (err: unknown) {
+      // Restore on error
+      setFiles(prevFiles);
+      setTotal(prevTotal);
+      setError(err instanceof ApiError ? err.message : 'Failed to delete selected files. Please try again.');
     } finally {
       setIsBulkDeleting(false);
+    }
+  }
+
+  // FR-08: Bulk re-embed
+  async function handleBulkReEmbed() {
+    if (selectedIds.size === 0 || isBulkReEmbedding) return;
+    setIsBulkReEmbedding(true);
+    setError(null);
+    const ids = Array.from(selectedIds);
+    try {
+      const result = await filesApi.bulkReEmbed(ids);
+      setSelectedIds(new Set());
+      // Show inline success message via brief non-blocking info (no toast lib yet)
+      // The error state banner doubles as info when non-error; set temporarily then clear.
+      setError(`${result.queued} ${result.queued === 1 ? 'file' : 'files'} queued for re-embedding.`);
+      setTimeout(() => setError(null), 4000);
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Failed to queue files for re-embedding. Please try again.');
+    } finally {
+      setIsBulkReEmbedding(false);
     }
   }
 
@@ -268,25 +309,26 @@ export function FilesBrowserPage() {
       {/* Filter bar */}
       <FilesFilterBar filters={filters} onChange={handleFiltersChange} />
 
-      {/* Bulk action bar */}
+      {/* Bulk action toolbar (FR-04) */}
       {selectedIds.size > 0 && (
-        <div
-          className="flex items-center justify-between gap-4 rounded-xl border border-[#a78bfa]/30 bg-[#a78bfa]/10 px-4 py-3"
-          data-testid="bulk-action-bar"
-        >
-          <span className="text-sm text-slate-200">
-            {selectedIds.size} {selectedIds.size === 1 ? 'file' : 'files'} selected
-          </span>
-          <button
-            onClick={handleBulkDelete}
-            disabled={isBulkDeleting}
-            data-testid="bulk-delete-btn"
-            className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-            {isBulkDeleting ? 'Deleting…' : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'file' : 'files'}`}
-          </button>
-        </div>
+        <BulkActionToolbar
+          selectedCount={selectedIds.size}
+          onDeleteClick={handleBulkDeleteClick}
+          onReEmbedClick={handleBulkReEmbed}
+          onClearSelection={() => setSelectedIds(new Set())}
+          isDeleting={isBulkDeleting}
+          isReEmbedding={isBulkReEmbedding}
+        />
+      )}
+
+      {/* Bulk delete confirmation modal (FR-05) */}
+      {showDeleteModal && (
+        <BulkDeleteConfirmModal
+          count={selectedIds.size}
+          onCancel={() => setShowDeleteModal(false)}
+          onConfirm={handleBulkDeleteConfirm}
+          isDeleting={isBulkDeleting}
+        />
       )}
 
       {/* Error banner */}

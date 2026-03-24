@@ -91,10 +91,25 @@ export const mockFilesApi = {
     _tags = _tags.map((t) => ({ ...t, fileCount: _files.filter((f) => f.tags.some((ft) => ft.id === t.id)).length }));
   },
 
-  async bulkDelete(fileIds: string[]): Promise<void> {
+  async bulkDelete(ids: string[]): Promise<{ deleted: number }> {
     await delay(400);
-    _files = _files.filter((f) => !fileIds.includes(f.id));
+    const before = _files.length;
+    _files = _files.filter((f) => !ids.includes(f.id));
     _tags = _tags.map((t) => ({ ...t, fileCount: _files.filter((f) => f.tags.some((ft) => ft.id === t.id)).length }));
+    return { deleted: before - _files.length };
+  },
+
+  async bulkReEmbed(ids: string[]): Promise<{ queued: number }> {
+    await delay(300);
+    let queued = 0;
+    _files = _files.map((f) => {
+      if (ids.includes(f.id)) {
+        queued++;
+        return { ...f, status: 'PENDING' as const, embeddingStatus: 'pending' as const };
+      }
+      return f;
+    });
+    return { queued };
   },
 
   async retry(id: string): Promise<void> {

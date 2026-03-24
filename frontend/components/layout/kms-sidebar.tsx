@@ -14,15 +14,19 @@ import {
   Mic,
   FolderOpen,
   Settings,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { useCurrentUser } from '@/lib/stores/auth.store';
 
 interface NavItem {
   icon: React.ElementType;
   label: string;
   path: string;
   key: string;
+  /** If set, only renders this item when user.roles includes this role. */
+  requiredRole?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -37,10 +41,13 @@ const NAV_ITEMS: NavItem[] = [
   { icon: Mic,             label: 'Transcribe',  path: '/transcribe',  key: 'transcribe'  },
   { icon: FolderOpen,      label: 'Collections', path: '/collections', key: 'collections' },
   { icon: Settings,        label: 'Settings',    path: '/settings',    key: 'settings'    },
+  // FR-08: Admin link only renders for ADMIN users
+  { icon: ShieldCheck,     label: 'Admin',       path: '/admin',       key: 'admin',      requiredRole: 'ADMIN' },
 ];
 
 export function KmsSidebar() {
   const pathname = usePathname();
+  const currentUser = useCurrentUser();
   const [collapsed, setCollapsed] = useState(false);
   const toggle = useCallback(() => setCollapsed((v) => !v), []);
 
@@ -58,7 +65,10 @@ export function KmsSidebar() {
       >
         <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
           <ul className="flex flex-col gap-0.5 px-2">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => {
+              if (!item.requiredRole) return true;
+              return currentUser?.roles.includes(item.requiredRole) ?? false;
+            }).map((item) => {
               const Icon = item.icon;
               const href = item.path;
               const isActive =

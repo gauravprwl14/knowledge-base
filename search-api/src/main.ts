@@ -1,3 +1,15 @@
+// Initialize OpenTelemetry FIRST (before any other imports)
+import { initOtelSdk } from './telemetry/sdk/otel.sdk';
+
+const sdk = initOtelSdk({
+  serviceName: process.env.OTEL_SERVICE_NAME || 'search-api',
+  serviceVersion: process.env.npm_package_version || '1.0.0',
+  environment: process.env.NODE_ENV || 'development',
+  otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4317',
+  enabled: process.env.OTEL_ENABLED !== 'false',
+  debugMode: process.env.NODE_ENV === 'development',
+});
+
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';

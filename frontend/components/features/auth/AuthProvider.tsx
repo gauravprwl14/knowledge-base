@@ -96,6 +96,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         storeSetAccessToken(accessToken);
         localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
 
+        // Clear the restore promise BEFORE calling getMe().
+        // getMe() uses apiClient which awaits _authRestorePromise in its
+        // request interceptor. If we don't clear it here first, getMe()
+        // deadlocks: it awaits _authRestorePromise, which only resolves when
+        // restoreSession() completes, which is waiting for getMe(). Clearing
+        // the promise here lets getMe() proceed immediately with the access
+        // token we just stored above.
+        setAuthRestorePromise(null);
+
         const user = await getMe();
         storeLogin(
           {

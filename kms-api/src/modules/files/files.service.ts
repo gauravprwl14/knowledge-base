@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { AppLogger } from '../../logger/logger.service';
 import { AppError } from '../../errors/types/app-error';
 import { ERROR_CODES } from '../../errors/error-codes';
-import { Prisma, ScanJobType } from '@prisma/client';
+import { FileStatus, Prisma, ScanJobType } from '@prisma/client';
 import { FileRepository, ListFilesParams, FilesPage } from '../../database/repositories/file.repository';
 import { ScanJobRepository } from '../../database/repositories/scan-job.repository';
 import { PrismaService } from '../../database/prisma/prisma.service';
@@ -11,6 +11,26 @@ import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
 import { ScanJobPublisher } from '../../queue/publishers/scan-job.publisher';
 import { IngestNoteDto } from './dto/ingest-note.dto';
 import { MinioService } from './minio.service';
+import {
+  EmbeddingStatus,
+  FILE_STATUS_TO_EMBEDDING_STATUS,
+  EMBEDDING_STATUS_TO_FILE_STATUS,
+} from './dto/list-files-query.dto';
+
+// ---------------------------------------------------------------------------
+// Internal: embeddingStatus mapping helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Derives the `embeddingStatus` string from the file's `status` column.
+ * No additional DB query required — computed inline from the existing column.
+ *
+ * @param status - The Prisma FileStatus enum value.
+ * @returns The derived EmbeddingStatus string.
+ */
+export function deriveEmbeddingStatus(status: FileStatus): EmbeddingStatus {
+  return FILE_STATUS_TO_EMBEDDING_STATUS[status] ?? 'pending';
+}
 
 // ---------------------------------------------------------------------------
 // DTOs / types
@@ -71,14 +91,32 @@ export class FilesService {
    * Returns a cursor-paginated list of files visible to `userId`.
    *
    * Supports filtering by sourceId, status, mimeGroup, collectionId,
-   * tag names, and a filename search substring.
+   * tag names, a filename search substring, and the derived embeddingStatus.
+   *
+   * Each returned item is augmented with an `embeddingStatus` derived field
+   * computed from the existing `status` column — no extra DB query required.
    *
    * @param params - Filter and pagination options.
    * @returns Paginated file list with a nextCursor for the following page.
    */
-  async listFiles(params: ListFilesParams): Promise<FilesPage> {
+  async listFiles(params: ListFilesParams & { embeddingStatus?: EmbeddingStatus }): Promise<FilesPage & { items: Array<ReturnType<typeof Object.assign>> }> {
     this.logger.info('listFiles', { userId: params.userId, limit: params.limit });
-    return this.fileRepo.listFiles(params);
+
+    // FR-13: embeddingStatus query param maps to FileStatus in the repository
+    const repoParams: ListFilesParams = { ...params };
+    if (params.embeddingStatus) {
+      repoParams.status = EMBEDDING_STATUS_TO_FILE_STATUS[params.embeddingStatus];
+    }
+
+    const page = await this.fileRepo.listFiles(repoParams);
+
+    // FR-01: add derived embeddingStatus to every item
+    const itemsWithEmbeddingStatus = page.items.map((file) => ({
+      ...file,
+      embeddingStatus: deriveEmbeddingStatus(file.status as FileStatus),
+    }));
+
+    return { ...page, items: itemsWithEmbeddingStatus };
   }
 
   // ---------------------------------------------------------------------------
@@ -193,6 +231,85 @@ export class FilesService {
   }
 
   // ---------------------------------------------------------------------------
+  // BULK RE-EMBED
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Bulk re-queues up to 100 files for re-embedding.
+   *
+   * Finds all files in `ids` that belong to `userId`, resets their status to
+   * PENDING, and publishes an embed job message to `kms.embed` for each one.
+   * Files owned by other users are silently ignored — this is intentional to
+   * avoid leaking resource existence via error responses (no-op, not 403).
+   *
+   * Returns `{ queued: 0 }` for an empty array without throwing.
+   * Throws `AppError FIL0002 (422)` when ids.length > 100.
+   *
+   * @param ids - Array of file UUIDs (max 100).
+   * @param userId - Authenticated user UUID.
+   * @returns `{ queued: N }` where N is the count of files actually queued.
+   */
+  async bulkReEmbed(ids: string[], userId: string): Promise<{ queued: number }> {
+    if (ids.length > 100) {
+      throw new AppError({
+        code: ERROR_CODES.FIL.BULK_LIMIT_EXCEEDED.code,
+        message: 'Cannot re-embed more than 100 files at once',
+      });
+    }
+
+    if (ids.length === 0) {
+      return { queued: 0 };
+    }
+
+    // Filter to files owned by the requesting user only
+    const ownedFiles = await this.prisma.kmsFile.findMany({
+      where: { id: { in: ids }, userId },
+      select: { id: true, sourceId: true, name: true, path: true, mimeType: true, sizeBytes: true },
+    });
+
+    if (ownedFiles.length === 0) {
+      this.logger.info('bulkReEmbed — no owned files found; no-op', { requested: ids.length, userId });
+      return { queued: 0 };
+    }
+
+    // Reset status to PENDING for all owned files in one batch
+    await this.prisma.kmsFile.updateMany({
+      where: { id: { in: ownedFiles.map((f) => f.id) }, userId },
+      data: { status: FileStatus.PENDING, updatedAt: new Date() },
+    });
+
+    // Publish an embed job message for each owned file
+    let queued = 0;
+    for (const file of ownedFiles) {
+      try {
+        await this.embedJobPublisher.publishEmbedJob({
+          scan_job_id: file.id,
+          source_id: file.sourceId,
+          user_id: userId,
+          file_path: file.path,
+          original_filename: file.name,
+          mime_type: file.mimeType ?? undefined,
+          file_size_bytes: file.sizeBytes != null ? Number(file.sizeBytes) : undefined,
+          source_type: 'reembed',
+          source_metadata: {},
+        });
+        queued += 1;
+      } catch (err) {
+        // Log and continue — partial success is acceptable; the failed files
+        // remain in PENDING status and will be picked up on the next scan cycle.
+        this.logger.error('bulkReEmbed — failed to publish embed job for file', {
+          fileId: file.id,
+          userId,
+          error: String(err),
+        });
+      }
+    }
+
+    this.logger.info('bulkReEmbed completed', { requested: ids.length, owned: ownedFiles.length, queued, userId });
+    return { queued };
+  }
+
+  // ---------------------------------------------------------------------------
   // TRIGGER SCAN
   // ---------------------------------------------------------------------------
 
@@ -227,14 +344,22 @@ export class FilesService {
 
     const job = await this.scanJobRepo.createJob(sourceId, userId, scanType as ScanJobType);
 
-    await this.scanJobPublisher.publishScanJob({
-      scan_job_id: job.id,
-      source_id: sourceId,
-      source_type: source.type.toLowerCase(),
-      user_id: userId,
-      scan_type: scanType,
-      config: (source.configJson as Record<string, unknown>) ?? {},
-    });
+    try {
+      await this.scanJobPublisher.publishScanJob({
+        scan_job_id: job.id,
+        source_id: sourceId,
+        source_type: source.type.toLowerCase(),
+        user_id: userId,
+        scan_type: scanType,
+        config: (source.configJson as Record<string, unknown>) ?? {},
+      });
+    } catch (err) {
+      // Rollback the orphaned job so the next attempt creates a fresh one
+      // and retries the publish rather than returning a permanently-stuck job.
+      await this.scanJobRepo.delete({ id: job.id });
+      this.logger.error('scan_job_publish_failed — job rolled back', { jobId: job.id, sourceId, error: String(err) });
+      throw err;
+    }
 
     this.logger.info('scan job created and published', { jobId: job.id, sourceId, scanType, userId });
     return job;

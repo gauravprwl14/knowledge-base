@@ -285,7 +285,7 @@ services:
       MINIO_BUCKET: kms-transcripts
       MINIO_SECURE: "false"
     # Run migrations (idempotent — already-applied is ok) then start dev server
-    command: sh -c "npx prisma migrate deploy --config prisma/config.ts 2>&1 || echo '[startup] Migration already applied, continuing...'; npm run start:dev"
+    command: sh -c "npx prisma migrate deploy 2>&1 || echo '[startup] Migration already applied, continuing...'; npm run start:dev"
     volumes:
       - ./kms-api/src:/app/src
       - ./kms-api/prisma:/app/prisma

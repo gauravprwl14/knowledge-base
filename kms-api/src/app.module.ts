@@ -22,6 +22,7 @@ import { CollectionsModule } from './modules/collections/collections.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { AcpModule } from './modules/acp/acp.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 // Infrastructure modules
 import { QueueModule } from './queue/queue.module';
@@ -86,6 +87,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     TagsModule,
     AcpModule,
     WorkflowModule,
+    AdminModule,
   ],
   providers: [
     // Global exception filters — order matters: registered last = runs first.

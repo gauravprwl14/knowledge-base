@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { FolderOpen, HardDrive, Loader2, RefreshCw } from 'lucide-react';
 import { kmsSourcesApi, type KmsSource, type SourceStatus, type SourceType } from '@/lib/api/sources';
+import { ApiError } from '@/lib/api/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DisconnectConfirmModal } from '@/components/features/sources/DisconnectConfirmModal';
 import { FolderPickerModal } from '@/components/features/sources/FolderPickerModal';
@@ -168,11 +169,26 @@ export default function SourcesPage() {
   const [sources, setSources] = React.useState<KmsSource[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
   const [scanningId, setScanningId] = React.useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = React.useState(false);
 
   // Modal state
   const [disconnectTarget, setDisconnectTarget] = React.useState<KmsSource | null>(null);
   const [folderTarget, setFolderTarget] = React.useState<KmsSource | null>(null);
+
+  // Polling ref for scan status updates
+  const pollingRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function stopPolling() {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }
+
+  // Stop polling on unmount
+  React.useEffect(() => () => stopPolling(), []);
 
   const loadSources = React.useCallback(async () => {
     setIsLoading(true);
@@ -180,8 +196,8 @@ export default function SourcesPage() {
     try {
       const data = await kmsSourcesApi.list();
       setSources(data);
-    } catch {
-      setError('Failed to load sources. Please try again.');
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Failed to load sources. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -214,18 +230,60 @@ export default function SourcesPage() {
       setSources((prev) =>
         prev.map((s) => (s.id === sourceId ? { ...s, status: 'SCANNING' as const } : s)),
       );
-    } catch {
-      setError('Failed to start scan. Please try again.');
+      // Start polling source status every 3s until terminal state or 5 min timeout
+      stopPolling();
+      const MAX_POLL_MS = 5 * 60 * 1000;
+      const pollStart = Date.now();
+      pollingRef.current = setInterval(async () => {
+        if (Date.now() - pollStart > MAX_POLL_MS) { stopPolling(); return; }
+        try {
+          const fresh = await kmsSourcesApi.get(sourceId);
+          setSources((prev) => prev.map((s) => (s.id === sourceId ? fresh : s)));
+          if (['COMPLETED', 'ERROR', 'CONNECTED', 'IDLE'].includes(fresh.status)) {
+            stopPolling();
+          }
+        } catch { stopPolling(); }
+      }, 3000);
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Failed to start scan. Please try again.');
     } finally {
       setScanningId(null);
     }
   }
 
+  function handleFolderSave({ folderIds, selectAllChildrenMap }: { folderIds: string[]; selectAllChildrenMap: Record<string, boolean> }) {
+    const target = folderTarget;
+    setFolderTarget(null);
+    // Update the source locally with new folder config
+    if (target) {
+      setSources((prev) =>
+        prev.map((s) =>
+          s.id === target.id
+            ? { ...s, configJson: { ...(s as KmsSource & { configJson?: Record<string, unknown> }).configJson, syncFolderIds: folderIds, selectAllChildrenMap } }
+            : s,
+        ),
+      );
+    }
+    // Show brief success banner
+    setError(null);
+    setSuccessMessage(
+      folderIds.length === 0
+        ? 'Folder selection saved. All Drive files will be indexed.'
+        : `Folder selection saved. ${folderIds.length} folder(s) will be synced.`,
+    );
+    setTimeout(() => setSuccessMessage(null), 4000);
+  }
+
   const handleConnectGoogleDrive = async () => {
+    setIsConnecting(true);
+    setError(null);
     try {
       await kmsSourcesApi.initiateGoogleDrive();
-    } catch {
+    } catch (err) {
+      console.error('[Sources] Google Drive connect error:', err);
       setError('Failed to start Google Drive connection. Please try again.');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -242,12 +300,15 @@ export default function SourcesPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={handleConnectGoogleDrive}
-            className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+            disabled={isConnecting}
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
           >
-            Connect Google Drive
+            {isConnecting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            {isConnecting ? 'Connecting…' : 'Connect Google Drive'}
           </button>
           <button
             disabled
+            title="Coming soon — use local file upload in the meantime"
             className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] opacity-50 cursor-not-allowed"
           >
             Add Local Source
@@ -260,6 +321,16 @@ export default function SourcesPage() {
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-center justify-between gap-4">
           <p className="text-sm text-red-700">{error}</p>
           <button onClick={() => setError(null)} className="text-xs text-red-500 hover:text-red-700">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Success banner */}
+      {successMessage && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-center justify-between gap-4">
+          <p className="text-sm text-green-700">{successMessage}</p>
+          <button onClick={() => setSuccessMessage(null)} className="text-xs text-green-500 hover:text-green-700">
             Dismiss
           </button>
         </div>
@@ -306,7 +377,7 @@ export default function SourcesPage() {
           sourceId={folderTarget.id}
           open={Boolean(folderTarget)}
           onClose={() => setFolderTarget(null)}
-          onSave={() => setFolderTarget(null)}
+          onSave={handleFolderSave}
         />
       )}
     </div>

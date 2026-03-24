@@ -18,6 +18,9 @@ COPY --from=deps /app/prisma ./prisma/
 # Generate Prisma client so TypeScript types are available in the dev container
 RUN npx prisma generate
 
+# Copy source so the dev image works standalone (without volume mounts)
+COPY . .
+
 EXPOSE 8001
 ENV NODE_ENV=development
 

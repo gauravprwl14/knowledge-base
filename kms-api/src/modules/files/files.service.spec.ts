@@ -1,14 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { FilesService } from './files.service';
+import { FilesService, deriveEmbeddingStatus } from './files.service';
 import { FileRepository, ListFilesParams, FilesPage } from '../../database/repositories/file.repository';
 import { ScanJobRepository } from '../../database/repositories/scan-job.repository';
 import { AppLogger } from '../../logger/logger.service';
 import { AppError } from '../../errors/types/app-error';
 import { ERROR_CODES } from '../../errors/error-codes';
-import { KmsFile } from '@prisma/client';
+import { FileStatus, KmsFile } from '@prisma/client';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
 import { ScanJobPublisher } from '../../queue/publishers/scan-job.publisher';
+import { MinioService } from './minio.service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,9 +71,19 @@ describe('FilesService', () => {
   const prismaKmsSourceFindFirst = jest.fn();
   const prismaKmsSourceCreate = jest.fn();
   const prismaKmsFileCreate = jest.fn();
+  const prismaKmsFileUpdate = jest.fn().mockResolvedValue({});
+  const prismaKmsFileFindMany = jest.fn();
+  const prismaKmsFileUpdateMany = jest.fn().mockResolvedValue({ count: 0 });
+  const prismaExecuteRaw = jest.fn().mockResolvedValue(0);
   const mockPrisma = {
     kmsSource: { findFirst: prismaKmsSourceFindFirst, create: prismaKmsSourceCreate },
-    kmsFile: { create: prismaKmsFileCreate },
+    kmsFile: {
+      create: prismaKmsFileCreate,
+      update: prismaKmsFileUpdate,
+      findMany: prismaKmsFileFindMany,
+      updateMany: prismaKmsFileUpdateMany,
+    },
+    $executeRaw: prismaExecuteRaw,
   };
 
   // EmbedJobPublisher mock
@@ -90,6 +101,14 @@ describe('FilesService', () => {
 
   // ScanJobPublisher mock
   const mockPublishScanJob = jest.fn().mockResolvedValue(undefined);
+
+  // MinioService mock
+  const mockMinioGetPresignedUrl = jest.fn().mockResolvedValue('https://minio.example.com/presigned');
+  const mockMinioGetTranscriptText = jest.fn().mockResolvedValue('transcript text');
+  const mockMinioService = {
+    getPresignedUrl: mockMinioGetPresignedUrl,
+    getTranscriptText: mockMinioGetTranscriptText,
+  };
 
   const mockChildLogger = {
     info: jest.fn(),
@@ -118,6 +137,7 @@ describe('FilesService', () => {
         { provide: EmbedJobPublisher, useValue: { publishEmbedJob: mockPublishEmbedJob } },
         { provide: ScanJobRepository, useValue: mockScanJobRepo },
         { provide: ScanJobPublisher, useValue: { publishScanJob: mockPublishScanJob } },
+        { provide: MinioService, useValue: mockMinioService },
       ],
     }).compile();
 
@@ -129,18 +149,22 @@ describe('FilesService', () => {
   // -------------------------------------------------------------------------
 
   describe('listFiles()', () => {
-    it('delegates to repository and returns paginated results', async () => {
-      const file1 = makeFile({ id: 'file-001', name: 'alpha.pdf' });
-      const file2 = makeFile({ id: 'file-002', name: 'beta.pdf' });
+    it('delegates to repository and returns paginated results with embeddingStatus derived', async () => {
+      const file1 = makeFile({ id: 'file-001', name: 'alpha.pdf', status: 'PENDING' as any });
+      const file2 = makeFile({ id: 'file-002', name: 'beta.pdf', status: 'INDEXED' as any });
       const page = makeFilesPage([file1, file2]);
       repoListFiles.mockResolvedValue(page);
 
       const params: ListFilesParams = { userId: 'user-001', limit: 20 };
       const result = await service.listFiles(params);
 
-      expect(result).toEqual(page);
       expect(result.items).toHaveLength(2);
-      expect(repoListFiles).toHaveBeenCalledWith(params);
+      expect(result.nextCursor).toBeNull();
+      expect(result.total).toBe(2);
+      // embeddingStatus derived from status column
+      expect(result.items[0]).toMatchObject({ id: 'file-001', embeddingStatus: 'pending' });
+      expect(result.items[1]).toMatchObject({ id: 'file-002', embeddingStatus: 'embedded' });
+      expect(repoListFiles).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-001', limit: 20 }));
     });
 
     it('returns empty page when user has no files', async () => {
@@ -166,6 +190,117 @@ describe('FilesService', () => {
       await service.listFiles(params);
 
       expect(repoListFiles).toHaveBeenCalledWith(params);
+    });
+
+    // -------------------------------------------------------------------------
+    // Sort params — sortBy / sortDir forwarding
+    // -------------------------------------------------------------------------
+
+    it('forwards sortBy=createdAt with sortDir=desc to the repository', async () => {
+      const page = makeFilesPage([makeFile()]);
+      repoListFiles.mockResolvedValue(page);
+
+      const params: ListFilesParams = {
+        userId: 'user-001',
+        sortBy: 'createdAt',
+        sortDir: 'desc',
+      };
+      await service.listFiles(params);
+
+      expect(repoListFiles).toHaveBeenCalledWith(params);
+    });
+
+    it('forwards sortBy=name with sortDir=asc to the repository', async () => {
+      const file1 = makeFile({ id: 'file-001', name: 'alpha.pdf' });
+      const file2 = makeFile({ id: 'file-002', name: 'beta.pdf' });
+      const page = makeFilesPage([file1, file2]);
+      repoListFiles.mockResolvedValue(page);
+
+      const params: ListFilesParams = {
+        userId: 'user-001',
+        sortBy: 'name',
+        sortDir: 'asc',
+      };
+      const result = await service.listFiles(params);
+
+      expect(repoListFiles).toHaveBeenCalledWith(params);
+      expect(result.items[0].name).toBe('alpha.pdf');
+    });
+
+    it('forwards sortBy=sizeBytes with sortDir=desc to the repository', async () => {
+      const page = makeFilesPage();
+      repoListFiles.mockResolvedValue(page);
+
+      const params: ListFilesParams = {
+        userId: 'user-001',
+        sortBy: 'sizeBytes',
+        sortDir: 'desc',
+      };
+      await service.listFiles(params);
+
+      expect(repoListFiles).toHaveBeenCalledWith(expect.objectContaining({
+        userId: 'user-001',
+        sortBy: 'sizeBytes',
+        sortDir: 'desc',
+      }));
+    });
+
+    it('forwards sortBy=updatedAt with sortDir=asc to the repository', async () => {
+      const page = makeFilesPage();
+      repoListFiles.mockResolvedValue(page);
+
+      const params: ListFilesParams = {
+        userId: 'user-001',
+        sortBy: 'updatedAt',
+        sortDir: 'asc',
+      };
+      await service.listFiles(params);
+
+      expect(repoListFiles).toHaveBeenCalledWith(params);
+    });
+
+    it('omits sortBy when not provided — repository applies its own default (createdAt)', async () => {
+      const page = makeFilesPage([makeFile()]);
+      repoListFiles.mockResolvedValue(page);
+
+      const params: ListFilesParams = { userId: 'user-001' };
+      await service.listFiles(params);
+
+      const [capturedParams] = repoListFiles.mock.calls[0];
+      // sortBy is absent; the repository default (createdAt) applies
+      expect(capturedParams.sortBy).toBeUndefined();
+    });
+
+    it('omits sortDir when not provided — repository applies its own default (desc)', async () => {
+      const page = makeFilesPage([makeFile()]);
+      repoListFiles.mockResolvedValue(page);
+
+      const params: ListFilesParams = { userId: 'user-001' };
+      await service.listFiles(params);
+
+      const [capturedParams] = repoListFiles.mock.calls[0];
+      // sortDir is absent; the repository default (desc) applies
+      expect(capturedParams.sortDir).toBeUndefined();
+    });
+
+    it('passes sortBy and sortDir alongside other filter params without mutation', async () => {
+      const page = makeFilesPage();
+      repoListFiles.mockResolvedValue(page);
+
+      const params: ListFilesParams = {
+        userId: 'user-001',
+        sourceId: 'src-001',
+        limit: 10,
+        sortBy: 'name',
+        sortDir: 'asc',
+      };
+      await service.listFiles(params);
+
+      expect(repoListFiles).toHaveBeenCalledWith(params);
+      const [capturedParams] = repoListFiles.mock.calls[0];
+      expect(capturedParams.sortBy).toBe('name');
+      expect(capturedParams.sortDir).toBe('asc');
+      expect(capturedParams.sourceId).toBe('src-001');
     });
   });
 
@@ -218,16 +353,30 @@ describe('FilesService', () => {
   // -------------------------------------------------------------------------
 
   describe('deleteFile()', () => {
-    it('deletes the file when found and owned by user', async () => {
+    it('soft-deletes the file when found and owned by user', async () => {
       const file = makeFile();
       repoFindByIdAndUserId.mockResolvedValue(file);
-      repoDeleteById.mockResolvedValue(undefined);
 
       const result = await service.deleteFile('file-001', 'user-001');
 
       expect(result).toEqual({ deleted: true });
       expect(repoFindByIdAndUserId).toHaveBeenCalledWith('file-001', 'user-001');
-      expect(repoDeleteById).toHaveBeenCalledWith('file-001');
+      // Service uses soft-delete via prisma.kmsFile.update — not repo.deleteById
+      expect(prismaKmsFileUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'file-001' } }),
+      );
+      expect(repoDeleteById).not.toHaveBeenCalled();
+    });
+
+    it('deletes associated chunks before soft-deleting the file record', async () => {
+      const file = makeFile();
+      repoFindByIdAndUserId.mockResolvedValue(file);
+
+      await service.deleteFile('file-001', 'user-001');
+
+      // $executeRaw deletes chunks; kmsFile.update soft-deletes the file
+      expect(prismaExecuteRaw).toHaveBeenCalled();
+      expect(prismaKmsFileUpdate).toHaveBeenCalled();
     });
 
     it('throws AppError FIL0001 when file is not found', async () => {
@@ -244,11 +393,11 @@ describe('FilesService', () => {
       }
     });
 
-    it('does not call deleteById when ownership check fails', async () => {
+    it('does not soft-delete when ownership check fails', async () => {
       repoFindByIdAndUserId.mockResolvedValue(null);
 
       await expect(service.deleteFile('file-001', 'other-user')).rejects.toThrow(AppError);
-      expect(repoDeleteById).not.toHaveBeenCalled();
+      expect(prismaKmsFileUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -413,6 +562,90 @@ describe('FilesService', () => {
   });
 
   // -------------------------------------------------------------------------
+  // bulkReEmbed()
+  // -------------------------------------------------------------------------
+
+  describe('bulkReEmbed()', () => {
+    const ownedFile = {
+      id: 'file-001',
+      userId: 'user-001',
+      sourceId: 'src-001',
+      name: 'doc.pdf',
+      path: '/docs/doc.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: BigInt(1024),
+    };
+
+    it('happy path: resets status to PENDING, publishes N messages, returns { queued: N }', async () => {
+      prismaKmsFileFindMany.mockResolvedValue([ownedFile]);
+      prismaKmsFileUpdateMany.mockResolvedValue({ count: 1 });
+      mockPublishEmbedJob.mockResolvedValue(undefined);
+
+      const result = await service.bulkReEmbed(['file-001'], 'user-001');
+
+      expect(result).toEqual({ queued: 1 });
+      expect(prismaKmsFileUpdateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['file-001'] }, userId: 'user-001' },
+        data: expect.objectContaining({ status: FileStatus.PENDING }),
+      });
+      expect(mockPublishEmbedJob).toHaveBeenCalledTimes(1);
+      expect(mockPublishEmbedJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scan_job_id: 'file-001',
+          user_id: 'user-001',
+          source_id: 'src-001',
+        }),
+      );
+    });
+
+    it('filters out files not owned by the requesting user', async () => {
+      // Repository returns only owned files
+      prismaKmsFileFindMany.mockResolvedValue([]);
+
+      const result = await service.bulkReEmbed(['foreign-file-001', 'foreign-file-002'], 'user-001');
+
+      expect(result).toEqual({ queued: 0 });
+      expect(mockPublishEmbedJob).not.toHaveBeenCalled();
+      expect(prismaKmsFileUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('returns { queued: 0 } for an empty array without throwing', async () => {
+      const result = await service.bulkReEmbed([], 'user-001');
+
+      expect(result).toEqual({ queued: 0 });
+      expect(prismaKmsFileFindMany).not.toHaveBeenCalled();
+      expect(mockPublishEmbedJob).not.toHaveBeenCalled();
+    });
+
+    it('rejects array > 100 items with AppError FIL0002 (422)', async () => {
+      const over100Ids = Array.from({ length: 101 }, (_, i) => `file-${String(i).padStart(3, '0')}`);
+
+      await expect(service.bulkReEmbed(over100Ids, 'user-001')).rejects.toThrow(AppError);
+
+      try {
+        await service.bulkReEmbed(over100Ids, 'user-001');
+      } catch (err) {
+        expect(err).toBeInstanceOf(AppError);
+        expect((err as AppError).code).toBe(ERROR_CODES.FIL.BULK_LIMIT_EXCEEDED.code);
+        expect((err as AppError).getStatus()).toBe(422);
+      }
+    });
+
+    it('queues multiple owned files and returns correct queued count', async () => {
+      const file2 = { ...ownedFile, id: 'file-002', name: 'other.pdf' };
+      const file3 = { ...ownedFile, id: 'file-003', name: 'third.pdf' };
+      prismaKmsFileFindMany.mockResolvedValue([ownedFile, file2, file3]);
+      prismaKmsFileUpdateMany.mockResolvedValue({ count: 3 });
+      mockPublishEmbedJob.mockResolvedValue(undefined);
+
+      const result = await service.bulkReEmbed(['file-001', 'file-002', 'file-003'], 'user-001');
+
+      expect(result).toEqual({ queued: 3 });
+      expect(mockPublishEmbedJob).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // ingestNote()
   // -------------------------------------------------------------------------
 
@@ -461,5 +694,35 @@ describe('FilesService', () => {
         service.ingestNote({ title: 'Note', content: 'content' }, 'user-001'),
       ).rejects.toThrow(AppError);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deriveEmbeddingStatus() — mapping tests (FR-01)
+// ---------------------------------------------------------------------------
+
+describe('deriveEmbeddingStatus()', () => {
+  it('maps PENDING → "pending"', () => {
+    expect(deriveEmbeddingStatus(FileStatus.PENDING)).toBe('pending');
+  });
+
+  it('maps PROCESSING → "processing"', () => {
+    expect(deriveEmbeddingStatus(FileStatus.PROCESSING)).toBe('processing');
+  });
+
+  it('maps INDEXED → "embedded"', () => {
+    expect(deriveEmbeddingStatus(FileStatus.INDEXED)).toBe('embedded');
+  });
+
+  it('maps ERROR → "failed"', () => {
+    expect(deriveEmbeddingStatus(FileStatus.ERROR)).toBe('failed');
+  });
+
+  it('maps UNSUPPORTED → "unsupported"', () => {
+    expect(deriveEmbeddingStatus(FileStatus.UNSUPPORTED)).toBe('unsupported');
+  });
+
+  it('maps DELETED → "deleted"', () => {
+    expect(deriveEmbeddingStatus(FileStatus.DELETED)).toBe('deleted');
   });
 });

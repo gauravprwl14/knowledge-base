@@ -70,6 +70,7 @@ const mockFilesService = {
   deleteFile: jest.fn(),
   bulkDeleteFiles: jest.fn(),
   bulkMoveFiles: jest.fn(),
+  bulkReEmbed: jest.fn(),
   updateTags: jest.fn(),
   triggerScan: jest.fn(),
   getScanHistory: jest.fn(),
@@ -178,6 +179,55 @@ describe('FilesController', () => {
       mockFilesService.bulkDeleteFiles.mockRejectedValue(err);
 
       await expect(controller.bulkDeleteFiles({ ids }, makeReq())).rejects.toThrow(AppError);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /files/bulk-re-embed
+  // -------------------------------------------------------------------------
+
+  describe('POST /files/bulk-re-embed', () => {
+    const ids = [FILE_ID, 'ffffffff-ffff-4fff-ffff-ffffffffffff'];
+
+    it('returns 200 with { queued: N } on happy path', async () => {
+      mockFilesService.bulkReEmbed.mockResolvedValue({ queued: 2 });
+
+      const result = await controller.bulkReEmbedFiles({ ids }, makeReq());
+
+      expect(mockFilesService.bulkReEmbed).toHaveBeenCalledWith(ids, USER_ID);
+      expect(result).toEqual({ queued: 2 });
+    });
+
+    it('returns { queued: 0 } when none of the IDs are owned by the user', async () => {
+      mockFilesService.bulkReEmbed.mockResolvedValue({ queued: 0 });
+
+      const result = await controller.bulkReEmbedFiles({ ids }, makeReq());
+
+      expect(result).toEqual({ queued: 0 });
+    });
+
+    it('passes userId from JWT — not from the request body', async () => {
+      mockFilesService.bulkReEmbed.mockResolvedValue({ queued: 1 });
+
+      await controller.bulkReEmbedFiles({ ids } as any, makeReq());
+
+      const [, capturedUserId] = mockFilesService.bulkReEmbed.mock.calls[0];
+      expect(capturedUserId).toBe(USER_ID);
+    });
+
+    it('propagates AppError FIL0002 (422) when > 100 IDs are supplied by the service', async () => {
+      const err = new AppError({ code: ERROR_CODES.FIL.BULK_LIMIT_EXCEEDED.code });
+      mockFilesService.bulkReEmbed.mockRejectedValue(err);
+
+      await expect(controller.bulkReEmbedFiles({ ids }, makeReq())).rejects.toThrow(AppError);
+
+      try {
+        await controller.bulkReEmbedFiles({ ids }, makeReq());
+      } catch (thrown) {
+        expect(thrown).toBeInstanceOf(AppError);
+        expect((thrown as AppError).code).toBe('FIL0002');
+        expect((thrown as AppError).getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+      }
     });
   });
 

@@ -14,7 +14,21 @@ import { apiClient } from './client';
 /**
  * File processing status — mirrors the backend FileStatus enum.
  */
-export type FileStatus = 'PENDING' | 'PROCESSING' | 'INDEXED' | 'ERROR';
+export type FileStatus = 'PENDING' | 'PROCESSING' | 'INDEXED' | 'ERROR' | 'UNSUPPORTED' | 'DELETED';
+
+/**
+ * Derived embedding status returned by the API alongside the raw status.
+ * Computed server-side from the FileStatus column — no extra DB query needed.
+ *
+ * Mapping:
+ *   PENDING       → "pending"
+ *   PROCESSING    → "processing"
+ *   INDEXED       → "embedded"
+ *   ERROR         → "failed"
+ *   UNSUPPORTED   → "unsupported"
+ *   DELETED       → "deleted"
+ */
+export type EmbeddingStatus = 'pending' | 'processing' | 'embedded' | 'failed' | 'unsupported' | 'deleted';
 
 /**
  * MIME group categories for filtering.
@@ -40,6 +54,8 @@ export interface KmsFile {
   mimeType: string;
   sizeBytes: number;
   status: FileStatus;
+  /** Derived embedding status — computed server-side from status column (FR-01). */
+  embeddingStatus?: EmbeddingStatus;
   sourceId: string;
   collectionId: string | null;
   tags: KmsFileTag[];
@@ -85,6 +101,11 @@ export interface ListFilesParams {
   mimeGroup?: MimeGroup;
   /** Filter by processing status */
   status?: FileStatus;
+  /**
+   * Filter by derived embedding status (FR-13).
+   * Maps to the underlying FileStatus on the backend.
+   */
+  embeddingStatus?: EmbeddingStatus;
   /** Filter by collection ID */
   collectionId?: string;
   /** Filter by tag names (AND semantics) */
@@ -121,7 +142,8 @@ const _realFilesApi = {
     if (params.limit !== undefined) qs.set('limit', String(params.limit));
     if (params.sourceId) qs.set('sourceId', params.sourceId);
     if (params.mimeGroup) qs.set('mimeGroup', params.mimeGroup);
-    if (params.status) qs.set('status', params.status);
+    if (params.embeddingStatus) qs.set('embeddingStatus', params.embeddingStatus);
+    else if (params.status) qs.set('status', params.status);
     if (params.collectionId) qs.set('collectionId', params.collectionId);
     if (params.tags?.length) qs.set('tags', params.tags.join(','));
     if (params.search) qs.set('search', params.search);
@@ -145,8 +167,16 @@ const _realFilesApi = {
   /**
    * POST /files/bulk-delete — deletes multiple files at once.
    */
-  bulkDelete: (fileIds: string[]): Promise<void> =>
-    apiClient.post<void>('/files/bulk-delete', { fileIds }),
+  bulkDelete: (ids: string[]): Promise<{ deleted: number }> =>
+    apiClient.post<{ deleted: number }>('/files/bulk-delete', { ids }),
+
+  /**
+   * POST /files/bulk-re-embed — resets file status to PENDING and re-queues
+   * up to 100 files for embedding. Files not owned by the user are ignored.
+   * Returns `{ queued: N }` where N is the count of files actually queued.
+   */
+  bulkReEmbed: (ids: string[]): Promise<{ queued: number }> =>
+    apiClient.post<{ queued: number }>('/files/bulk-re-embed', { ids }),
 
   /**
    * POST /files/:id/retry — re-queues a failed file for processing.

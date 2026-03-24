@@ -2,14 +2,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { google, Auth } from 'googleapis';
-import { KmsSource, KmsClearJob, SourceStatus, SourceType } from '@prisma/client';
+import { KmsSource, KmsClearJob, SourceStatus, SourceType, ScanJobType } from '@prisma/client';
 import { SourceRepository } from '../../database/repositories/source.repository';
+import { ScanJobRepository } from '../../database/repositories/scan-job.repository';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { TokenEncryptionService } from './token-encryption.service';
 import { ErrorFactory } from '../../errors/types/error-factory';
 import { ERROR_CODES } from '../../errors/error-codes';
 import { Trace } from '../../telemetry/decorators/trace.decorator';
 import { DriveFolderDto, SourceResponseDto, UpdateSourceConfigDto } from './dto/sources.dto';
+import { ScanJobPublisher } from '../../queue/publishers/scan-job.publisher';
 
 /**
  * SourcesService — business logic for managing knowledge source connections.
@@ -31,6 +33,8 @@ export class SourcesService {
 
   constructor(
     private readonly sourceRepository: SourceRepository,
+    private readonly scanJobRepository: ScanJobRepository,
+    private readonly scanJobPublisher: ScanJobPublisher,
     private readonly prisma: PrismaService,
     private readonly tokenEncryptionService: TokenEncryptionService,
     @InjectPinoLogger(SourcesService.name)
@@ -104,6 +108,82 @@ export class SourcesService {
     }
 
     return this.toResponseDto(source);
+  }
+
+  /**
+   * Triggers a full or incremental scan of a connected source.
+   *
+   * Steps:
+   * 1. Looks up the source by `id` and `userId` — throws 404 if not found.
+   * 2. Verifies the source status is CONNECTED — throws 409 if not scannable
+   *    (e.g. already SCANNING, DISCONNECTED, or in ERROR state).
+   * 3. Creates a KmsScanJob record with status QUEUED.
+   * 4. Updates the source status to SCANNING.
+   * 5. Publishes a `ScanJobMessage` to the `kms.scan` RabbitMQ queue.
+   * 6. Returns the scan job ID and status.
+   *
+   * @param id - Source UUID
+   * @param userId - Authenticated user UUID (ownership check)
+   * @param scanType - 'FULL' re-indexes everything; 'INCREMENTAL' skips unchanged files
+   * @returns Object containing the jobId and status ('QUEUED')
+   * @throws AppError(404) if source not found or belongs to a different user
+   * @throws AppError(409) if source is not in a CONNECTED state
+   */
+  @Trace({ name: 'sources.triggerScan' })
+  async triggerScan(
+    id: string,
+    userId: string,
+    scanType: 'FULL' | 'INCREMENTAL' = 'FULL',
+  ): Promise<{ jobId: string; status: string }> {
+    this.logger.info({ sourceId: id, userId, scanType }, 'Triggering source scan');
+
+    const source = await this.sourceRepository.findByIdAndUserId(id, userId);
+    if (!source) {
+      throw ErrorFactory.notFound('Source', id);
+    }
+
+    // Only CONNECTED sources may be scanned — reject SCANNING, DISCONNECTED, ERROR, etc.
+    if (source.status !== SourceStatus.CONNECTED) {
+      throw ErrorFactory.conflict(
+        'Source',
+        `Cannot trigger scan — source is in '${source.status}' state (must be CONNECTED)`,
+      );
+    }
+
+    // Create the scan job record (status=QUEUED) so workers can track progress
+    const jobType = scanType === 'INCREMENTAL' ? ScanJobType.INCREMENTAL : ScanJobType.FULL;
+    const scanJob = await this.scanJobRepository.createJob(id, userId, jobType);
+
+    // Transition source to SCANNING so the UI can reflect in-progress state
+    await this.sourceRepository.update({ id }, { status: SourceStatus.SCANNING });
+
+    // Publish the scan job message to the kms.scan queue for the scan-worker to consume
+    try {
+      await this.scanJobPublisher.publishScanJob({
+        scan_job_id: scanJob.id,
+        source_id: id,
+        source_type: source.type.toLowerCase(),
+        user_id: userId,
+        scan_type: scanType,
+        config: (source.configJson as Record<string, unknown>) ?? {},
+      });
+    } catch (err) {
+      // Rollback: delete orphaned job and revert source to CONNECTED so the user can retry.
+      await this.scanJobRepository.delete({ id: scanJob.id });
+      await this.sourceRepository.update({ id }, { status: SourceStatus.CONNECTED });
+      this.logger.error(
+        { sourceId: id, userId, scanJobId: scanJob.id, error: String(err) },
+        'scan_job_publish_failed — job and source status rolled back',
+      );
+      throw err;
+    }
+
+    this.logger.info(
+      { sourceId: id, userId, scanJobId: scanJob.id, scanType },
+      'scan_job_queued',
+    );
+
+    return { jobId: scanJob.id, status: 'QUEUED' };
   }
 
   /**

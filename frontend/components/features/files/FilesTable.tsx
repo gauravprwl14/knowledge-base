@@ -2,40 +2,15 @@
 
 /**
  * FilesTable — table view alternative for the Files browser.
- * Renders files as rows with checkboxes, icon, name, type, size, status, and delete action.
+ * Renders files as rows with checkboxes, icon, name, type, size, embedding status, and delete action.
  */
 
 import * as React from 'react';
 import { Trash2 } from 'lucide-react';
 import { FileTypeIcon } from '@/components/features/drive/FileTypeIcon';
-import type { KmsFile, FileStatus } from '@/lib/api/files';
+import type { KmsFile } from '@/lib/api/files';
 import { formatBytes, formatDate } from './FileCard';
-
-// ---------------------------------------------------------------------------
-// Status badge (compact version for table)
-// ---------------------------------------------------------------------------
-
-const STATUS_STYLES: Record<FileStatus, string> = {
-  INDEXED: 'bg-emerald-500/15 text-emerald-400',
-  PROCESSING: 'bg-amber-500/15 text-amber-400',
-  PENDING: 'bg-slate-500/15 text-slate-400',
-  ERROR: 'bg-red-500/15 text-red-400',
-};
-
-const STATUS_LABELS: Record<FileStatus, string> = {
-  INDEXED: 'Indexed',
-  PROCESSING: 'Processing',
-  PENDING: 'Pending',
-  ERROR: 'Error',
-};
-
-function StatusPill({ status }: { status: FileStatus }) {
-  return (
-    <span className={['inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', STATUS_STYLES[status]].join(' ')}>
-      {STATUS_LABELS[status]}
-    </span>
-  );
-}
+import { EmbeddingStatusBadge } from './EmbeddingStatusBadge';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -144,7 +119,13 @@ export function FilesTable({ files, selectedIds, onSelect, onSelectAll, onDelete
                   {formatDate(file.indexedAt)}
                 </td>
                 <td className="px-4 py-3">
-                  <StatusPill status={file.status} />
+                  {file.embeddingStatus ? (
+                    <EmbeddingStatusBadge status={file.embeddingStatus} />
+                  ) : (
+                    <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-slate-500/15 text-slate-400">
+                      {file.status}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button

@@ -75,12 +75,34 @@ export class ScanJobPublisher implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Attempts to (re-)connect to RabbitMQ. Called lazily when channel is null
+   * so that a startup failure (e.g. RabbitMQ not yet healthy) does not prevent
+   * the first scan trigger from working once the broker recovers.
+   */
+  private async reconnect(): Promise<void> {
+    // Close stale handles before retrying
+    try { await this.channel?.close(); } catch { /* ignore */ }
+    try { await this.connection?.close(); } catch { /* ignore */ }
+    this.channel = null;
+    this.connection = null;
+    await this.onModuleInit();
+  }
+
+  /**
    * Publishes a scan job message to the `kms.scan` RabbitMQ queue.
+   *
+   * If the channel is not available (startup failure or broker restart), a
+   * single reconnect attempt is made before throwing so that transient
+   * unavailability does not permanently block scan triggers.
    *
    * @param message - Scan job payload
    */
   @Trace({ name: 'scan.publish' })
   async publishScanJob(message: ScanJobMessage): Promise<void> {
+    if (!this.channel) {
+      this.logger.warn({ scan_job_id: message.scan_job_id }, 'ScanJobPublisher: channel null — attempting reconnect');
+      await this.reconnect();
+    }
     if (!this.channel) {
       throw new Error('ScanJobPublisher: RabbitMQ channel not available');
     }

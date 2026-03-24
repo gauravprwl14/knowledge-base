@@ -22,6 +22,7 @@ const sdk = initOtelSdk({
 
 // Now import everything else
 import { NestFactory, Reflector } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
@@ -54,6 +55,20 @@ async function bootstrap() {
     // Set global prefix
     const apiPrefix = `${config.app.apiPrefix}/${config.app.apiVersion}`;
     app.setGlobalPrefix(apiPrefix);
+
+    // Global validation pipe — transforms query strings to typed values (e.g. '20' → 20)
+    // and runs class-validator decorators on all DTOs. Without this, @Type(() => Number)
+    // is never invoked and Prisma receives string values where Int is expected (→ VAL0000).
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,          // run class-transformer (converts string '20' → number 20)
+        whitelist: true,          // strip properties not in the DTO
+        forbidNonWhitelisted: false, // don't throw on extra props (some legacy callers)
+        transformOptions: {
+          enableImplicitConversion: true, // coerce primitive types automatically
+        },
+      }),
+    );
 
     // Security and compression plugins (Fastify)
     await app.register(require('@fastify/helmet'));
