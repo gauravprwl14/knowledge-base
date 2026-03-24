@@ -46,6 +46,8 @@ const STATUS_STYLES: Record<FileStatus, string> = {
   PROCESSING: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
   PENDING: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
   ERROR: 'bg-red-500/15 text-red-400 border-red-500/30',
+  UNSUPPORTED: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  DELETED: 'bg-gray-500/15 text-gray-400 border-gray-500/30',
 };
 
 const STATUS_LABELS: Record<FileStatus, string> = {
@@ -53,6 +55,8 @@ const STATUS_LABELS: Record<FileStatus, string> = {
   PROCESSING: 'Processing',
   PENDING: 'Pending',
   ERROR: 'Error',
+  UNSUPPORTED: 'Unsupported',
+  DELETED: 'Deleted',
 };
 
 function StatusBadge({ status }: { status: FileStatus }) {
