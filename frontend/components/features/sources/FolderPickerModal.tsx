@@ -122,7 +122,10 @@ interface FolderRowProps {
   selected: boolean;
   inheritedSelected: boolean;
   selectAllChildren: boolean;
+  /** True when expand arrow should be shown (optimistic — shown until children are fetched). */
   hasChildren: boolean;
+  /** True when "Select all children" button should be shown (confirmed children only). */
+  canSelectAllChildren: boolean;
   isExpanded: boolean;
   isLoadingChildren: boolean;
   isFocused: boolean;
@@ -150,6 +153,7 @@ function FolderRow({
   inheritedSelected,
   selectAllChildren,
   hasChildren,
+  canSelectAllChildren,
   isExpanded,
   isLoadingChildren,
   isFocused,
@@ -281,8 +285,8 @@ function FolderRow({
         )}
       </button>
 
-      {/* "Select all children" toggle — only for folders that have children */}
-      {hasChildren && (
+      {/* "Select all children" toggle — only for folders with confirmed children */}
+      {canSelectAllChildren && (
         <button
           type="button"
           onClick={() => onToggleSelectAll(folder.id)}
@@ -577,7 +581,29 @@ export function FolderPickerModal({
   }
 
   function hasChildren(folder: DriveFolder): boolean {
-    return folder.childCount > 0 || Boolean(childFolders[folder.id]?.length);
+    const alreadyFetched = Object.prototype.hasOwnProperty.call(childFolders, folder.id);
+    if (alreadyFetched) {
+      // We know exactly what children exist — only show arrow if there are some.
+      return childFolders[folder.id].length > 0;
+    }
+    // Children have NOT been fetched yet.  Show expand arrow optimistically for
+    // all unvisited folders so the user can explore.  If the expansion fetch
+    // returns an empty list the arrow disappears (handled by the branch above).
+    // childCount > 0 is a confirmed hint; childCount === 0 may just mean the
+    // backend's batch child-count query was unavailable — we still show arrow.
+    return true;
+  }
+
+  /**
+   * Stricter check used for "Select all children" button visibility.
+   * Only show the button when we have confirmed the folder has children
+   * (either from a non-zero childCount hint or from a completed fetch).
+   */
+  function canSelectAllChildren(folder: DriveFolder): boolean {
+    if (Object.prototype.hasOwnProperty.call(childFolders, folder.id)) {
+      return childFolders[folder.id].length > 0;
+    }
+    return folder.childCount > 0;
   }
 
   // Selected folder summary
@@ -739,6 +765,7 @@ export function FolderPickerModal({
                 const isFolderSelected = selected.has(folder.id);
                 const isInherited = !isFolderSelected && inheritedSet.has(folder.id);
                 const hc = hasChildren(folder);
+                const csac = canSelectAllChildren(folder);
                 const isFocused = focusedIdRef.current === folder.id;
 
                 return (
@@ -750,6 +777,7 @@ export function FolderPickerModal({
                     inheritedSelected={isInherited}
                     selectAllChildren={Boolean(selectAllChildrenMap[folder.id])}
                     hasChildren={hc}
+                    canSelectAllChildren={csac}
                     isExpanded={isExpanded}
                     isLoadingChildren={loadingChild === folder.id}
                     isFocused={isFocused}

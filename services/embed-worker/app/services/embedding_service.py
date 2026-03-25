@@ -15,6 +15,8 @@ from typing import Optional
 
 import structlog
 
+from app.config import get_settings
+
 logger = structlog.get_logger(__name__)
 
 # BGE-M3 produces 1024-dimensional dense vectors.
@@ -59,13 +61,31 @@ class EmbeddingService:
         Falls back to mock mode if:
         - FlagEmbedding is not installed (ImportError)
         - Model cannot be downloaded (no internet in CI, disk full, etc.)
+
+        The model weights are stored in the directory specified by
+        ``MODEL_CACHE_DIR`` (settings.model_cache_dir).  This defaults to
+        ``/tmp/bge-m3-cache`` so the service always has a writable fallback.
+        In production a named Docker volume is mounted at
+        ``/root/.cache/huggingface`` and ``MODEL_CACHE_DIR`` is set
+        accordingly so weights persist across container restarts.
         """
         try:
             # FlagEmbedding is the canonical library for BGE-M3.
             # It is listed in requirements.txt but may not be present in CI.
             from FlagEmbedding import BGEM3FlagModel  # type: ignore
 
-            logger.info("Loading BGE-M3 model — this may take a few minutes on first run")
+            # Point HuggingFace at the configured cache directory so the model
+            # weights land on the volume-mounted path rather than an ephemeral
+            # container layer (or, worse, a non-writable directory).
+            cache_dir = get_settings().model_cache_dir
+            os.makedirs(cache_dir, exist_ok=True)
+            os.environ.setdefault("HF_HOME", cache_dir)
+            os.environ.setdefault("TRANSFORMERS_CACHE", cache_dir)
+
+            logger.info(
+                "Loading BGE-M3 model — this may take a few minutes on first run",
+                cache_dir=cache_dir,
+            )
             self._model = BGEM3FlagModel(
                 "BAAI/bge-m3",
                 use_fp16=True,   # halves memory usage; negligible quality loss for retrieval

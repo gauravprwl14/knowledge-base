@@ -642,11 +642,37 @@ export class SourcesService {
       throw ErrorFactory.internal('Failed to retrieve Google Drive folders');
     }
 
+    // Build a hasChildren map: for each returned folder, check whether it
+    // contains at least one subfolder.  We do this with a single batch query
+    // using an OR-joined `in parents` filter so we only make one extra API
+    // call regardless of how many folders are returned.
+    const hasChildrenMap: Record<string, boolean> = {};
+    if (files.length > 0) {
+      const ids = files.map((f) => f.id!).filter(Boolean);
+      const parentsClause = ids.map((id) => `'${id}' in parents`).join(' or ');
+      try {
+        const childResponse = await drive.files.list({
+          q: `mimeType='application/vnd.google-apps.folder' and (${parentsClause}) and trashed=false`,
+          fields: 'files(id,parents)',
+          pageSize: 1000,
+        });
+        for (const child of childResponse.data.files ?? []) {
+          for (const pid of child.parents ?? []) {
+            hasChildrenMap[pid] = true;
+          }
+        }
+      } catch (err) {
+        // Non-fatal: child-count fetch failed — default all to hasChildren=false.
+        // The UI will still allow expanding (optimistic), it will just return 0 children.
+        this.logger.warn({ err, parentId }, 'Child-count batch query failed — defaulting childCount to 0');
+      }
+    }
+
     const folders: DriveFolderDto[] = files.map((f) => ({
       id: f.id!,
       name: f.name!,
       path: parentId === 'root' ? f.name! : `${parentId}/${f.name}`,
-      childCount: 0,
+      childCount: hasChildrenMap[f.id!] ? 1 : 0,
     }));
 
     this.logger.info({ userId, sourceId, parentId, count: folders.length }, 'Drive folders listed');

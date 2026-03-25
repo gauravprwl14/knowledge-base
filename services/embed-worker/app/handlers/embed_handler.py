@@ -294,9 +294,10 @@ class EmbedHandler:
             return
 
         voice_job_id = str(uuid.uuid4())
+        file_id = (msg.source_metadata or {}).get("file_id") or str(msg.scan_job_id)
         voice_msg = {
             "job_id": voice_job_id,
-            "file_id": str(msg.scan_job_id),
+            "file_id": file_id,
             "source_id": str(msg.source_id),
             "user_id": str(msg.user_id),
             "file_path": msg.file_path,
@@ -342,6 +343,7 @@ class EmbedHandler:
                 uuid.NAMESPACE_URL,
                 f"{msg.checksum_sha256 or msg.file_path}-meta",
             ))
+            file_id = (msg.source_metadata or {}).get("file_id") or str(msg.scan_job_id)
             await self._qdrant_service.upsert_chunks([
                 ChunkPoint(
                     id=point_id,
@@ -349,7 +351,7 @@ class EmbedHandler:
                     payload={
                         "user_id": str(msg.user_id),
                         "source_id": str(msg.source_id),
-                        "file_id": str(msg.scan_job_id),
+                        "file_id": file_id,
                         "filename": msg.original_filename,
                         "mime_type": msg.mime_type or "application/octet-stream",
                         "content": f"[audio/video: {msg.original_filename}]",
@@ -432,11 +434,12 @@ class EmbedHandler:
             raise EmbeddingError(str(exc)) from exc
 
         points: list[ChunkPoint] = []
+        file_id = (msg.source_metadata or {}).get("file_id") or str(msg.scan_job_id)
         for chunk_idx, (chunk, vector) in enumerate(zip(chunks, vectors)):
             payload: dict = {
                 "user_id": str(msg.user_id),
                 "source_id": str(msg.source_id),
-                "file_id": str(msg.scan_job_id),
+                "file_id": file_id,
                 "filename": msg.original_filename,
                 "mime_type": "text/plain",
                 "content": chunk.text,
@@ -559,6 +562,7 @@ class EmbedHandler:
         except Exception as exc:
             raise EmbeddingError(str(exc)) from exc
 
+        file_id = (msg.source_metadata or {}).get("file_id") or str(msg.scan_job_id)
         points: list[ChunkPoint] = []
         for chunk_idx, (chunk, vector) in enumerate(zip(chunks, vectors)):
             points.append(
@@ -577,7 +581,7 @@ class EmbedHandler:
                         # Source scoping — allows per-source search
                         "source_id": str(msg.source_id),
                         # Back-reference to kms_files row
-                        "file_id": str(msg.scan_job_id),
+                        "file_id": file_id,
                         # Display metadata shown in search result snippets
                         "filename": msg.original_filename,
                         "mime_type": msg.mime_type or "application/octet-stream",
@@ -593,56 +597,33 @@ class EmbedHandler:
     async def _persist_file(
         self, msg: FileDiscoveredMessage, text: str, chunks: list[TextChunk]
     ) -> None:
-        """Persist file record and chunks to PostgreSQL and update embed_status.
+        """Mark the kms_files row as INDEXED and persist chunks to PostgreSQL.
 
-        Two writes happen inside this method:
-        1. Upsert the ``kms_files`` row with extracted text, chunk count, and
-           ``embed_status = 'COMPLETED'``.
-        2. Insert each chunk into ``kms_chunks`` with ``ON CONFLICT DO NOTHING``
-           so re-processing a file is idempotent.
+        The kms_files row was already created by the scan-worker.  This method
+        updates its status to INDEXED and inserts chunk records.
 
         Args:
             msg: Parsed message providing lookup keys and metadata.
-            text: Full extracted text (stored in ``kms_files.extracted_text``).
+            text: Full extracted text (unused for DB storage — chunks hold content).
             chunks: List of :class:`~app.models.messages.TextChunk` objects.
         """
-        # Step 5a: Update kms_files — upsert on (checksum_sha256, source_id)
-        # so that re-scanning the same file updates the record rather than
-        # inserting a duplicate.
+        # The actual kms_files.id is passed in source_metadata by the scan-worker
+        file_id = (msg.source_metadata or {}).get("file_id") or str(msg.scan_job_id)
+
+        # Step 5a: Mark the file as INDEXED
         await self._db.execute(
             """
-            INSERT INTO kms_files (
-                id, source_id, user_id, file_path, original_filename,
-                mime_type, file_size_bytes, checksum_sha256, source_type,
-                extracted_text, chunk_count, embed_status, source_metadata,
-                created_at, updated_at
-            ) VALUES (
-                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8,
-                $9, $10, 'COMPLETED', $11::jsonb, now(), now()
-            )
-            ON CONFLICT (checksum_sha256, source_id)
-            DO UPDATE SET
-                extracted_text = EXCLUDED.extracted_text,
-                chunk_count    = EXCLUDED.chunk_count,
-                embed_status   = 'COMPLETED',
-                updated_at     = now()
+            UPDATE kms_files
+               SET status     = 'INDEXED'::\"FileStatus\",
+                   indexed_at = now(),
+                   updated_at = now()
+             WHERE id = $1::uuid
             """,
-            str(msg.source_id),
-            str(msg.user_id),
-            msg.file_path,
-            msg.original_filename,
-            msg.mime_type,
-            msg.file_size_bytes,
-            msg.checksum_sha256,
-            msg.source_type,
-            text,
-            len(chunks),
-            json.dumps(msg.source_metadata),
+            file_id,
         )
 
         # Step 5b: Insert each chunk with a deterministic UUID so re-processing
-        # the same file produces the same chunk IDs (enables ON CONFLICT DO NOTHING
-        # to be truly idempotent rather than just silently swallowing errors).
+        # the same file is idempotent.
         for chunk in chunks:
             chunk_id = str(uuid.uuid5(
                 uuid.NAMESPACE_URL,
@@ -651,47 +632,47 @@ class EmbedHandler:
             await self._db.execute(
                 """
                 INSERT INTO kms_chunks (
-                    id, file_id, chunk_index, content, token_count, created_at
+                    id, file_id, user_id, content, chunk_index, token_count, created_at
                 ) VALUES (
-                    $1::uuid, $2::uuid, $3, $4, $5, now()
+                    $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, now()
                 )
                 ON CONFLICT DO NOTHING
                 """,
                 chunk_id,
-                str(msg.scan_job_id),
-                chunk.chunk_index,
+                file_id,
+                str(msg.user_id),
                 chunk.text,
+                chunk.chunk_index,
                 chunk.token_count or len(chunk.text.split()),
             )
 
     async def _mark_embed_failed(
         self, msg: FileDiscoveredMessage, error: str
     ) -> None:
-        """Update ``kms_files.embed_status`` to ``FAILED`` on processing errors.
+        """Update ``kms_files.status`` to ``ERROR`` on processing errors.
 
         Best-effort — failures here are logged and swallowed so they don't
         mask the original error that triggered the call.
 
         Args:
-            msg: Original message providing the file checksum for lookup.
-            error: Short error description stored in ``embed_error`` column.
+            msg: Original message providing the file id for lookup.
+            error: Short error description for logging.
         """
+        file_id = (msg.source_metadata or {}).get("file_id") or str(msg.scan_job_id)
         try:
             await self._db.execute(
                 """
                 UPDATE kms_files
-                   SET embed_status = 'FAILED',
-                       embed_error  = $2,
-                       updated_at   = now()
-                 WHERE checksum_sha256 = $1
+                   SET status     = 'ERROR'::\"FileStatus\",
+                       updated_at = now()
+                 WHERE id = $1::uuid
                 """,
-                msg.checksum_sha256,
-                error[:500],  # Truncate to avoid exceeding column width
+                file_id,
             )
         except Exception as db_err:
             # DB write failure during error handling must not raise — just log
             logger.warning(
-                "Failed to mark embed_status=FAILED in DB",
-                checksum=msg.checksum_sha256,
+                "Failed to mark status=ERROR in DB",
+                file_id=file_id,
                 error=str(db_err),
             )

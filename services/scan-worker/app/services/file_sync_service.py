@@ -236,7 +236,7 @@ class FileSyncService:
         try:
             rows = await conn.fetch(
                 """
-                SELECT id, external_id, mime_type, status::text AS status, checksum_sha256
+                SELECT id, external_id, name, path, mime_type, size_bytes, status::text AS status, checksum_sha256
                 FROM kms_files
                 WHERE source_id = $1
                   AND external_id = ANY($2::text[])

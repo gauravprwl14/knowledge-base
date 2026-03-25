@@ -338,6 +338,7 @@ services:
       EMBEDDING_ENABLED: "true"
       MOCK_EMBEDDING: "false"
       MOCK_QDRANT: "false"
+      MODEL_CACHE_DIR: /root/.cache/huggingface
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: embed-worker

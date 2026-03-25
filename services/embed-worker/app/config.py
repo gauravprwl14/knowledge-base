@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # Set to false in production (docker-compose.kms.yml or .env).
     mock_embedding: bool = Field(default=True, env="MOCK_EMBEDDING")
     mock_qdrant: bool = Field(default=True, env="MOCK_QDRANT")
+    # Model cache directory for BGE-M3 weights.
+    # Defaults to /tmp/bge-m3-cache so the service always has a writable fallback.
+    # Override with a volume-mounted path in production (MODEL_CACHE_DIR=/root/.cache/huggingface).
+    model_cache_dir: str = Field(default="/tmp/bge-m3-cache", env="MODEL_CACHE_DIR")
 
     model_config = {"env_file": ".env", "case_sensitive": False}
 

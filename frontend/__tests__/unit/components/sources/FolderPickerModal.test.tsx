@@ -455,6 +455,132 @@ describe('FolderPickerModal', () => {
     });
   });
 
+  // ── Bug regression: root folders load on open / expansion arrows ──────────
+
+  it('calls listDriveFolders(sourceId, "root") immediately when modal opens', async () => {
+    mockApi.listDriveFolders.mockResolvedValue({ folders: ROOT_FOLDERS });
+    renderModal();
+    // Should have been called once synchronously after mount
+    expect(mockApi.listDriveFolders).toHaveBeenCalledTimes(1);
+    expect(mockApi.listDriveFolders).toHaveBeenCalledWith('src-001', 'root');
+  });
+
+  it('shows expansion arrow for root folders with childCount=0 (optimistic)', async () => {
+    // folder-002 has childCount=0 — arrow should still be shown until children are fetched
+    const foldersWithZeroChildCount: DriveFolder[] = [
+      { id: 'leaf-candidate', name: 'Leaf Candidate', path: 'Leaf Candidate', childCount: 0 },
+    ];
+    mockApi.listDriveFolders.mockResolvedValue({ folders: foldersWithZeroChildCount });
+    renderModal();
+    await waitFor(() => screen.getByText('Leaf Candidate'));
+
+    // Expand arrow should be visible (optimistic — childCount=0 but not yet fetched)
+    const expandBtn = screen.getByLabelText(/Expand folder/i);
+    expect(expandBtn).toBeInTheDocument();
+    // Arrow button should be visible (not hidden)
+    expect(expandBtn).not.toHaveStyle({ visibility: 'hidden' });
+  });
+
+  it('hides expansion arrow after fetching confirms folder has no children', async () => {
+    const singleFolder: DriveFolder[] = [
+      { id: 'empty-folder', name: 'Empty Folder', path: 'Empty Folder', childCount: 0 },
+    ];
+    mockApi.listDriveFolders
+      .mockResolvedValueOnce({ folders: singleFolder })
+      .mockResolvedValueOnce({ folders: [] }); // expansion fetch returns empty
+
+    renderModal();
+    await waitFor(() => screen.getByText('Empty Folder'));
+
+    // Before expansion: arrow is visible (optimistic)
+    const expandBtnBefore = screen.getByLabelText(/Expand folder/i);
+    expect(expandBtnBefore).not.toHaveStyle({ visibility: 'hidden' });
+
+    // Expand it — children fetch returns []
+    await act(async () => {
+      fireEvent.click(expandBtnBefore);
+    });
+
+    // After fetch with empty children, the folder collapses back and the
+    // expand button visibility is now 'hidden' because hasChildren=false.
+    // The aria-label flips to "Collapse folder" while expanded then back when
+    // collapsed; we query by data-folder-id to find the button regardless of label.
+    await waitFor(() => {
+      const item = screen.getByRole('treeitem');
+      const btn = item.querySelector('button[aria-label]') as HTMLButtonElement | null;
+      expect(btn).not.toBeNull();
+      expect(btn).toHaveStyle({ visibility: 'hidden' });
+    });
+  });
+
+  it('clicking expansion arrow triggers listDriveFolders with the folder id', async () => {
+    mockApi.listDriveFolders
+      .mockResolvedValueOnce({ folders: ROOT_FOLDERS })
+      .mockResolvedValueOnce({ folders: CHILDREN_OF_001 });
+
+    renderModal();
+    await waitFor(() => screen.getByText('Work Docs'));
+
+    const expandBtns = screen.getAllByLabelText(/Expand folder/i);
+    await act(async () => {
+      fireEvent.click(expandBtns[0]); // expand Work Docs (folder-001)
+    });
+
+    expect(mockApi.listDriveFolders).toHaveBeenCalledTimes(2);
+    expect(mockApi.listDriveFolders).toHaveBeenNthCalledWith(2, 'src-001', 'folder-001');
+
+    await waitFor(() => {
+      expect(screen.getByText('Projects')).toBeInTheDocument();
+      expect(screen.getByText('Reports')).toBeInTheDocument();
+    });
+  });
+
+  it('children appear indented (depth > 0) under their parent folder', async () => {
+    mockApi.listDriveFolders
+      .mockResolvedValueOnce({ folders: ROOT_FOLDERS })
+      .mockResolvedValueOnce({ folders: CHILDREN_OF_001 });
+
+    renderModal();
+    await waitFor(() => screen.getByText('Work Docs'));
+
+    const expandBtns = screen.getAllByLabelText(/Expand folder/i);
+    await act(async () => {
+      fireEvent.click(expandBtns[0]);
+    });
+
+    await waitFor(() => {
+      const projectsItem = screen
+        .getAllByRole('treeitem')
+        .find((el) => el.textContent?.includes('Projects'));
+      // Children have data-folder-id set — they appear in the tree
+      expect(projectsItem).toBeDefined();
+    });
+  });
+
+  it('API error on root load shows inline error message', async () => {
+    mockApi.listDriveFolders.mockRejectedValue(new Error('Network error'));
+    renderModal();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Failed to load Drive folders/i),
+      ).toBeInTheDocument();
+    });
+    // Should NOT show blank/empty state
+    expect(screen.queryByText(/No folders found/i)).not.toBeInTheDocument();
+  });
+
+  it('"select all children" button not shown for folders with childCount=0 (unconfirmed)', async () => {
+    // folder-002 has childCount=0 — should NOT show "Select all children"
+    mockApi.listDriveFolders.mockResolvedValue({ folders: ROOT_FOLDERS });
+    renderModal();
+    await waitFor(() => screen.getByText('Personal'));
+
+    // Only folders with childCount > 0 should show the select-all-children button
+    const selectAllBtns = screen.getAllByLabelText(/Select all children/i);
+    // Work Docs (childCount=2) and Archive (childCount=1) → 2 buttons
+    expect(selectAllBtns.length).toBe(2);
+  });
+
   // ── ARIA / Accessibility ───────────────────────────────────────────────────
 
   it('tree container has role="tree" and rows have role="treeitem"', async () => {

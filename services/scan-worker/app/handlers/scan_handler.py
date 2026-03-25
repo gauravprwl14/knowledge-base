@@ -391,13 +391,16 @@ class ScanHandler:
             return
 
         embed_payload = {
-            "fileId": str(file_row["id"]),
-            "sourceId": str(job.source_id),
-            "userId": str(job.user_id),
-            "mimeType": file_row.get("mime_type", "application/octet-stream"),
-            "externalId": file_row.get("external_id"),
-            # driveId is the same as externalId for Drive sources
-            "driveId": file_row.get("external_id"),
+            "scan_job_id": str(job.scan_job_id),
+            "source_id": str(job.source_id),
+            "user_id": str(job.user_id),
+            "file_path": file_row.get("path") or file_row.get("external_id", ""),
+            "original_filename": file_row.get("name") or file_row.get("external_id", ""),
+            "mime_type": file_row.get("mime_type", "application/octet-stream"),
+            "file_size_bytes": file_row.get("size_bytes"),
+            "checksum_sha256": file_row.get("checksum_sha256"),
+            "source_type": job.source_type.value,
+            "source_metadata": {"file_id": str(file_row["id"]), "external_id": file_row.get("external_id")},
         }
         try:
             await self._channel.default_exchange.publish(
