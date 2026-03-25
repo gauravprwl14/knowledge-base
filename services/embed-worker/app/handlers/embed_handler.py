@@ -19,6 +19,8 @@ Pipeline steps
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +31,7 @@ import asyncpg
 import structlog
 
 from app.config import get_settings
+from app.connectors.google_drive_downloader import GoogleDriveDownloader
 from app.extractors.registry import get_extractor
 from app.chunkers.text_chunker import chunk_text
 from app.models.messages import FileDiscoveredMessage, TextChunk
@@ -170,6 +173,9 @@ class EmbedHandler:
         self._qdrant_service = qdrant_service or QdrantService()
         self._channel = channel
         self._kms_config: dict = kms_config or {}
+        # Cache of GoogleDriveDownloader instances keyed by source_id string.
+        # Built lazily on first Drive file encountered for each source.
+        self._drive_cache: dict[str, GoogleDriveDownloader] = {}
 
     async def handle(self, message: aio_pika.IncomingMessage) -> None:
         """Process a single AMQP message from the kms.embed queue.
@@ -489,6 +495,10 @@ class EmbedHandler:
         if msg.inline_content:
             return msg.inline_content
 
+        # For Google Drive files: download content from Drive API instead of local disk
+        if msg.source_type == "GOOGLE_DRIVE":
+            return await self._extract_google_drive_text(msg)
+
         extractor = get_extractor(msg.mime_type)
         if not extractor:
             # No extractor registered for this MIME type — skip silently
@@ -509,6 +519,108 @@ class EmbedHandler:
         except Exception as e:
             # Wrap in typed error so the caller can decide on retry strategy
             raise ExtractionError(msg.file_path, str(e)) from e
+
+    async def _extract_google_drive_text(self, msg: FileDiscoveredMessage) -> str:
+        """Download and extract text from a Google Drive file.
+
+        Fetches the file bytes from the Drive API using the OAuth2 credentials
+        stored against the source, writes them to a temporary file, then runs
+        the appropriate extractor.  Returns an empty string on any failure so
+        that the embedding pipeline degrades gracefully instead of raising.
+
+        Args:
+            msg: Parsed ``FileDiscoveredMessage`` for a ``GOOGLE_DRIVE`` source.
+
+        Returns:
+            Extracted text string, or ``""`` if download or extraction fails.
+        """
+        external_id: str = (msg.source_metadata or {}).get("external_id") or msg.file_path
+        if not external_id:
+            logger.warning(
+                "No external_id for Drive file — skipping extraction",
+                source_id=str(msg.source_id),
+                filename=msg.original_filename,
+            )
+            return ""
+
+        # ── Build / retrieve cached downloader for this source ────────────────
+        source_key = str(msg.source_id)
+        if source_key not in self._drive_cache:
+            row = await self._db.fetchrow(
+                "SELECT encrypted_tokens FROM kms_sources WHERE id = $1::uuid",
+                source_key,
+            )
+            if not row or not row["encrypted_tokens"]:
+                logger.warning(
+                    "No encrypted_tokens for Drive source — skipping extraction",
+                    source_id=source_key,
+                    filename=msg.original_filename,
+                )
+                return ""
+            self._drive_cache[source_key] = GoogleDriveDownloader(
+                encrypted_tokens=row["encrypted_tokens"],
+                client_id=settings.google_client_id,
+                client_secret=settings.google_client_secret,
+            )
+
+        downloader = self._drive_cache[source_key]
+
+        # ── Download file bytes from Drive API ────────────────────────────────
+        content_bytes = await downloader.download_content(
+            external_id, msg.mime_type or ""
+        )
+        if content_bytes is None:
+            logger.warning(
+                "Drive download returned None — skipping extraction",
+                external_id=external_id,
+                filename=msg.original_filename,
+            )
+            return ""
+
+        # ── Look up extractor by MIME type ────────────────────────────────────
+        extractor = get_extractor(msg.mime_type)
+        if not extractor:
+            logger.debug(
+                "No extractor for Drive file MIME type — skipping extraction",
+                mime_type=msg.mime_type,
+                filename=msg.original_filename,
+            )
+            return ""
+
+        # ── Write to temp file and extract ────────────────────────────────────
+        suffix = self._mime_to_ext(msg.mime_type or "")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(content_bytes)
+            tmp_path = tmp.name
+        try:
+            return await extractor.extract(Path(tmp_path))
+        except Exception as e:
+            raise ExtractionError(msg.file_path, str(e)) from e
+        finally:
+            os.unlink(tmp_path)
+
+    @staticmethod
+    def _mime_to_ext(mime_type: str) -> str:
+        """Map a MIME type string to a file extension for temp-file naming.
+
+        Args:
+            mime_type: MIME type string (e.g. ``"application/pdf"``).
+
+        Returns:
+            File extension including the leading dot (e.g. ``".pdf"``),
+            or ``".bin"`` for unknown types.
+        """
+        _MAP: dict[str, str] = {
+            "application/pdf": ".pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+            "text/markdown": ".md",
+            "text/plain": ".txt",
+            "text/csv": ".csv",
+            "text/html": ".html",
+            "application/json": ".json",
+        }
+        return _MAP.get(mime_type, ".bin")
 
     async def _chunk(self, text: str) -> list[TextChunk]:
         """Split extracted text into overlapping chunks for embedding.

@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     # Defaults to /tmp/bge-m3-cache so the service always has a writable fallback.
     # Override with a volume-mounted path in production (MODEL_CACHE_DIR=/root/.cache/huggingface).
     model_cache_dir: str = Field(default="/tmp/bge-m3-cache", env="MODEL_CACHE_DIR")
+    # Google Drive — needed when source_type == GOOGLE_DRIVE
+    google_client_id: str = Field(default="", env="GOOGLE_CLIENT_ID")
+    google_client_secret: str = Field(default="", env="GOOGLE_CLIENT_SECRET")
+    # Token encryption — must match NestJS TokenEncryptionService and scan-worker
+    api_key_encryption_secret: str = Field(
+        default="dev-secret-32-bytes-exactly!!!!!!",
+        env="API_KEY_ENCRYPTION_SECRET",
+    )
 
     model_config = {"env_file": ".env", "case_sensitive": False}
 
