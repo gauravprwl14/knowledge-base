@@ -110,11 +110,15 @@ export class FilesService {
 
     const page = await this.fileRepo.listFiles(repoParams);
 
-    // FR-01: add derived embeddingStatus to every item
+    // FR-01: add derived embeddingStatus to every item.
+    // Convert sizeBytes BigInt → Number to avoid JSON serialization errors
+    // (Fastify's serializer cannot handle BigInt values).
     const itemsWithEmbeddingStatus = page.items.map((file) => ({
-      ...file,
+      ...(file as object),
+      sizeBytes: file.sizeBytes != null ? Number(file.sizeBytes) : null,
       embeddingStatus: deriveEmbeddingStatus(file.status as FileStatus),
-    }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    })) as unknown as typeof page.items;
 
     return { ...page, items: itemsWithEmbeddingStatus };
   }
@@ -138,7 +142,7 @@ export class FilesService {
     if (!file) {
       throw new AppError({ code: ERROR_CODES.FIL.FILE_NOT_FOUND.code });
     }
-    return file;
+    return { ...file, sizeBytes: file.sizeBytes != null ? Number(file.sizeBytes) : null };
   }
 
   // ---------------------------------------------------------------------------
