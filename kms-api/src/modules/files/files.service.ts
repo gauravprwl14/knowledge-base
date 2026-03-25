@@ -477,17 +477,17 @@ export class FilesService {
       created_ats: string;
     }>>`
       SELECT
-        d.checksum_sha256                                              AS checksum,
-        string_agg(f.id::text,           ',' ORDER BY f.created_at)  AS file_ids,
-        string_agg(f.file_name,          '|||' ORDER BY f.created_at) AS file_names,
-        string_agg(f.file_size_bytes::text, ',' ORDER BY f.created_at) AS file_sizes,
-        string_agg(f.source_id::text,    ',' ORDER BY f.created_at)  AS source_ids,
-        string_agg(f.created_at::text,   ',' ORDER BY f.created_at)  AS created_ats
-      FROM kms_file_duplicates d
-      JOIN kms_files f ON f.id = d.file_id
-      WHERE d.user_id = ${userId}::uuid
-        AND f.status != 'DELETED'
-      GROUP BY d.checksum_sha256
+        f.checksum_sha256                                               AS checksum,
+        string_agg(f.id::text,           ',' ORDER BY f.created_at)   AS file_ids,
+        string_agg(f.name,               '|||' ORDER BY f.created_at) AS file_names,
+        string_agg(f.size_bytes::text,   ',' ORDER BY f.created_at)   AS file_sizes,
+        string_agg(f.source_id::text,    ',' ORDER BY f.created_at)   AS source_ids,
+        string_agg(f.created_at::text,   ',' ORDER BY f.created_at)   AS created_ats
+      FROM kms_files f
+      WHERE f.user_id = ${userId}::uuid
+        AND f.status::text != 'DELETED'
+        AND f.checksum_sha256 IS NOT NULL
+      GROUP BY f.checksum_sha256
       HAVING COUNT(*) > 1
       ORDER BY COUNT(*) DESC
     `;
