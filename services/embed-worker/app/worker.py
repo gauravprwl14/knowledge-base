@@ -33,7 +33,10 @@ async def run_worker() -> None:
         queue = await channel.declare_queue(
             settings.embed_queue,
             durable=True,
-            arguments={"x-dead-letter-exchange": settings.dead_letter_exchange},
+            arguments={
+                "x-dead-letter-exchange": settings.dead_letter_exchange,
+                "x-message-ttl": 3_600_000,  # match existing queue declaration
+            },
         )
 
         handler = EmbedHandler(db_pool)
