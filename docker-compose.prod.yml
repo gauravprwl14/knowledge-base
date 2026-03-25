@@ -338,7 +338,9 @@ services:
       EMBEDDING_ENABLED: "true"
       MOCK_EMBEDDING: "false"
       MOCK_QDRANT: "false"
-      MODEL_CACHE_DIR: /root/.cache/huggingface
+      MODEL_CACHE_DIR: /app/.cache/huggingface
+      HF_HOME: /app/.cache/huggingface
+      HOME: /app
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: embed-worker
@@ -348,7 +350,7 @@ services:
     volumes:
       # Persist the BAAI/bge-m3 model across container restarts (1.4 GB download).
       # Without this volume the model re-downloads on every container restart.
-      - hf_model_cache:/root/.cache/huggingface
+      - hf_model_cache:/app/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy

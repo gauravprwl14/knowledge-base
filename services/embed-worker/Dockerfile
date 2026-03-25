@@ -13,7 +13,9 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8011", "--reload
 FROM dependencies AS production
 COPY app ./app
 ENV PYTHONUNBUFFERED=1
-RUN addgroup --system kms && adduser --system --ingroup kms kms
+RUN addgroup --system kms && adduser --system --ingroup kms kms \
+    && mkdir -p /app/.cache/huggingface \
+    && chown -R kms:kms /app/.cache
 USER kms
 EXPOSE 8011
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8011"]
