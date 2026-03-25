@@ -283,6 +283,8 @@ class EmbedHandler:
             log.info("Voice transcription skipped", reason=reason)
             # Upsert a metadata-only Qdrant point so the file is discoverable
             await self._upsert_audio_metadata_point(msg)
+            # Mark the file as INDEXED so it doesn't stay stuck in PENDING
+            await self._persist_file(msg, "", [])
             return
 
         if self._channel is None:
@@ -291,6 +293,7 @@ class EmbedHandler:
                 filename=msg.original_filename,
             )
             await self._upsert_audio_metadata_point(msg)
+            await self._persist_file(msg, "", [])
             return
 
         voice_job_id = str(uuid.uuid4())
