@@ -35,7 +35,7 @@ async def run_worker() -> None:
             durable=True,
             arguments={
                 "x-dead-letter-exchange": settings.dead_letter_exchange,
-                "x-message-ttl": 3_600_000,  # match existing queue declaration
+                "x-message-ttl": 86_400_000,  # 24 h — sufficient for large batch re-embed runs
             },
         )
 

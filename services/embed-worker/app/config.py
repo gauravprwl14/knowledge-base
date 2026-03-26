@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     embed_queue: str = "kms.embed"
     voice_queue: str = Field(default="kms.voice", env="VOICE_QUEUE")
     dead_letter_exchange: str = "kms.dlx"
-    prefetch_count: int = 2
+    prefetch_count: int = Field(default=8, env="EMBED_PREFETCH_COUNT")
     max_retries: int = 3
     # Chunking
     chunk_size: int = 512
