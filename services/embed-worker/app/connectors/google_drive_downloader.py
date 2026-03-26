@@ -134,7 +134,8 @@ class GoogleDriveDownloader:
         )
 
         if creds.expired and creds.refresh_token:
-            creds.refresh(GoogleRequest())
+            # 30-second timeout avoids indefinite hangs if Google auth is unreachable.
+            creds.refresh(GoogleRequest(timeout=30))
 
         return creds
 
@@ -148,7 +149,7 @@ class GoogleDriveDownloader:
             self._credentials = self._build_credentials()
         elif self._credentials.expired and self._credentials.refresh_token:
             try:
-                self._credentials.refresh(GoogleRequest())
+                self._credentials.refresh(GoogleRequest(timeout=30))
             except Exception as exc:
                 logger.warning(
                     "Token refresh failed — rebuilding credentials from DB",
@@ -176,7 +177,9 @@ class GoogleDriveDownloader:
         """
         try:
             creds = self._get_credentials()
-            service = build("drive", "v3", credentials=creds, num_retries=2)
+            # static_discovery=True uses the bundled local discovery doc — no HTTP call to
+            # googleapis.com, which avoids the httplib2 default-no-timeout hang.
+            service = build("drive", "v3", credentials=creds, static_discovery=True, num_retries=2)
 
             # Determine file size before downloading to enforce the 50 MB cap.
             # For Google Workspace files size is reported as 0 — skip the check.
@@ -243,6 +246,15 @@ class GoogleDriveDownloader:
             warnings; exceptions are never propagated to the caller.
         """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._download_sync, external_id, mime_type
-        )
+        try:
+            return await asyncio.wait_for(
+                loop.run_in_executor(None, self._download_sync, external_id, mime_type),
+                timeout=120,  # 2-minute hard cap per file download
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Drive download timed out after 120 s",
+                external_id=external_id,
+                mime_type=mime_type,
+            )
+            return None
