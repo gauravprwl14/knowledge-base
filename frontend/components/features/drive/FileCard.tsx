@@ -87,8 +87,8 @@ export function FileCard({
   );
 
   // Show only up to 3 tags; if more exist, render "+N more" chip
-  const visibleTags = file.tags.slice(0, 3);
-  const overflowCount = file.tags.length - visibleTags.length;
+  const visibleTags = (file.tags ?? []).slice(0, 3);
+  const overflowCount = (file.tags?.length ?? 0) - visibleTags.length;
 
   // Checkbox visibility: show when hovered OR when any file selected
   const showCheckbox = hovered || anySelected;
@@ -184,7 +184,7 @@ export function FileCard({
       {/* ------------------------------------------------------------------ */}
       {/* Tag chips row                                                       */}
       {/* ------------------------------------------------------------------ */}
-      {file.tags.length > 0 && (
+      {(file.tags?.length ?? 0) > 0 && (
         <div className="flex flex-wrap gap-1">
           {visibleTags.map((tag) => (
             <span

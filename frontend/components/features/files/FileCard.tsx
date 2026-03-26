@@ -215,9 +215,9 @@ export function FileCard({ file, selected, onSelect, onDelete }: FileCardProps) 
       </p>
 
       {/* Tags */}
-      {file.tags.length > 0 && (
+      {(file.tags?.length ?? 0) > 0 && (
         <div className="flex flex-wrap gap-1">
-          {file.tags.map((tag) => (
+          {file.tags?.map((tag) => (
             <span
               key={tag.id}
               style={{ borderColor: `${tag.color}44`, color: tag.color, backgroundColor: `${tag.color}1a` }}

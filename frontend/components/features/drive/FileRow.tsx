@@ -87,8 +87,8 @@ export function FileRow({
   );
 
   // Show only up to 2 tags inline in list view
-  const visibleTags = file.tags.slice(0, 2);
-  const overflowCount = file.tags.length - visibleTags.length;
+  const visibleTags = (file.tags ?? []).slice(0, 2);
+  const overflowCount = (file.tags?.length ?? 0) - visibleTags.length;
 
   return (
     <tr
