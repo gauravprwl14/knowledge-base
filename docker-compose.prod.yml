@@ -345,6 +345,10 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: embed-worker
       PYTHONUNBUFFERED: "1"
+      # Google Drive download — must match scan-worker and NestJS TokenEncryptionService
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      API_KEY_ENCRYPTION_SECRET: ${API_KEY_ENCRYPTION_SECRET:-dev-secret-32-bytes-exactly!!!!!!}
     extra_hosts:
       - "host.docker.internal:host-gateway"  # Reach host (devops OTel collector) from container
     volumes:
