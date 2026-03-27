@@ -1,7 +1,9 @@
 import type { Config } from 'tailwindcss';
+import kbUiPreset from '../packages/ui/src/tokens/tailwind-preset';
 
 const config: Config = {
   darkMode: 'class',
+  presets: [kbUiPreset as unknown as Config],
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
