@@ -352,3 +352,19 @@ export class KmsApiClient {
 
 /** Shared API client — import this everywhere instead of creating new instances. */
 export const apiClient = new KmsApiClient();
+
+// ---------------------------------------------------------------------------
+// Exported URL helper
+// ---------------------------------------------------------------------------
+
+/**
+ * getApiBaseUrl — returns the fully-qualified API base URL including the
+ * /api/v1 prefix. Used by modules that bypass the Axios client (e.g. acp.ts
+ * uses native fetch for SSE streaming).
+ *
+ * Uses the same BASE_URL resolution logic as the KmsApiClient constructor so
+ * all API calls always resolve to the same origin.
+ */
+export function getApiBaseUrl(): string {
+  return `${BASE_URL}${API_VERSION}`;
+}

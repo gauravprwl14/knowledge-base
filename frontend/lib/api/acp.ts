@@ -12,10 +12,17 @@
  * iterate events without managing stream state themselves.
  */
 
+import { getApiBaseUrl } from './client';
+
 /**
  * Base URL for kms-api including the /api/v1 global prefix.
  *
- * Set NEXT_PUBLIC_KMS_API_URL=http://localhost:8000/api/v1 in .env.local
+ * Resolved via getApiBaseUrl() which mirrors the same logic as the shared
+ * KmsApiClient: respects NEXT_PUBLIC_API_URL build arg first, then
+ * auto-detects from window.location.origin + first path segment on the
+ * client side, and falls back to KMS_API_URL (Docker-internal) on the
+ * server side. This guarantees ACP fetch calls always go to the correct
+ * origin in every environment — no hardcoded localhost.
  *
  * WHY /api/v1 is included here:
  * - kms-api sets a global prefix "api/v1" in main.ts
@@ -23,7 +30,7 @@
  * - AcpController at "acp/v1" becomes /api/v1/acp/v1/initialize
  * - Storing the full base (including prefix) keeps all API clients consistent
  */
-const KMS_API_URL = process.env.NEXT_PUBLIC_KMS_API_URL ?? 'http://localhost:8000/api/v1';
+const KMS_API_URL = getApiBaseUrl();
 
 export interface AcpTool {
   name: string;
