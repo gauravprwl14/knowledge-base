@@ -144,12 +144,14 @@ export interface FileCardProps {
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
   onDelete: (id: string) => Promise<void>;
+  /** Called when the user clicks the card body to preview the file */
+  onOpen?: (id: string) => void;
 }
 
 /**
  * Renders a single file as a glass card with checkbox, icon, metadata, and action menu.
  */
-export function FileCard({ file, selected, onSelect, onDelete }: FileCardProps) {
+export function FileCard({ file, selected, onSelect, onDelete, onOpen }: FileCardProps) {
   const [isDeleting, setIsDeleting] = React.useState(false);
   const { label } = getFileTypeInfo(file.mimeType);
 
@@ -171,7 +173,13 @@ export function FileCard({ file, selected, onSelect, onDelete }: FileCardProps) 
           ? 'border-[#a78bfa]/60 bg-[#a78bfa]/5'
           : 'border-white/10 hover:border-white/20 hover:bg-white/[0.07]',
         isDeleting ? 'opacity-50 pointer-events-none' : '',
+        onOpen ? 'cursor-pointer' : '',
       ].join(' ')}
+      onClick={() => onOpen?.(file.id)}
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={onOpen ? (e) => e.key === 'Enter' && onOpen(file.id) : undefined}
+      aria-label={onOpen ? `Preview ${file.name}` : undefined}
     >
       {/* Checkbox + action menu row */}
       <div className="flex items-center justify-between">

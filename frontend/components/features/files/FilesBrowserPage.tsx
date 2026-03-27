@@ -25,6 +25,7 @@ import { FileCard } from './FileCard';
 import { FilesTable } from './FilesTable';
 import { BulkActionToolbar } from './BulkActionToolbar';
 import { BulkDeleteConfirmModal } from './BulkDeleteConfirmModal';
+import { FilesDrawer } from './FilesDrawer';
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
@@ -124,6 +125,9 @@ export function FilesBrowserPage() {
   const [isBulkDeleting, setIsBulkDeleting] = React.useState(false);
   const [isBulkReEmbedding, setIsBulkReEmbedding] = React.useState(false);
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+
+  // Track which file is open in the preview drawer (null = drawer closed)
+  const [selectedFileId, setSelectedFileId] = React.useState<string | null>(null);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -358,6 +362,7 @@ export function FilesBrowserPage() {
               selected={selectedIds.has(file.id)}
               onSelect={handleSelect}
               onDelete={handleDelete}
+              onOpen={setSelectedFileId}
             />
           ))}
         </div>
@@ -391,6 +396,12 @@ export function FilesBrowserPage() {
           </button>
         </div>
       )}
+
+      {/* File preview drawer — mounts once, slides in when selectedFileId is non-null */}
+      <FilesDrawer
+        fileId={selectedFileId}
+        onClose={() => setSelectedFileId(null)}
+      />
     </div>
   );
 }
