@@ -3,11 +3,15 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminGuard } from './admin.guard';
 import { AuthModule } from '../auth/auth.module';
+import { QueueModule } from '../../queue/queue.module';
 
 /**
  * AdminModule — provides the admin dashboard API endpoints.
  *
- * Imports AuthModule to make JwtAuthGuard and JwtModule available.
+ * Imports:
+ * - AuthModule to make JwtAuthGuard and JwtModule available.
+ * - QueueModule so AdminService can inject EmbedJobPublisher for reindexAll().
+ *
  * AdminGuard is provided locally since it only applies to this module.
  *
  * @example
@@ -20,7 +24,7 @@ import { AuthModule } from '../auth/auth.module';
  * ```
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, QueueModule],
   controllers: [AdminController],
   providers: [AdminService, AdminGuard],
 })

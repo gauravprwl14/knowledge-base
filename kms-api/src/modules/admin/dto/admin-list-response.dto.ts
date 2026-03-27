@@ -72,3 +72,49 @@ export class AdminScanJobItemDto {
   @ApiProperty({ nullable: true }) finishedAt: string | null;
   @ApiProperty() filesFound: number;
 }
+
+// ---------------------------------------------------------------------------
+// Admin file item
+// ---------------------------------------------------------------------------
+
+/**
+ * AdminFileItemDto — one file row returned by GET /admin/files.
+ *
+ * Used exclusively in the admin dashboard files tab. Exposes enough
+ * metadata for the table display (name, status, owner, source, size)
+ * without serialising the raw Qdrant chunks.
+ */
+export class AdminFileItemDto {
+  @ApiProperty({ description: 'File UUID' })
+  id: string;
+
+  @ApiProperty({ description: 'Owner user UUID' })
+  userId: string;
+
+  @ApiProperty({ description: 'Owner email — null when user record is missing', nullable: true })
+  userEmail: string | null;
+
+  @ApiProperty({ description: 'Source UUID the file belongs to' })
+  sourceId: string;
+
+  @ApiProperty({ description: 'Source name — null when source record is missing', nullable: true })
+  sourceName: string | null;
+
+  @ApiProperty({ description: 'File name as stored in the knowledge base', nullable: true })
+  name: string | null;
+
+  @ApiProperty({ description: 'MIME type detected during scan', nullable: true })
+  mimeType: string | null;
+
+  @ApiProperty({ description: 'File size in bytes (Number, coerced from BigInt)', nullable: true })
+  sizeBytes: number | null;
+
+  @ApiProperty({ description: 'Current embedding status (PENDING | PROCESSING | INDEXED | ERROR | DELETED)' })
+  status: string;
+
+  @ApiProperty({ description: 'ISO timestamp when the file was successfully indexed — null if not yet indexed', nullable: true })
+  indexedAt: string | null;
+
+  @ApiProperty({ description: 'ISO timestamp when the file record was created' })
+  createdAt: string;
+}

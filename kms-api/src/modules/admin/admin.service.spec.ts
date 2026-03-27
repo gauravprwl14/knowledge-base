@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AdminService } from './admin.service';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
 import { getLoggerToken } from 'nestjs-pino';
 import { FileStatus } from '@prisma/client';
 
@@ -63,7 +64,12 @@ const mockPrisma = {
   },
   kmsFile: {
     count: jest.fn(),
+    findMany: jest.fn(),
   },
+};
+
+const mockEmbedPublisher = {
+  publishEmbedJob: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockLogger = {
@@ -82,11 +88,13 @@ describe('AdminService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockEmbedPublisher.publishEmbedJob.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: EmbedJobPublisher, useValue: mockEmbedPublisher },
         { provide: getLoggerToken(AdminService.name), useValue: mockLogger },
       ],
     }).compile();
@@ -291,6 +299,75 @@ describe('AdminService', () => {
       expect(mockPrisma.kmsFile.count).toHaveBeenCalledWith({
         where: { status: FileStatus.ERROR },
       });
+    });
+  });
+
+  // ── reindexAll ────────────────────────────────────────────────────────────
+
+  describe('reindexAll()', () => {
+    const makeFile = (id: string) => ({
+      id,
+      sourceId: SRC_ID,
+      userId: USER_ID,
+      path: `/vault/${id}.md`,
+      name: `${id}.md`,
+      mimeType: 'text/markdown',
+      sizeBytes: BigInt(1024),
+      checksumSha256: 'abc123',
+      source: { type: 'LOCAL' },
+    });
+
+    it('publishes one embed job per file and returns queued count', async () => {
+      mockPrisma.kmsFile.findMany
+        .mockResolvedValueOnce([makeFile('file-1'), makeFile('file-2')])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.reindexAll();
+
+      expect(result.queued).toBe(2);
+      expect(mockEmbedPublisher.publishEmbedJob).toHaveBeenCalledTimes(2);
+      expect(mockEmbedPublisher.publishEmbedJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source_id: SRC_ID,
+          user_id: USER_ID,
+          source_type: 'LOCAL',
+        }),
+      );
+    });
+
+    it('returns queued: 0 when no PENDING/ERROR files exist', async () => {
+      mockPrisma.kmsFile.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.reindexAll();
+
+      expect(result.queued).toBe(0);
+      expect(mockEmbedPublisher.publishEmbedJob).not.toHaveBeenCalled();
+    });
+
+    it('queries files with PENDING and ERROR status', async () => {
+      mockPrisma.kmsFile.findMany.mockResolvedValueOnce([]);
+
+      await service.reindexAll();
+
+      expect(mockPrisma.kmsFile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { status: { in: [FileStatus.PENDING, FileStatus.ERROR] } },
+          take: 200,
+          orderBy: { id: 'asc' },
+        }),
+      );
+    });
+
+    it('coerces BigInt sizeBytes to Number in the published message', async () => {
+      mockPrisma.kmsFile.findMany
+        .mockResolvedValueOnce([makeFile('file-bigint')])
+        .mockResolvedValueOnce([]);
+
+      await service.reindexAll();
+
+      const call = mockEmbedPublisher.publishEmbedJob.mock.calls[0][0];
+      expect(typeof call.file_size_bytes).toBe('number');
+      expect(call.file_size_bytes).toBe(1024);
     });
   });
 });

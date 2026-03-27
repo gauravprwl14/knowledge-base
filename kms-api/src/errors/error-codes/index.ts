@@ -982,6 +982,29 @@ export const TAG_ERROR_CODES = {
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
+ * Graph Error Codes (GRP0000 - GRP9999)
+ * Used by the Neo4j-backed graph API endpoints.
+ */
+export const GRP_ERROR_CODES = {
+  GRAPH_QUERY_FAILED: {
+    code: 'KBGRP0001',
+    message: 'Graph query failed',
+    httpStatus: 500,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: false,
+  },
+  GRAPH_UNAVAILABLE: {
+    code: 'KBGRP0002',
+    message: 'Graph service is unavailable',
+    httpStatus: 503,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
+
+/**
  * Combined error codes object
  */
 export const ERROR_CODES = {
@@ -996,6 +1019,7 @@ export const ERROR_CODES = {
   WRK: WRK_ERROR_CODES,
   FIL: FIL_ERROR_CODES,
   TAG: TAG_ERROR_CODES,
+  GRP: GRP_ERROR_CODES,
 } as const;
 
 /**
@@ -1012,7 +1036,8 @@ export type ErrorCode =
   | (typeof WFL_ERROR_CODES)[keyof typeof WFL_ERROR_CODES]['code']
   | (typeof WRK_ERROR_CODES)[keyof typeof WRK_ERROR_CODES]['code']
   | (typeof FIL_ERROR_CODES)[keyof typeof FIL_ERROR_CODES]['code']
-  | (typeof TAG_ERROR_CODES)[keyof typeof TAG_ERROR_CODES]['code'];
+  | (typeof TAG_ERROR_CODES)[keyof typeof TAG_ERROR_CODES]['code']
+  | (typeof GRP_ERROR_CODES)[keyof typeof GRP_ERROR_CODES]['code'];
 
 
 /**
@@ -1034,7 +1059,8 @@ export type AnyErrorDefinition =
   | ExtractErrorDef<typeof WFL_ERROR_CODES>
   | ExtractErrorDef<typeof WRK_ERROR_CODES>
   | ExtractErrorDef<typeof FIL_ERROR_CODES>
-  | ExtractErrorDef<typeof TAG_ERROR_CODES>;
+  | ExtractErrorDef<typeof TAG_ERROR_CODES>
+  | ExtractErrorDef<typeof GRP_ERROR_CODES>;
 
 /**
  * Gets the error definition for a given error code
