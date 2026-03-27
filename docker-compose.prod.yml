@@ -239,6 +239,7 @@ services:
       PORT: 8001
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       QDRANT_URL: http://qdrant:6333
+      EMBED_WORKER_URL: http://embed-worker:8011
       MOCK_BM25: "false"
       MOCK_SEMANTIC: "false"
       OTEL_ENABLED: ${OTEL_ENABLED:-false}

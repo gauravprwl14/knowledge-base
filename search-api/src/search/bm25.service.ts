@@ -1,69 +1,69 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { PrismaService } from '../prisma/prisma.service';
-import { SearchResult } from './dto/search-response.dto';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
+import { PrismaService } from "../prisma/prisma.service";
+import { SearchResult } from "./dto/search-response.dto";
 
 /**
  * Five canonical seed documents used when MOCK_BM25=true.
  * These cover the main KMS knowledge domains so search results are realistic
  * during development and integration testing without a live database.
  */
-const MOCK_DOCUMENTS: Omit<SearchResult, 'score'>[] = [
+const MOCK_DOCUMENTS: Omit<SearchResult, "score">[] = [
   {
-    id: 'mock-chunk-001',
-    fileId: 'mock-file-001',
-    filename: 'rag-pipeline-architecture.md',
+    id: "mock-chunk-001",
+    fileId: "mock-file-001",
+    filename: "rag-pipeline-architecture.md",
     content:
-      'RAG Pipeline Architecture: The retrieval-augmented generation pipeline combines ' +
-      'dense vector retrieval from Qdrant with BM25 keyword search. Results are fused ' +
-      'using Reciprocal Rank Fusion (RRF) before being passed to the LLM generator.',
+      "RAG Pipeline Architecture: The retrieval-augmented generation pipeline combines " +
+      "dense vector retrieval from Qdrant with BM25 keyword search. Results are fused " +
+      "using Reciprocal Rank Fusion (RRF) before being passed to the LLM generator.",
     chunkIndex: 0,
-    metadata: { topic: 'rag', type: 'architecture' },
+    metadata: { topic: "rag", type: "architecture" },
   },
   {
-    id: 'mock-chunk-002',
-    fileId: 'mock-file-002',
-    filename: 'nestjs-fastify-performance.md',
+    id: "mock-chunk-002",
+    fileId: "mock-file-002",
+    filename: "nestjs-fastify-performance.md",
     content:
-      'NestJS Fastify Performance: Replacing Express with the Fastify adapter delivers ' +
-      '2–3× higher throughput on identical hardware. The @nestjs/platform-fastify package ' +
-      'wraps Fastify while preserving the full NestJS DI and decorator system.',
+      "NestJS Fastify Performance: Replacing Express with the Fastify adapter delivers " +
+      "2–3× higher throughput on identical hardware. The @nestjs/platform-fastify package " +
+      "wraps Fastify while preserving the full NestJS DI and decorator system.",
     chunkIndex: 0,
-    metadata: { topic: 'nestjs', type: 'performance' },
+    metadata: { topic: "nestjs", type: "performance" },
   },
   {
-    id: 'mock-chunk-003',
-    fileId: 'mock-file-003',
-    filename: 'bge-m3-embedding-model.md',
+    id: "mock-chunk-003",
+    fileId: "mock-file-003",
+    filename: "bge-m3-embedding-model.md",
     content:
-      'BGE-M3 Embedding Model: BAAI/bge-m3 generates 1024-dimensional dense embeddings ' +
-      'optimised for multilingual retrieval. It supports sparse, dense, and ColBERT-style ' +
-      'multi-vector representations, making it ideal for hybrid search pipelines.',
+      "BGE-M3 Embedding Model: BAAI/bge-m3 generates 1024-dimensional dense embeddings " +
+      "optimised for multilingual retrieval. It supports sparse, dense, and ColBERT-style " +
+      "multi-vector representations, making it ideal for hybrid search pipelines.",
     chunkIndex: 0,
-    metadata: { topic: 'embeddings', type: 'model' },
+    metadata: { topic: "embeddings", type: "model" },
   },
   {
-    id: 'mock-chunk-004',
-    fileId: 'mock-file-004',
-    filename: 'acp-protocol-integration.md',
+    id: "mock-chunk-004",
+    fileId: "mock-file-004",
+    filename: "acp-protocol-integration.md",
     content:
-      'ACP Protocol Integration: The Agent Communication Protocol (ACP) defines a ' +
-      'standardised REST envelope for multi-agent message passing. The KMS gateway ' +
-      'exposes an ACP-compatible endpoint that routes tasks to specialist sub-agents.',
+      "ACP Protocol Integration: The Agent Communication Protocol (ACP) defines a " +
+      "standardised REST envelope for multi-agent message passing. The KMS gateway " +
+      "exposes an ACP-compatible endpoint that routes tasks to specialist sub-agents.",
     chunkIndex: 0,
-    metadata: { topic: 'acp', type: 'protocol' },
+    metadata: { topic: "acp", type: "protocol" },
   },
   {
-    id: 'mock-chunk-005',
-    fileId: 'mock-file-005',
-    filename: 'neo4j-knowledge-graph.md',
+    id: "mock-chunk-005",
+    fileId: "mock-file-005",
+    filename: "neo4j-knowledge-graph.md",
     content:
-      'Neo4j Knowledge Graph: The graph-worker extracts entity relationships from ' +
-      'ingested documents and persists them to Neo4j. Cypher queries then augment ' +
-      'RAG context with related concept nodes, improving answer coherence.',
+      "Neo4j Knowledge Graph: The graph-worker extracts entity relationships from " +
+      "ingested documents and persists them to Neo4j. Cypher queries then augment " +
+      "RAG context with related concept nodes, improving answer coherence.",
     chunkIndex: 0,
-    metadata: { topic: 'neo4j', type: 'graph' },
+    metadata: { topic: "neo4j", type: "graph" },
   },
 ];
 
@@ -89,7 +89,7 @@ export class Bm25Service {
     private readonly logger: PinoLogger,
   ) {
     // Read MOCK_BM25 from validated config; default true so the service starts without a DB
-    this.mockMode = this.config.get<boolean>('MOCK_BM25') ?? true;
+    this.mockMode = this.config.get<boolean>("MOCK_BM25") ?? true;
   }
 
   /**
@@ -131,7 +131,10 @@ export class Bm25Service {
    * @param limit - Maximum results to return
    */
   private mockSearch(query: string, limit: number): SearchResult[] {
-    this.logger.debug({ query, limit }, 'bm25: mock mode — returning seed documents');
+    this.logger.debug(
+      { query, limit },
+      "bm25: mock mode — returning seed documents",
+    );
 
     // Tokenise the query into lowercase terms for term-frequency scoring
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -141,13 +144,16 @@ export class Bm25Service {
       const contentLower = doc.content.toLowerCase();
       // BM25 approximation: sum of term frequencies (no IDF weighting in mock)
       const termFreqScore = terms.reduce((acc, term) => {
-        const regex = new RegExp(term, 'gi');
+        const regex = new RegExp(term, "gi");
         const matches = contentLower.match(regex);
         return acc + (matches ? matches.length : 0);
       }, 0);
 
       // Normalise to (0, 1] range: use a sigmoid-like transform to avoid raw counts
-      const score = termFreqScore > 0 ? Math.min(termFreqScore / (termFreqScore + 5), 0.95) : 0.05;
+      const score =
+        termFreqScore > 0
+          ? Math.min(termFreqScore / (termFreqScore + 5), 0.95)
+          : 0.05;
 
       return { ...doc, score };
     });
@@ -182,16 +188,19 @@ export class Bm25Service {
     const safeTerms = query
       .trim()
       .split(/\s+/)
-      .map((t) => t.replace(/[^a-zA-Z0-9]/g, ''))
+      .map((t) => t.replace(/[^a-zA-Z0-9]/g, ""))
       .filter(Boolean);
 
     if (safeTerms.length === 0) {
       return [];
     }
 
-    const tsQueryStr = safeTerms.join(' & ');
+    const tsQueryStr = safeTerms.join(" & ");
 
-    this.logger.info({ tsQueryStr, userId, limit, sourceIds }, 'bm25: executing PostgreSQL FTS');
+    this.logger.info(
+      { tsQueryStr, userId, limit, sourceIds },
+      "bm25: executing PostgreSQL FTS",
+    );
 
     // Build the optional source_id IN clause (injected safely via array binding)
     // Prisma $queryRaw uses tagged template literals for safe parameterisation.
@@ -215,7 +224,7 @@ export class Bm25Service {
         SELECT
           c.id::text,
           c.file_id::text,
-          f.original_filename  AS filename,
+          f.name               AS filename,
           ts_headline('english', c.content,
             to_tsquery('english', ${tsQueryStr}),
             'MaxWords=50,MinWords=15,ShortWord=3,HighlightAll=false'
@@ -239,7 +248,7 @@ export class Bm25Service {
         SELECT
           c.id::text,
           c.file_id::text,
-          f.original_filename  AS filename,
+          f.name               AS filename,
           ts_headline('english', c.content,
             to_tsquery('english', ${tsQueryStr}),
             'MaxWords=50,MinWords=15,ShortWord=3,HighlightAll=false'
@@ -259,7 +268,10 @@ export class Bm25Service {
       `;
     }
 
-    this.logger.info({ rowCount: rows.length, userId }, 'bm25: PostgreSQL FTS complete');
+    this.logger.info(
+      { rowCount: rows.length, userId },
+      "bm25: PostgreSQL FTS complete",
+    );
 
     // Normalise ts_rank (0–1) and map raw rows to SearchResult objects.
     // ts_rank is already in [0, 1] range from PostgreSQL; clamp just in case.
