@@ -1,3 +1,8 @@
-// @kb/ui — shared React component library
-// Components will be exported here as they are implemented in subsequent tasks.
+/**
+ * @kb/ui — shared React component library for the KMS knowledge base.
+ *
+ * IMPORTANT: This package is consumed via Next.js `transpilePackages`.
+ * `frontend/next.config.js` must include `transpilePackages: ['@kb/ui']`.
+ * Components are added to this barrel export as they are built.
+ */
 export {};
