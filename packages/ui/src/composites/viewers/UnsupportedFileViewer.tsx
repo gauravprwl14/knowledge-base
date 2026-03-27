@@ -27,6 +27,7 @@ export const UnsupportedFileViewer: React.FC<ViewerProps> = ({
 }) => {
   return (
     <div
+      data-testid="unsupported-viewer"
       className={cn(
         // Base: vertically centered card layout with generous padding
         'flex flex-col items-center justify-center gap-6 p-8 text-center',

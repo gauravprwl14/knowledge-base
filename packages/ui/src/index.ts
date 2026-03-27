@@ -32,3 +32,7 @@ export type { DividerProps } from './primitives/Divider';
 // Composites — viewers
 export { UnsupportedFileViewer } from './composites/viewers/UnsupportedFileViewer';
 export { getViewer, MIME_REGISTRY } from './composites/viewers/registry';
+
+// Composites — shell
+export { FileViewerShell } from './composites/FileViewerShell';
+export type { FileViewerShellProps } from './composites/FileViewerShell';
