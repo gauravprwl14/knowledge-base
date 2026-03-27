@@ -1,5 +1,18 @@
 'use client';
 
+/**
+ * AdminPage — multi-tab admin dashboard.
+ *
+ * Tabs:
+ * - Overview: system stats + embedding progress bar
+ * - Files:    all files across all users with status filter
+ * - Users:    paginated user list
+ * - Sources:  paginated source list with per-row re-scan
+ * - Jobs:     recent scan jobs
+ *
+ * Non-admin users are redirected to `/` immediately.
+ */
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/lib/stores/auth.store';
@@ -17,12 +30,27 @@ import { AdminStatsPanel } from './AdminStatsPanel';
 import { AdminUsersTable } from './AdminUsersTable';
 import { AdminSourcesTable } from './AdminSourcesTable';
 import { AdminScanJobsTable } from './AdminScanJobsTable';
+import { AdminFilesTab } from './AdminFilesTab';
+
+/** Tab identifiers */
+type AdminTab = 'overview' | 'files' | 'users' | 'sources' | 'jobs';
+
+const TAB_LABELS: Record<AdminTab, string> = {
+  overview: 'Overview',
+  files:    'Files',
+  users:    'Users',
+  sources:  'Sources',
+  jobs:     'Jobs',
+};
+
+const TABS: AdminTab[] = ['overview', 'files', 'users', 'sources', 'jobs'];
 
 /**
  * AdminPage — the admin dashboard page component.
  *
  * Redirects to `/` if the authenticated user does not have the ADMIN role.
- * Loads all admin data (stats, users, sources, scan jobs) on mount.
+ * Loads stats, users, sources, and scan jobs on mount in parallel.
+ * The Files tab fetches its own data lazily when it is first activated.
  *
  * @example
  * ```tsx
@@ -35,6 +63,8 @@ import { AdminScanJobsTable } from './AdminScanJobsTable';
 export function AdminPage() {
   const router = useRouter();
   const user = useCurrentUser();
+
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -50,14 +80,14 @@ export function AdminPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingSources, setLoadingSources] = useState(false);
 
-  // FR-07: redirect non-ADMIN users immediately
+  // Redirect non-admin users immediately — effect runs whenever user identity resolves
   useEffect(() => {
     if (user && !user.roles.includes('ADMIN')) {
       router.replace('/');
     }
   }, [user, router]);
 
-  // Load initial data
+  // Load overview + list data on mount; guarded by role check to avoid 403s
   useEffect(() => {
     if (!user?.roles.includes('ADMIN')) return;
 
@@ -92,6 +122,7 @@ export function AdminPage() {
       .finally(() => setLoading(false));
   }, [user]);
 
+  /** Appends the next cursor page of users to the existing list. */
   const handleLoadMoreUsers = async () => {
     if (!usersCursor) return;
     setLoadingUsers(true);
@@ -106,6 +137,7 @@ export function AdminPage() {
     }
   };
 
+  /** Appends the next cursor page of sources to the existing list. */
   const handleLoadMoreSources = async () => {
     if (!sourcesCursor) return;
     setLoadingSources(true);
@@ -120,10 +152,9 @@ export function AdminPage() {
     }
   };
 
-  // Don't render admin content for non-admin users
-  if (!user?.roles.includes('ADMIN')) {
-    return null;
-  }
+  // Don't render admin content for non-admin users — avoids a flash of content
+  // before the redirect useEffect fires
+  if (!user?.roles.includes('ADMIN')) return null;
 
   if (loading) {
     return (
@@ -142,31 +173,68 @@ export function AdminPage() {
   }
 
   return (
-    <div className="p-6 space-y-10" data-testid="admin-page">
+    <div className="p-6 space-y-6" data-testid="admin-page">
+      {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-[#fafafa] mb-1">Admin Dashboard</h1>
         <p className="text-sm text-[#a1a1a1]">System-wide overview and management</p>
       </div>
 
-      {stats && <AdminStatsPanel stats={stats} />}
+      {/* Tab bar — role="tablist" + aria-selected on each button for accessibility */}
+      <div className="flex gap-1 border-b border-[#2e2e2e]" role="tablist">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            role="tab"
+            aria-selected={activeTab === tab}
+            onClick={() => setActiveTab(tab)}
+            className={[
+              'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+              activeTab === tab
+                ? 'border-[#a78bfa] text-[#fafafa]'
+                : 'border-transparent text-[#a1a1a1] hover:text-[#fafafa]',
+            ].join(' ')}
+          >
+            {TAB_LABELS[tab]}
+          </button>
+        ))}
+      </div>
 
-      <AdminUsersTable
-        users={users}
-        nextCursor={usersCursor}
-        total={usersTotal}
-        onLoadMore={handleLoadMoreUsers}
-        loading={loadingUsers}
-      />
+      {/* Tab content — each panel is only mounted when its tab is active */}
+      <div role="tabpanel">
+        {activeTab === 'overview' && stats && (
+          <AdminStatsPanel stats={stats} />
+        )}
 
-      <AdminSourcesTable
-        sources={sources}
-        nextCursor={sourcesCursor}
-        total={sourcesTotal}
-        onLoadMore={handleLoadMoreSources}
-        loading={loadingSources}
-      />
+        {/* AdminFilesTab is self-contained: it fetches its own data on mount */}
+        {activeTab === 'files' && (
+          <AdminFilesTab />
+        )}
 
-      <AdminScanJobsTable jobs={scanJobs} total={scanJobsTotal} />
+        {activeTab === 'users' && (
+          <AdminUsersTable
+            users={users}
+            nextCursor={usersCursor}
+            total={usersTotal}
+            onLoadMore={handleLoadMoreUsers}
+            loading={loadingUsers}
+          />
+        )}
+
+        {activeTab === 'sources' && (
+          <AdminSourcesTable
+            sources={sources}
+            nextCursor={sourcesCursor}
+            total={sourcesTotal}
+            onLoadMore={handleLoadMoreSources}
+            loading={loadingSources}
+          />
+        )}
+
+        {activeTab === 'jobs' && (
+          <AdminScanJobsTable jobs={scanJobs} total={scanJobsTotal} />
+        )}
+      </div>
     </div>
   );
 }

@@ -59,6 +59,21 @@ export interface AdminScanJob {
   filesFound: number;
 }
 
+/** One file row returned by GET /admin/files */
+export interface AdminFile {
+  id: string;
+  userId: string;
+  userEmail: string | null;
+  sourceId: string;
+  sourceName: string | null;
+  name: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  status: string;
+  indexedAt: string | null;
+  createdAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // API functions
 // ---------------------------------------------------------------------------
@@ -106,4 +121,24 @@ export async function getAdminSources(
  */
 export async function getAdminScanJobs(): Promise<AdminListResponse<AdminScanJob>> {
   return apiClient.get<AdminListResponse<AdminScanJob>>('/admin/scan-jobs');
+}
+
+/**
+ * GET /admin/files — returns a paginated list of all files (admin only).
+ *
+ * @param cursor - Pagination cursor from the previous response.
+ * @param limit - Records per page (max 100, default 50).
+ * @param status - Optional file status filter: PENDING | PROCESSING | INDEXED | ERROR.
+ * @returns Paginated AdminFile list.
+ */
+export async function getAdminFiles(
+  cursor?: string,
+  limit = 50,
+  status?: string,
+): Promise<AdminListResponse<AdminFile>> {
+  const params = new URLSearchParams();
+  if (cursor) params.set('cursor', cursor);
+  params.set('limit', String(limit));
+  if (status) params.set('status', status);
+  return apiClient.get<AdminListResponse<AdminFile>>(`/admin/files?${params}`);
 }
