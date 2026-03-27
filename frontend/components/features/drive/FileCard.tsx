@@ -51,6 +51,8 @@ export interface FileCardProps {
   onSelect: (id: string, selected: boolean) => void;
   onDelete: (id: string) => void;
   onAddToCollection: (id: string) => void;
+  /** Called when the user clicks the preview (Eye) button to open the file drawer. */
+  onOpen?: (id: string) => void;
   /** Transcription job status; shown for audio/video files when provided. */
   transcriptionJob?: TranscriptionStatus | null;
 }
@@ -70,6 +72,7 @@ export function FileCard({
   onSelect,
   onDelete,
   onAddToCollection,
+  onOpen,
   transcriptionJob,
 }: FileCardProps) {
   const [hovered, setHovered] = React.useState(false);
@@ -213,11 +216,11 @@ export function FileCard({
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Preview button (placeholder — no preview route yet) */}
+        {/* Preview button — opens FilesDrawer for this file */}
         <button
           className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] shadow hover:text-blue-500"
           title="Preview"
-          onClick={() => {/* TODO: open preview panel */}}
+          onClick={() => onOpen?.(file.id)}
         >
           <Eye className="h-3.5 w-3.5" />
         </button>

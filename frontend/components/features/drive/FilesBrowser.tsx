@@ -23,6 +23,7 @@ import { FilesToolbar } from './FilesToolbar';
 import { FileCard } from './FileCard';
 import { FileRow } from './FileRow';
 import { BulkActionBar } from './BulkActionBar';
+import { FilesDrawer } from '@/components/features/files/FilesDrawer';
 import { useFiles, useBulkDeleteFiles, useBulkTagFiles } from '@/lib/hooks/use-files';
 import { useAddFilesToCollection } from '@/lib/hooks/use-collections';
 import { useSources } from '@/lib/hooks/use-sources';
@@ -116,6 +117,9 @@ function SkeletonList() {
 export function FilesBrowser() {
   // ---- Selection state ----
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+
+  // Track which file is open in the preview drawer (null = drawer closed)
+  const [selectedFileId, setSelectedFileId] = React.useState<string | null>(null);
 
   // ---- View / sort state ----
   const [viewMode, setViewMode] = React.useState<ViewMode>('grid');
@@ -361,6 +365,7 @@ export function FilesBrowser() {
                 onSelect={handleSelect}
                 onDelete={handleSingleDelete}
                 onAddToCollection={handleSingleAddToCollection}
+                onOpen={setSelectedFileId}
                 transcriptionJob={transcriptionMap.get(file.id)}
               />
             ))}
@@ -433,6 +438,12 @@ export function FilesBrowser() {
         onAddToCollection={handleBulkAddToCollection}
         onAddTag={handleBulkAddTag}
         isPending={isMutating}
+      />
+
+      {/* File preview drawer — mounts once, slides in when selectedFileId is non-null */}
+      <FilesDrawer
+        fileId={selectedFileId}
+        onClose={() => setSelectedFileId(null)}
       />
     </div>
   );
