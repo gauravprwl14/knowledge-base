@@ -71,7 +71,7 @@ export class EmbedJobPublisher implements OnModuleInit, OnModuleDestroy {
         durable: true,
         arguments: {
           'x-dead-letter-exchange': 'kms.dlx',
-          'x-message-ttl': 3_600_000,
+          'x-message-ttl': 86_400_000,  // 24 h — must match embed-worker worker.py declaration
         },
       });
       this.logger.info({ queue: AMQP_EMBED_QUEUE }, 'EmbedJobPublisher connected to RabbitMQ');
