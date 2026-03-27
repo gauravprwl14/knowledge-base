@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { QdrantClient } from '@qdrant/js-client-rest';
-import { SearchResult } from './dto/search-response.dto';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
+import { QdrantClient } from "@qdrant/js-client-rest";
+import { SearchResult } from "./dto/search-response.dto";
 
 /**
  * Deterministic mock scores for each of the five seed documents.
@@ -11,69 +11,69 @@ import { SearchResult } from './dto/search-response.dto';
  * produces meaningful merged rankings.
  */
 const MOCK_SEMANTIC_SCORES: Record<string, number> = {
-  'mock-chunk-001': 0.91, // RAG Pipeline Architecture — high semantic affinity
-  'mock-chunk-002': 0.78, // NestJS Fastify Performance
-  'mock-chunk-003': 0.85, // BGE-M3 Embedding Model
-  'mock-chunk-004': 0.72, // ACP Protocol Integration
-  'mock-chunk-005': 0.80, // Neo4j Knowledge Graph
+  "mock-chunk-001": 0.91, // RAG Pipeline Architecture — high semantic affinity
+  "mock-chunk-002": 0.78, // NestJS Fastify Performance
+  "mock-chunk-003": 0.85, // BGE-M3 Embedding Model
+  "mock-chunk-004": 0.72, // ACP Protocol Integration
+  "mock-chunk-005": 0.8, // Neo4j Knowledge Graph
 };
 
 /** Seed document metadata — content mirrors BM25Service mock data. */
-const MOCK_SEMANTIC_DOCS: Omit<SearchResult, 'score'>[] = [
+const MOCK_SEMANTIC_DOCS: Omit<SearchResult, "score">[] = [
   {
-    id: 'mock-chunk-001',
-    fileId: 'mock-file-001',
-    filename: 'rag-pipeline-architecture.md',
+    id: "mock-chunk-001",
+    fileId: "mock-file-001",
+    filename: "rag-pipeline-architecture.md",
     content:
-      'RAG Pipeline Architecture: The retrieval-augmented generation pipeline combines ' +
-      'dense vector retrieval from Qdrant with BM25 keyword search. Results are fused ' +
-      'using Reciprocal Rank Fusion (RRF) before being passed to the LLM generator.',
+      "RAG Pipeline Architecture: The retrieval-augmented generation pipeline combines " +
+      "dense vector retrieval from Qdrant with BM25 keyword search. Results are fused " +
+      "using Reciprocal Rank Fusion (RRF) before being passed to the LLM generator.",
     chunkIndex: 0,
-    metadata: { topic: 'rag', type: 'architecture' },
+    metadata: { topic: "rag", type: "architecture" },
   },
   {
-    id: 'mock-chunk-002',
-    fileId: 'mock-file-002',
-    filename: 'nestjs-fastify-performance.md',
+    id: "mock-chunk-002",
+    fileId: "mock-file-002",
+    filename: "nestjs-fastify-performance.md",
     content:
-      'NestJS Fastify Performance: Replacing Express with the Fastify adapter delivers ' +
-      '2–3× higher throughput on identical hardware. The @nestjs/platform-fastify package ' +
-      'wraps Fastify while preserving the full NestJS DI and decorator system.',
+      "NestJS Fastify Performance: Replacing Express with the Fastify adapter delivers " +
+      "2–3× higher throughput on identical hardware. The @nestjs/platform-fastify package " +
+      "wraps Fastify while preserving the full NestJS DI and decorator system.",
     chunkIndex: 0,
-    metadata: { topic: 'nestjs', type: 'performance' },
+    metadata: { topic: "nestjs", type: "performance" },
   },
   {
-    id: 'mock-chunk-003',
-    fileId: 'mock-file-003',
-    filename: 'bge-m3-embedding-model.md',
+    id: "mock-chunk-003",
+    fileId: "mock-file-003",
+    filename: "bge-m3-embedding-model.md",
     content:
-      'BGE-M3 Embedding Model: BAAI/bge-m3 generates 1024-dimensional dense embeddings ' +
-      'optimised for multilingual retrieval. It supports sparse, dense, and ColBERT-style ' +
-      'multi-vector representations, making it ideal for hybrid search pipelines.',
+      "BGE-M3 Embedding Model: BAAI/bge-m3 generates 1024-dimensional dense embeddings " +
+      "optimised for multilingual retrieval. It supports sparse, dense, and ColBERT-style " +
+      "multi-vector representations, making it ideal for hybrid search pipelines.",
     chunkIndex: 0,
-    metadata: { topic: 'embeddings', type: 'model' },
+    metadata: { topic: "embeddings", type: "model" },
   },
   {
-    id: 'mock-chunk-004',
-    fileId: 'mock-file-004',
-    filename: 'acp-protocol-integration.md',
+    id: "mock-chunk-004",
+    fileId: "mock-file-004",
+    filename: "acp-protocol-integration.md",
     content:
-      'ACP Protocol Integration: The Agent Communication Protocol (ACP) defines a ' +
-      'standardised REST envelope for multi-agent message passing. The KMS gateway ' +
-      'exposes an ACP-compatible endpoint that routes tasks to specialist sub-agents.',
+      "ACP Protocol Integration: The Agent Communication Protocol (ACP) defines a " +
+      "standardised REST envelope for multi-agent message passing. The KMS gateway " +
+      "exposes an ACP-compatible endpoint that routes tasks to specialist sub-agents.",
     chunkIndex: 0,
-    metadata: { topic: 'acp', type: 'protocol' },
+    metadata: { topic: "acp", type: "protocol" },
   },
   {
-    id: 'mock-chunk-005',
-    fileId: 'mock-file-005',
-    filename: 'neo4j-knowledge-graph.md',
+    id: "mock-chunk-005",
+    fileId: "mock-file-005",
+    filename: "neo4j-knowledge-graph.md",
     content:
-      'Neo4j Knowledge Graph: The graph-worker extracts entity relationships from ' +
-      'ingested documents and persists them to Neo4j. Cypher queries then augment ' +
-      'RAG context with related concept nodes, improving answer coherence.',
+      "Neo4j Knowledge Graph: The graph-worker extracts entity relationships from " +
+      "ingested documents and persists them to Neo4j. Cypher queries then augment " +
+      "RAG context with related concept nodes, improving answer coherence.",
     chunkIndex: 0,
-    metadata: { topic: 'neo4j', type: 'graph' },
+    metadata: { topic: "neo4j", type: "graph" },
   },
 ];
 
@@ -113,10 +113,13 @@ export class SemanticService {
     private readonly logger: PinoLogger,
   ) {
     // Read Qdrant config and mock flag from validated env vars
-    this.mockMode = this.config.get<boolean>('MOCK_SEMANTIC') ?? true;
-    this.qdrantUrl = this.config.get<string>('QDRANT_URL') ?? 'http://localhost:6333';
-    this.collection = this.config.get<string>('QDRANT_COLLECTION') ?? 'kms_chunks';
-    this.embedWorkerUrl = this.config.get<string>('EMBED_WORKER_URL') ?? 'http://localhost:8004';
+    this.mockMode = this.config.get<boolean>("MOCK_SEMANTIC") ?? true;
+    this.qdrantUrl =
+      this.config.get<string>("QDRANT_URL") ?? "http://localhost:6333";
+    this.collection =
+      this.config.get<string>("QDRANT_COLLECTION") ?? "kms_chunks";
+    this.embedWorkerUrl =
+      this.config.get<string>("EMBED_WORKER_URL") ?? "http://localhost:8011";
   }
 
   /**
@@ -165,7 +168,10 @@ export class SemanticService {
    * @param limit - Maximum results to return
    */
   private mockSearch(limit: number): SearchResult[] {
-    this.logger.debug({ limit }, 'semantic: mock mode — returning deterministic seed results');
+    this.logger.debug(
+      { limit },
+      "semantic: mock mode — returning deterministic seed results",
+    );
 
     // Attach the fixed mock score to each document and sort by it descending
     const results = MOCK_SEMANTIC_DOCS.map((doc) => ({
@@ -197,13 +203,13 @@ export class SemanticService {
   ): Promise<SearchResult[]> {
     this.logger.info(
       { qdrantUrl: this.qdrantUrl, collection: this.collection, userId, limit },
-      'semantic: executing Qdrant ANN search',
+      "semantic: executing Qdrant ANN search",
     );
 
     // ── Step 1: Obtain a BGE-M3 embedding for the query ─────────────────────
     const embedResponse = await fetch(`${this.embedWorkerUrl}/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: query }),
       signal: AbortSignal.timeout(30_000),
     });
@@ -218,20 +224,25 @@ export class SemanticService {
     const vector = embedData.embedding;
 
     if (!Array.isArray(vector) || vector.length === 0) {
-      throw new Error('embed-worker returned an empty or invalid embedding vector');
+      throw new Error(
+        "embed-worker returned an empty or invalid embedding vector",
+      );
     }
 
-    this.logger.debug({ vectorLength: vector.length }, 'semantic: query vector obtained');
+    this.logger.debug(
+      { vectorLength: vector.length },
+      "semantic: query vector obtained",
+    );
 
     // ── Step 2: Build Qdrant payload filter ─────────────────────────────────
     // Always filter by user_id for multi-tenant isolation.
     // Optionally narrow to specific source IDs when provided.
     const mustClauses: Record<string, unknown>[] = [
-      { key: 'user_id', match: { value: userId } },
+      { key: "user_id", match: { value: userId } },
     ];
 
     if (sourceIds && sourceIds.length > 0) {
-      mustClauses.push({ key: 'source_id', match: { any: sourceIds } });
+      mustClauses.push({ key: "source_id", match: { any: sourceIds } });
     }
 
     // ── Step 3: Search Qdrant ────────────────────────────────────────────────
@@ -239,27 +250,36 @@ export class SemanticService {
       vector,
       limit,
       with_payload: true,
-      filter: { must: mustClauses } as Parameters<QdrantClient['search']>[1]['filter'],
+      filter: { must: mustClauses } as Parameters<
+        QdrantClient["search"]
+      >[1]["filter"],
     });
 
-    this.logger.info({ resultCount: searchResult.length, userId }, 'semantic: Qdrant search complete');
+    this.logger.info(
+      { resultCount: searchResult.length, userId },
+      "semantic: Qdrant search complete",
+    );
 
     // ── Step 4: Map Qdrant points to SearchResult objects ───────────────────
     return searchResult.map((point) => {
       const pl = (point.payload ?? {}) as Record<string, unknown>;
       return {
         id: String(point.id),
-        fileId: String(pl['file_id'] ?? ''),
-        filename: String(pl['filename'] ?? ''),
-        content: String(pl['content'] ?? ''),
+        fileId: String(pl["file_id"] ?? ""),
+        filename: String(pl["filename"] ?? ""),
+        content: String(pl["content"] ?? ""),
         score: point.score,
-        chunkIndex: Number(pl['chunk_index'] ?? 0),
-        webViewLink: pl['web_view_link'] ? String(pl['web_view_link']) : undefined,
-        startSecs: pl['start_secs'] != null ? Number(pl['start_secs']) : undefined,
-        sourceType: pl['source_type'] ? String(pl['source_type']) : undefined,
-        metadata: typeof pl['metadata'] === 'object' && pl['metadata'] !== null
-          ? (pl['metadata'] as Record<string, unknown>)
+        chunkIndex: Number(pl["chunk_index"] ?? 0),
+        webViewLink: pl["web_view_link"]
+          ? String(pl["web_view_link"])
           : undefined,
+        startSecs:
+          pl["start_secs"] != null ? Number(pl["start_secs"]) : undefined,
+        sourceType: pl["source_type"] ? String(pl["source_type"]) : undefined,
+        metadata:
+          typeof pl["metadata"] === "object" && pl["metadata"] !== null
+            ? (pl["metadata"] as Record<string, unknown>)
+            : undefined,
       };
     });
   }

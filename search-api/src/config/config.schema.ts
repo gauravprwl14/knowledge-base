@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Zod schema that validates all environment variables required by search-api.
@@ -9,34 +9,39 @@ export const configSchema = z.object({
   PORT: z.coerce.number().default(8001),
 
   // Runtime environment controls log level and seed endpoint availability
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
 
   // PostgreSQL connection string — used by Prisma for BM25 raw queries
   DATABASE_URL: z.string().url().optional(),
 
   // Qdrant base URL — used for semantic ANN queries
-  QDRANT_URL: z.string().url().default('http://localhost:6333'),
+  QDRANT_URL: z.string().url().default("http://localhost:6333"),
 
   // Qdrant collection name that holds kms chunk vectors
-  QDRANT_COLLECTION: z.string().default('kms_chunks'),
+  QDRANT_COLLECTION: z.string().default("kms_chunks"),
 
   // When true, BM25 service returns hardcoded mock results (no DB needed)
   MOCK_BM25: z
     .string()
-    .transform((v) => v === 'true' || v === '1')
-    .default('true'),
+    .transform((v) => v === "true" || v === "1")
+    .default("true"),
 
   // When true, semantic service returns deterministic mock results (no Qdrant needed)
   MOCK_SEMANTIC: z
     .string()
-    .transform((v) => v === 'true' || v === '1')
-    .default('true'),
+    .transform((v) => v === "true" || v === "1")
+    .default("true"),
 
-  // Base URL of the embed-worker HTTP service — used by semantic real mode
-  EMBED_WORKER_URL: z.string().url().default('http://localhost:8004'),
+  // Base URL of the embed-worker HTTP service — used by semantic real mode.
+  // In Docker the service name is embed-worker (port 8011); override via env.
+  EMBED_WORKER_URL: z.string().url().default("http://localhost:8011"),
 
   // Pino log level
-  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
+  LOG_LEVEL: z
+    .enum(["trace", "debug", "info", "warn", "error"])
+    .default("info"),
 });
 
 /** Inferred type of the validated config object. */
