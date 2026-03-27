@@ -5,4 +5,6 @@
  * `frontend/next.config.js` must include `transpilePackages: ['@kb/ui']`.
  * Components are added to this barrel export as they are built.
  */
-export {};
+
+// Types
+export type { ViewerFile, ViewerMode, ViewerProps } from './composites/viewers/types';
