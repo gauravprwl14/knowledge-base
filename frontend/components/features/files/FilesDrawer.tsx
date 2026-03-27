@@ -22,7 +22,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { X, ExternalLink } from 'lucide-react';
 import { FileViewerShell, Button, Spinner, Text, Stack, Icon } from '@kb/ui';
-import type { ViewerFile } from '@kb/ui';
+import type { ViewerFile, IconComponent } from '@kb/ui';
 import { filesApi } from '@/lib/api/files';
 import type { KmsFile } from '@/lib/api/files';
 import { cn } from '@/lib/utils';
@@ -203,7 +203,8 @@ export function FilesDrawer({ fileId, onClose }: FilesDrawerProps) {
             {file && (
               <Button asChild variant="ghost" size="sm">
                 <Link href={`/files/${file.id}`}>
-                  <Icon icon={ExternalLink} size="sm" />
+                  {/* Cast needed: monorepo dual @types/react instances cause structural mismatch */}
+                  <Icon icon={ExternalLink as unknown as IconComponent} size="sm" />
                   Open full view
                 </Link>
               </Button>
@@ -219,7 +220,8 @@ export function FilesDrawer({ fileId, onClose }: FilesDrawerProps) {
               onClick={onClose}
               aria-label="Close"
             >
-              <Icon icon={X} size="sm" />
+              {/* Cast needed: monorepo dual @types/react instances cause structural mismatch */}
+              <Icon icon={X as unknown as IconComponent} size="sm" />
             </Button>
           </div>
         </div>
@@ -234,7 +236,8 @@ export function FilesDrawer({ fileId, onClose }: FilesDrawerProps) {
            */}
           {loading && (
             <div className="flex items-center justify-center py-16">
-              <Spinner label="Loading file…" />
+              {/* Spinner has a built-in role="status" aria-label="Loading" */}
+              <Spinner size="md" />
             </div>
           )}
 

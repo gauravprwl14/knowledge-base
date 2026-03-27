@@ -1,5 +1,4 @@
 import * as React from 'react';
-import type { LucideIcon } from 'lucide-react';
 import { cn } from '../lib/cn';
 
 /**
@@ -17,6 +16,20 @@ const sizeMap = {
 /** Union of supported icon size tokens. */
 export type IconSize = keyof typeof sizeMap;
 
+/**
+ * Structural type for any SVG icon component.
+ *
+ * Intentionally defined as `React.ForwardRefExoticComponent<any>` with an
+ * `any`-typed props to avoid TypeScript module-boundary mismatches that arise
+ * in monorepos where the consumer's `@types/react` patch version differs from
+ * the one installed inside `@kb/ui`. Using `any` here bypasses the
+ * cross-module `ReactNode`/`ReactElement` assignability check entirely while
+ * still expressing that the prop must be a `ForwardRefExoticComponent` (the
+ * concrete shape of all Lucide icons).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type IconComponent = React.ForwardRefExoticComponent<any>;
+
 /** Props accepted by the Icon component. */
 export interface IconProps extends React.SVGAttributes<SVGElement> {
   /**
@@ -27,7 +40,7 @@ export interface IconProps extends React.SVGAttributes<SVGElement> {
    * import { FileTextIcon } from 'lucide-react';
    * <Icon icon={FileTextIcon} />
    */
-  icon: LucideIcon;
+  icon: IconComponent;
   /**
    * Predefined size token that maps to Tailwind h-/w- classes.
    * @default 'md'

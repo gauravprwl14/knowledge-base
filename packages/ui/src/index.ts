@@ -15,7 +15,7 @@ export type { ButtonProps } from './primitives/Button';
 export { Badge } from './primitives/Badge';
 export type { BadgeProps, BadgeColor } from './primitives/Badge';
 export { Icon } from './primitives/Icon';
-export type { IconProps, IconSize } from './primitives/Icon';
+export type { IconProps, IconSize, IconComponent } from './primitives/Icon';
 export { Text } from './primitives/Text';
 export type { TextProps } from './primitives/Text';
 export { Stack } from './primitives/Stack';

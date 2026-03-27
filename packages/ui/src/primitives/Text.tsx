@@ -77,10 +77,14 @@ export interface TextProps
 export const Text = React.forwardRef<HTMLElement, TextProps>(
   ({ as: Tag = 'p', variant, size, className, ...props }, ref) => {
     return (
-      // Cast ref to HTMLParagraphElement — a safe lie at the call-site since
-      // React's ref is structurally compatible across all block text elements.
+      // TypeScript cannot narrow the ref type for a polymorphic `Tag` union
+      // (it requires an intersection of all element ref types which is
+      // unsatisfiable). Casting to `any` is the standard escape hatch for
+      // polymorphic components — the runtime behaviour is correct because all
+      // TextElement tags produce HTMLElement descendants.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       <Tag
-        ref={ref as React.Ref<HTMLParagraphElement>}
+        ref={ref as any}
         className={cn(textVariants({ variant, size }), className)}
         {...props}
       />
