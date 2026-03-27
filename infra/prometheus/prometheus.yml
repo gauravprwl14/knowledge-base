@@ -1,0 +1,76 @@
+# NOTE: This file is no longer used.
+# Metrics are now pushed from OTel Collector → Grafana Mimir (push model).
+# Mimir config: infra/mimir/mimir.yaml
+# OTel Collector config: infra/otel/config.yaml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: kms
+
+alerting:
+  alertmanagers: []
+
+rule_files: []
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  - job_name: otel-collector
+    static_configs:
+      - targets: [otel-collector:8889]
+
+  - job_name: kms-api
+    static_configs:
+      - targets: [kms-api:8000]
+    metrics_path: /metrics
+
+  - job_name: search-api
+    static_configs:
+      - targets: [search-api:8001]
+    metrics_path: /metrics
+
+  - job_name: tempo
+    static_configs:
+      - targets: [tempo:3200]
+    metrics_path: /metrics
+
+  - job_name: loki
+    static_configs:
+      - targets: [loki:3100]
+    metrics_path: /metrics
+
+  - job_name: rabbitmq
+    static_configs:
+      - targets: [rabbitmq:15692]
+    metrics_path: /metrics
+
+  - job_name: rag-service
+    static_configs:
+      - targets: [rag-service:8002]
+    metrics_path: /metrics
+
+  - job_name: voice-app
+    static_configs:
+      - targets: [voice-app:8003]
+    metrics_path: /metrics
+
+  # Note: postgres does not expose Prometheus metrics natively.
+  # Scrape will fail gracefully until a postgres_exporter sidecar is added.
+  # Future improvement: add postgres_exporter container targeting postgres:5432.
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres:5432]
+
+  - job_name: qdrant
+    static_configs:
+      - targets: [qdrant:6333]
+    metrics_path: /metrics
+
+# Python workers (embed-worker, scan-worker, dedup-worker, graph-worker) do NOT
+# need direct scrape entries here. They push metrics via the OTel SDK to
+# otel-collector:8889, and Prometheus scrapes the otel-collector job above.
+# No per-worker scrape target is required.

@@ -1,0 +1,9 @@
+date,service,requests_per_second,p95_latency_ms,error_rate
+2026-03-01,kms-api,450,180,0.002
+2026-03-01,search-api,320,420,0.001
+2026-03-08,kms-api,520,195,0.003
+2026-03-08,search-api,380,445,0.001
+2026-03-15,kms-api,610,210,0.002
+2026-03-15,search-api,430,380,0.000
+2026-03-17,kms-api,680,225,0.004
+2026-03-17,search-api,490,395,0.001

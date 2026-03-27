@@ -61,6 +61,7 @@ services:
   worker:
     build: ./backend
     command: python -m app.workers.consumer
+    restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://voiceapp:voiceapp@postgres:5432/voiceapp
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
@@ -71,7 +72,12 @@ services:
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - WORKER_CONCURRENCY=4
+      - WORKER_CONCURRENCY=2  # Reduced from 4 for better stability with large models
+      - JOB_TIMEOUT_MINUTES=60
+      - PYTHONUNBUFFERED=1  # Force Python to flush stdout/stderr immediately
+      - OMP_NUM_THREADS=2  # Limit OpenMP threads for ONNX/numpy
+      - MKL_NUM_THREADS=2  # Limit MKL threads
+      - OPENBLAS_NUM_THREADS=2  # Limit OpenBLAS threads
     volumes:
       - ./temp:/app/temp
       - ./models:/app/models
@@ -80,6 +86,41 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'  # Limit CPU usage to prevent system overload
+          memory: 8G  # Large-v3 model requires significant memory
+        reservations:
+          cpus: '2.0'
+          memory: 2G
+    # Add for Podman compatibility
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  # Job Dispatcher - Auto-publishes pending jobs to queue
+  dispatcher:
+    build: ./backend
+    command: python -m app.workers.job_dispatcher
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://voiceapp:voiceapp@postgres:5432/voiceapp
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 256M
 
   # Next.js Frontend
   frontend:
@@ -89,6 +130,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
       - NEXT_PUBLIC_API_KEY=${API_KEY:-}
+      - API_KEY=${API_KEY:-}
     depends_on:
       - backend
 

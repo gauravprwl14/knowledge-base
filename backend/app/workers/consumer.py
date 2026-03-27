@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import aio_pika
@@ -31,9 +32,11 @@ class TranscriptionWorker:
         self.channel = None
         self.db_engine = None
         self.async_session = None
+        # Create a dedicated thread pool with limited workers for CPU-intensive tasks
+        self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="whisper-")
 
     async def setup_database(self):
-        """Initialize database connection."""
+        """Initialize database connection and reset stale jobs."""
         database_url = settings.database_url
         if database_url.startswith("postgresql://"):
             database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -44,14 +47,43 @@ class TranscriptionWorker:
             class_=AsyncSession,
             expire_on_commit=False
         )
+        
+        # Reset any jobs stuck in PROCESSING status (from crashed workers)
+        await self.reset_stale_jobs()
+    
+    async def reset_stale_jobs(self):
+        """Reset jobs that were left in PROCESSING status from crashed workers."""
+        try:
+            async with self.async_session() as db:
+                from sqlalchemy import update
+                result = await db.execute(
+                    update(Job)
+                    .where(Job.status == JobStatus.PROCESSING)
+                    .values(status=JobStatus.QUEUED, started_at=None)
+                    .returning(Job.id)
+                )
+                reset_jobs = result.scalars().all()
+                await db.commit()
+                
+                if reset_jobs:
+                    logger.info(f"Reset {len(reset_jobs)} stale jobs from PROCESSING to QUEUED")
+                    for job_id in reset_jobs:
+                        logger.info(f"  - Reset job: {job_id}")
+        except Exception as e:
+            logger.error(f"Error resetting stale jobs: {e}", exc_info=True)
 
     async def setup_rabbitmq(self):
         """Initialize RabbitMQ connection and queues."""
-        self.connection = await aio_pika.connect_robust(settings.rabbitmq_url)
+        # Configure connection with longer consumer timeout for large models
+        self.connection = await aio_pika.connect_robust(
+            settings.rabbitmq_url,
+            timeout=3600,  # 1 hour timeout for connection
+        )
         self.channel = await self.connection.channel()
 
-        # Set prefetch count for concurrency control
-        await self.channel.set_qos(prefetch_count=settings.worker_concurrency)
+        # Set prefetch count to 1 for large models to prevent overload
+        # Worker will only take 1 job at a time per consumer
+        await self.channel.set_qos(prefetch_count=1)
 
         # Declare exchange
         exchange = await self.channel.declare_exchange(
@@ -84,33 +116,43 @@ class TranscriptionWorker:
 
     async def process_job(self, message: aio_pika.IncomingMessage):
         """Process a single transcription job."""
-        async with message.process():
+        async with message.process(ignore_processed=True):
             try:
                 data = json.loads(message.body.decode())
                 job_id = data["job_id"]
                 logger.info(f"Processing job: {job_id}")
 
                 async with self.async_session() as db:
-                    # Get job from database
-                    result = await db.execute(
-                        select(Job).where(Job.id == job_id)
-                    )
-                    job = result.scalar_one_or_none()
-
-                    if not job:
-                        logger.error(f"Job not found: {job_id}")
-                        return
-
-                    if job.status == JobStatus.CANCELLED:
-                        logger.info(f"Job cancelled, skipping: {job_id}")
-                        return
-
-                    # Update status to processing
-                    job.status = JobStatus.PROCESSING
-                    job.started_at = datetime.utcnow()
-                    await db.commit()
-
                     try:
+                        # Get job from database
+                        result = await db.execute(
+                            select(Job).where(Job.id == job_id)
+                        )
+                        job = result.scalar_one_or_none()
+
+                        if not job:
+                            logger.error(f"Job not found: {job_id}")
+                            return  # Message will be acked automatically
+
+                        if job.status == JobStatus.CANCELLED:
+                            logger.info(f"Job cancelled, skipping: {job_id}")
+                            return  # Message will be acked automatically
+
+                        # Skip if already completed or failed
+                        if job.status in (JobStatus.COMPLETED, JobStatus.FAILED):
+                            logger.info(f"Job already {job.status}, skipping: {job_id}")
+                            return  # Message will be acked automatically
+                        
+                        # Accept jobs in PENDING, QUEUED, or PROCESSING status
+                        if job.status not in (JobStatus.PENDING, JobStatus.QUEUED, JobStatus.PROCESSING):
+                            logger.warning(f"Job has unexpected status {job.status}, skipping: {job_id}")
+                            return  # Message will be acked automatically
+
+                        # Update status to processing
+                        job.status = JobStatus.PROCESSING
+                        job.started_at = datetime.utcnow()
+                        await db.commit()
+
                         # Process audio
                         logger.info(f"Processing audio for job: {job_id}")
                         wav_path, samples = await AudioProcessor.process_for_transcription(
@@ -121,14 +163,30 @@ class TranscriptionWorker:
                         audio_info = await AudioProcessor.get_audio_info(wav_path)
                         job.duration_seconds = audio_info.get("duration")
 
-                        # Transcribe
+                        # Transcribe with timeout protection (job_timeout_minutes from config)
                         logger.info(f"Transcribing with {job.provider}: {job_id}")
                         provider = TranscriptionFactory.get_provider(job.provider or "whisper")
-                        result = await provider.transcribe(
-                            audio_path=wav_path,
-                            model=job.model_name,
-                            language=job.language
-                        )
+                        
+                        timeout_seconds = settings.job_timeout_minutes * 60
+                        try:
+                            result = await asyncio.wait_for(
+                                provider.transcribe(
+                                    audio_path=wav_path,
+                                    model=job.model_name,
+                                    language=job.language,
+                                    executor=self.executor  # Pass dedicated executor
+                                ),
+                                timeout=timeout_seconds
+                            )
+                        except asyncio.TimeoutError:
+                            raise TimeoutError(
+                                f"Transcription timeout after {settings.job_timeout_minutes} minutes. "
+                                f"Try using a smaller model or shorter audio file."
+                            )
+                        except ValueError as e:
+                            # Model loading or validation errors - don't retry
+                            logger.error(f"Model error for job {job_id}: {str(e)}")
+                            raise
 
                         # Save transcription
                         transcription = Transcription(
@@ -157,14 +215,24 @@ class TranscriptionWorker:
                             await self.send_webhook(job, transcription)
 
                     except Exception as e:
-                        logger.error(f"Job failed: {job_id} - {str(e)}")
-                        job.status = JobStatus.FAILED
-                        job.error_message = str(e)
-                        job.completed_at = datetime.utcnow()
-                        await db.commit()
+                        logger.error(f"Job processing error: {job_id} - {str(e)}", exc_info=True)
+                        await db.rollback()
+                        
+                        # Try to update job status to failed
+                        try:
+                            job.status = JobStatus.FAILED
+                            job.error_message = str(e)
+                            job.completed_at = datetime.utcnow()
+                            await db.commit()
+                        except Exception as db_error:
+                            logger.error(f"Failed to update job status: {db_error}")
+                        
+                        # Re-raise to let message.process() handle rejection
+                        raise
 
             except Exception as e:
-                logger.error(f"Error processing message: {str(e)}")
+                logger.error(f"Critical error processing message: {str(e)}", exc_info=True)
+                # Re-raise to let message.process() handle rejection
                 raise
 
     async def send_webhook(self, job: Job, transcription: Transcription):
@@ -204,7 +272,8 @@ class TranscriptionWorker:
         await self.setup_database()
         await self.setup_rabbitmq()
 
-        # Consume from all queues
+        # Create tasks for consuming from all queues concurrently
+        consume_tasks = []
         for queue_name in self.QUEUES:
             queue = await self.channel.get_queue(queue_name)
             await queue.consume(self.process_job)
@@ -222,6 +291,9 @@ class TranscriptionWorker:
 
     async def cleanup(self):
         """Clean up resources."""
+        if self.executor:
+            logger.info("Shutting down executor...")
+            self.executor.shutdown(wait=True, cancel_futures=True)
         if self.channel:
             await self.channel.close()
         if self.connection:

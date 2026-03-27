@@ -1,0 +1,564 @@
+// =============================================================================
+// KMS API Prisma Schema
+// =============================================================================
+// This is the Prisma schema file for the Knowledge Management System API.
+// Documentation: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  SERVICE_ACCOUNT
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+// =============================================================================
+// Models
+// =============================================================================
+
+/// User model for authentication and authorization
+model User {
+  id                String      @id @default(uuid()) @db.Uuid
+  email             String      @unique @db.VarChar(255)
+  passwordHash      String?     @map("password_hash") @db.VarChar(255)
+  firstName         String?     @map("first_name") @db.VarChar(100)
+  lastName          String?     @map("last_name") @db.VarChar(100)
+  role              UserRole    @default(USER)
+  status            UserStatus  @default(PENDING_VERIFICATION)
+  emailVerified     Boolean     @default(false) @map("email_verified")
+  emailVerifiedAt   DateTime?   @map("email_verified_at")
+  lastLoginAt       DateTime?   @map("last_login_at")
+  failedLoginCount  Int         @default(0) @map("failed_login_count")
+  lockedUntil       DateTime?   @map("locked_until")
+  metadata          Json?       @default("{}")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  deletedAt         DateTime?   @map("deleted_at")
+
+  // Relations
+  apiKeys           ApiKey[]
+  refreshTokens     RefreshToken[]
+
+  @@index([email])
+  @@index([status])
+  @@index([role])
+  @@index([createdAt])
+  @@map("users")
+}
+
+/// API Key model for programmatic access
+model ApiKey {
+  id            String        @id @default(uuid()) @db.Uuid
+  userId        String        @map("user_id") @db.Uuid
+  name          String        @db.VarChar(100)
+  keyHash       String        @unique @map("key_hash") @db.VarChar(64)
+  keyPrefix     String        @map("key_prefix") @db.VarChar(12)
+  status        ApiKeyStatus  @default(ACTIVE)
+  scopes        String[]      @default([])
+  expiresAt     DateTime?     @map("expires_at")
+  lastUsedAt    DateTime?     @map("last_used_at")
+  lastUsedIp    String?       @map("last_used_ip") @db.VarChar(45)
+  usageCount    Int           @default(0) @map("usage_count")
+  rateLimit     Int?          @map("rate_limit")
+  metadata      Json?         @default("{}")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  revokedAt     DateTime?     @map("revoked_at")
+
+  // Relations
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([keyHash])
+  @@index([keyPrefix])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+/// Refresh Token model for JWT refresh functionality
+model RefreshToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt     DateTime  @map("expires_at")
+  issuedAt      DateTime  @default(now()) @map("issued_at")
+  revokedAt     DateTime? @map("revoked_at")
+  userAgent     String?   @map("user_agent") @db.VarChar(500)
+  ipAddress     String?   @map("ip_address") @db.VarChar(45)
+  deviceId      String?   @map("device_id") @db.VarChar(100)
+
+  // Relations
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// Audit Log for tracking system events
+model AuditLog {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String?   @map("user_id") @db.Uuid
+  action        String    @db.VarChar(100)
+  resource      String    @db.VarChar(100)
+  resourceId    String?   @map("resource_id") @db.VarChar(100)
+  oldValue      Json?     @map("old_value")
+  newValue      Json?     @map("new_value")
+  ipAddress     String?   @map("ip_address") @db.VarChar(45)
+  userAgent     String?   @map("user_agent") @db.VarChar(500)
+  traceId       String?   @map("trace_id") @db.VarChar(32)
+  spanId        String?   @map("span_id") @db.VarChar(16)
+  metadata      Json?     @default("{}")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([resourceId])
+  @@index([createdAt])
+  @@index([traceId])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// KMS DOMAIN — Sources & Files (M02)
+// =============================================================================
+
+enum SourceType {
+  LOCAL
+  GOOGLE_DRIVE
+  OBSIDIAN
+}
+
+enum SourceStatus {
+  PENDING
+  IDLE
+  CONNECTED
+  SCANNING
+  COMPLETED
+  EXPIRED
+  ERROR
+  DISCONNECTED
+  PAUSED
+}
+
+enum ScanJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ScanJobType {
+  FULL
+  INCREMENTAL
+}
+
+enum FileStatus {
+  PENDING
+  PROCESSING
+  INDEXED
+  ERROR
+  UNSUPPORTED
+  DELETED
+}
+
+enum JunkStatus {
+  FLAGGED
+  CONFIRMED
+  DISMISSED
+}
+
+/// File source connected by a user (local folder, Google Drive, Obsidian vault)
+model KmsSource {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  type            SourceType   @default(GOOGLE_DRIVE)
+  name            String       @db.VarChar(255)
+  displayName     String?      @map("display_name") @db.VarChar(255)
+  configJson      Json         @default("{}") @map("config_json")
+  encryptedTokens String?      @map("encrypted_tokens") @db.Text
+  externalId      String?      @map("external_id") @db.VarChar(255)
+  metadata        Json?
+  status          SourceStatus @default(PENDING)
+  lastScannedAt   DateTime?    @map("last_scanned_at")
+  lastSyncedAt    DateTime?    @map("last_synced_at")
+  fileCount       Int          @default(0) @map("file_count")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  scanJobs KmsScanJob[]
+  files    KmsFile[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("kms_sources")
+}
+
+/// Individual scan job triggered against a source
+model KmsScanJob {
+  id              String        @id @default(uuid()) @db.Uuid
+  sourceId        String        @map("source_id") @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  status          ScanJobStatus @default(QUEUED)
+  type            ScanJobType   @default(FULL)
+  startedAt       DateTime?     @map("started_at")
+  finishedAt      DateTime?     @map("finished_at")
+  completedAt     DateTime?     @map("completed_at")
+  filesDiscovered Int           @default(0) @map("files_discovered")
+  filesFound      Int           @default(0) @map("files_found")
+  filesAdded      Int           @default(0) @map("files_added")
+  filesFailed     Int           @default(0) @map("files_failed")
+  errorMessage    String?       @map("error_message") @db.Text
+  errorMsg        String?       @map("error_msg") @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  source KmsSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@index([userId])
+  @@index([status])
+  @@map("kms_scan_jobs")
+}
+
+/// Individual file discovered and indexed by the KMS pipeline
+model KmsFile {
+  id              String      @id @default(uuid()) @db.Uuid
+  userId          String      @map("user_id") @db.Uuid
+  sourceId        String      @map("source_id") @db.Uuid
+  name            String      @db.VarChar(512)
+  path            String      @db.Text
+  mimeType        String      @map("mime_type") @db.VarChar(255)
+  sizeBytes       BigInt      @map("size_bytes")
+  checksumSha256  String?     @map("checksum_sha256") @db.VarChar(64)
+  status          FileStatus  @default(PENDING)
+  junkStatus      JunkStatus? @map("junk_status")
+  junkReason      String?     @map("junk_reason") @db.VarChar(50)
+  junkConfidence  Float?      @map("junk_confidence")
+  junkReviewedAt  DateTime?   @map("junk_reviewed_at")
+  externalId         String?     @map("external_id") @db.VarChar(255)
+  webViewLink        String?     @map("web_view_link") @db.Text
+  externalModifiedAt DateTime?   @map("external_modified_at")
+  metadata           Json?
+  indexedAt          DateTime?   @map("indexed_at")
+  deletedAt          DateTime?   @map("deleted_at")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  source               KmsSource              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  chunks               KmsChunk[]
+  transcriptionLinks   KmsTranscriptionLink[]
+  voiceJobs            KmsVoiceJob[]
+  duplicates           KmsFileDuplicate[]
+  collectionFiles      KmsCollectionFile[]
+  /// Tag associations for this file (see KmsFileTag join table)
+  fileTags             KmsFileTag[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([sourceId])
+  @@index([checksumSha256])
+  @@unique([sourceId, externalId])
+  @@map("kms_files")
+}
+
+/// User-defined tag used to categorise KMS files
+model KmsTag {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String       @db.Uuid @map("user_id")
+  name      String
+  color     String       @default("#6366f1")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  /// Files associated with this tag
+  fileTags  KmsFileTag[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("kms_tags")
+}
+
+/// Join table linking KmsFile to KmsTag; source tracks manual vs. AI tagging
+model KmsFileTag {
+  fileId    String   @db.Uuid @map("file_id")
+  tagId     String   @db.Uuid @map("tag_id")
+  /// 'manual' (user-applied) or 'ai' (auto-suggested by the pipeline)
+  source    String   @default("manual")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  file KmsFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  tag  KmsTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([fileId, tagId])
+  @@index([tagId])
+  @@index([fileId])
+  @@map("kms_file_tags")
+}
+
+/// Text chunk extracted from a file and indexed into Qdrant
+model KmsChunk {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileId      String   @map("file_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  content     String   @db.Text
+  chunkIndex  Int      @map("chunk_index")
+  tokenCount  Int?     @map("token_count")
+  qdrantId    String?  @map("qdrant_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  file KmsFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([userId])
+  @@map("kms_chunks")
+}
+
+// =============================================================================
+// SOURCE CLEAR JOBS DOMAIN
+// =============================================================================
+
+enum ClearJobStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// Async job that tracks progress of deleting all indexed data for a source
+model KmsClearJob {
+  id             String         @id @default(uuid()) @db.Uuid
+  sourceId       String         @map("source_id") @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  status         ClearJobStatus @default(RUNNING)
+  totalFiles     Int            @default(0) @map("total_files")
+  filesCleared   Int            @default(0) @map("files_cleared")
+  chunksCleared  Int            @default(0) @map("chunks_cleared")
+  vectorsCleared Int            @default(0) @map("vectors_cleared")
+  errorMsg       String?        @map("error_msg") @db.Text
+  startedAt      DateTime       @default(now()) @map("started_at")
+  finishedAt     DateTime?      @map("finished_at")
+
+  @@index([sourceId])
+  @@index([userId])
+  @@map("kms_clear_jobs")
+}
+
+// =============================================================================
+// DEDUPLICATION DOMAIN (M06)
+// =============================================================================
+
+enum DedupStrategy {
+  EXACT
+  SEMANTIC
+  VERSION
+}
+
+enum DedupGroupStatus {
+  UNRESOLVED
+  RESOLVED
+}
+
+/// Group of files identified as duplicates by one dedup strategy
+model KmsDuplicateGroup {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  strategy       DedupStrategy
+  fileCount      Int              @map("file_count")
+  totalSizeBytes BigInt?          @map("total_size_bytes")
+  status         DedupGroupStatus @default(UNRESOLVED)
+  resolvedAt     DateTime?        @map("resolved_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  duplicates KmsFileDuplicate[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("kms_duplicate_groups")
+}
+
+/// Membership record linking a file to a duplicate group
+model KmsFileDuplicate {
+  id              String  @id @default(uuid()) @db.Uuid
+  groupId         String  @map("group_id") @db.Uuid
+  fileId          String  @map("file_id") @db.Uuid
+  isCanonical     Boolean @default(false) @map("is_canonical")
+  similarityScore Float?  @map("similarity_score")
+
+  group KmsDuplicateGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  file  KmsFile           @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([fileId])
+  @@map("kms_file_duplicates")
+}
+
+// =============================================================================
+// TRANSCRIPTION DOMAIN (M08)
+// =============================================================================
+
+enum VoiceJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+/// Voice transcription job created when an audio/video file is discovered
+model KmsVoiceJob {
+  id              String         @id @default(uuid()) @db.Uuid
+  fileId          String         @map("file_id") @db.Uuid
+  sourceId        String         @map("source_id") @db.Uuid
+  userId          String         @map("user_id") @db.Uuid
+  status          VoiceJobStatus @default(PENDING)
+  transcript      String?        @db.Text
+  transcriptPath  String?        @map("transcript_path") @db.VarChar(512)
+  language        String?        @db.VarChar(10)
+  durationSeconds Float?         @map("duration_seconds")
+  errorMsg        String?        @map("error_msg") @db.Text
+  modelUsed       String?        @map("model_used") @db.VarChar(50)
+  startedAt       DateTime?      @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  file KmsFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([userId])
+  @@index([status])
+  @@map("kms_voice_jobs")
+}
+
+/// Link between a KMS file and a voice-app transcription record
+model KmsTranscriptionLink {
+  id                    String   @id @default(uuid()) @db.Uuid
+  kmsFileId             String   @map("kms_file_id") @db.Uuid
+  voiceTranscriptionId  String   @map("voice_transcription_id") @db.Uuid
+  provider              String?  @db.VarChar(30)
+  linkedAt              DateTime @default(now()) @map("linked_at")
+
+  file KmsFile @relation(fields: [kmsFileId], references: [id], onDelete: Cascade)
+
+  @@index([kmsFileId])
+  @@map("kms_transcription_links")
+}
+
+// =============================================================================
+// RAG CHAT DOMAIN (M10)
+// =============================================================================
+
+/// User chat session (one conversation thread)
+model KmsChatSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  title     String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages KmsChatMessage[]
+
+  @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("kms_chat_sessions")
+}
+
+/// Individual message within a chat session
+model KmsChatMessage {
+  id            String   @id @default(uuid()) @db.Uuid
+  sessionId     String   @map("session_id") @db.Uuid
+  role          String   @db.VarChar(10)  // user | assistant
+  content       String   @db.Text
+  citationsJson Json     @default("[]") @map("citations_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  session KmsChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+  @@map("kms_chat_messages")
+}
+
+// =============================================================================
+// COLLECTIONS DOMAIN
+// =============================================================================
+
+/// Named collection grouping files for targeted search or RAG context
+model KmsCollection {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  files KmsCollectionFile[]
+
+  @@index([userId])
+  @@map("kms_collections")
+}
+
+/// Many-to-many join between collections and files
+model KmsCollectionFile {
+  id           String   @id @default(uuid()) @db.Uuid
+  collectionId String   @map("collection_id") @db.Uuid
+  fileId       String   @map("file_id") @db.Uuid
+  addedAt      DateTime @default(now()) @map("added_at")
+
+  collection KmsCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  file       KmsFile       @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, fileId])
+  @@index([collectionId])
+  @@index([fileId])
+  @@map("kms_collection_files")
+}
+
+// =============================================================================
+// WORKFLOW DOMAIN
+// =============================================================================
+
+/// URL-ingestion workflow job (ADR-0028: no BullMQ, fire-and-forget setImmediate)
+model KmsWorkflowJob {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  url          String   @db.Text
+  status       String   @default("QUEUED") @db.VarChar(20)
+  collectionId String?  @map("collection_id") @db.Uuid
+  error        String?  @db.Text
+  result       Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("kms_workflow_jobs")
+}

@@ -1,0 +1,28 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+pydantic==2.11.5
+pydantic-settings==2.9.1
+aio-pika==9.5.5
+aiohttp==3.11.18
+aiofiles==24.1.0
+sqlalchemy[asyncio]==2.0.41
+asyncpg==0.30.0
+python-magic==0.4.27
+structlog==25.2.0
+opentelemetry-api==1.34.0
+opentelemetry-sdk==1.34.0
+opentelemetry-exporter-otlp-proto-grpc==1.34.0
+opentelemetry-instrumentation-fastapi==0.55b0
+opentelemetry-instrumentation-aio-pika==0.55b0
+# Google Drive connector
+google-api-python-client==2.154.0
+google-auth==2.37.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.1
+# Redis progress tracking
+redis==5.2.1
+# Token decryption (matches NestJS TokenEncryptionService AES-256-GCM)
+cryptography==44.0.2
+# HTTP client for kms-api status callbacks
+httpx==0.28.1
+python-dotenv==1.0.1

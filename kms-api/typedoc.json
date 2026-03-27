@@ -1,0 +1,54 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src"],
+  "entryPointStrategy": "expand",
+  "out": "docs/api",
+  "tsconfig": "./tsconfig.json",
+  "exclude": [
+    "**/*.spec.ts",
+    "**/*.e2e-spec.ts",
+    "**/node_modules/**",
+    "**/test/**",
+    "**/dist/**"
+  ],
+  "excludeExternals": true,
+  "excludePrivate": false,
+  "excludeProtected": false,
+  "skipErrorChecking": true,
+  "readme": "README.md",
+  "name": "KMS API Documentation",
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "categoryOrder": [
+    "Modules",
+    "Services",
+    "Controllers",
+    "Repositories",
+    "Guards",
+    "Interceptors",
+    "Filters",
+    "Decorators",
+    "Utilities",
+    "*"
+  ],
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  },
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "searchInComments": true,
+  "sort": ["kind", "instance-first", "alphabetical"],
+  "kindSortOrder": [
+    "Module",
+    "Class",
+    "Interface",
+    "TypeAlias",
+    "Function",
+    "Property",
+    "Method"
+  ]
+}

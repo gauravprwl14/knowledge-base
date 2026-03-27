@@ -1,0 +1,93 @@
+// =============================================================================
+// search-api Prisma Schema
+// =============================================================================
+// Read-only view of the KMS database used by the search-api.
+// This schema mirrors a subset of kms-api/prisma/schema.prisma so that
+// PrismaClient is generated with the correct types for raw query helpers
+// ($queryRaw, $executeRaw) and connection lifecycle methods.
+//
+// The search-api never writes to the DB via Prisma models — it uses raw SQL
+// for FTS queries and seed inserts.  Models are declared here only to satisfy
+// the Prisma generator; they are not used directly in service code.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums — must match kms-api schema exactly so migrations stay in sync
+// ---------------------------------------------------------------------------
+
+enum SourceType {
+  LOCAL
+  GOOGLE_DRIVE
+  OBSIDIAN
+}
+
+enum SourceStatus {
+  PENDING
+  IDLE
+  CONNECTED
+  SCANNING
+  COMPLETED
+  EXPIRED
+  ERROR
+  DISCONNECTED
+  PAUSED
+}
+
+enum FileStatus {
+  PENDING
+  PROCESSING
+  INDEXED
+  ERROR
+}
+
+// ---------------------------------------------------------------------------
+// Models — minimal set required to satisfy FK constraints used in seed inserts
+// ---------------------------------------------------------------------------
+
+/// File source connected by a user (local folder, Google Drive, Obsidian vault).
+/// Mirrors kms_sources table in kms-api schema.
+model KmsSource {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  type        SourceType   @default(LOCAL)
+  name        String       @db.VarChar(255)
+  status      SourceStatus @default(IDLE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  files KmsFile[]
+
+  @@map("kms_sources")
+}
+
+/// Individual file indexed by the KMS pipeline.
+/// Mirrors kms_files table in kms-api schema.
+model KmsFile {
+  id            String     @id @default(uuid()) @db.Uuid
+  userId        String     @map("user_id") @db.Uuid
+  sourceId      String     @map("source_id") @db.Uuid
+  name          String     @db.VarChar(512)
+  path          String     @db.Text
+  mimeType      String     @map("mime_type") @db.VarChar(255)
+  sizeBytes     BigInt     @map("size_bytes")
+  status        FileStatus @default(PENDING)
+  externalId    String?    @map("external_id") @db.VarChar(255)
+  extractedText String?    @map("extracted_text") @db.Text
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  source KmsSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sourceId])
+  @@unique([sourceId, externalId])
+  @@map("kms_files")
+}

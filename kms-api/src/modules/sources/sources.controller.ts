@@ -1,0 +1,365 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+  Res,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
+import type { FastifyReply } from 'fastify';
+import { SourcesService } from './sources.service';
+import {
+  SourceResponseDto,
+  OAuthInitiateResponseDto,
+  RegisterLocalSourceRequestDto,
+  RegisterObsidianVaultRequestDto,
+  UpdateSourceConfigRequestDto,
+  DriveFolderDto,
+  registerLocalSourceSchema,
+  registerObsidianVaultSchema,
+  updateSourceConfigSchema,
+  UpdateSourceConfigDto,
+} from './dto/sources.dto';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
+import { ApiEndpoint } from '../../common/decorators/swagger.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RequireFeature } from '../feature-flags/decorators/require-feature.decorator';
+import { FeatureFlagGuard } from '../feature-flags/guards/feature-flag.guard';
+
+/**
+ * SourcesController — REST endpoints for managing knowledge source connections.
+ *
+ * Routes:
+ * - GET    /sources                           List connected sources (JWT)
+ * - GET    /sources/google-drive/oauth        Initiate Google Drive OAuth (@Public)
+ * - GET    /sources/google-drive/callback     Handle Google OAuth callback (@Public)
+ * - GET    /sources/google-drive/folders      List Drive folders for folder picker (JWT)
+ * - POST   /sources/:id/scan                  Trigger a full or incremental scan (JWT)
+ * - GET    /sources/:id/clear-status          Get data-clear job status (JWT)
+ * - GET    /sources/:id                       Get a single source (JWT)
+ * - DELETE /sources/:id                       Disconnect a source (JWT)
+ * - PATCH  /sources/:id/config                Update source sync configuration (JWT)
+ * - POST   /sources/local                     Register a local filesystem folder (JWT)
+ * - POST   /sources/obsidian                  Register an Obsidian vault (JWT)
+ *
+ * IMPORTANT: Static sub-routes (`google-drive/oauth`, `google-drive/callback`,
+ * `google-drive/folders`) are declared BEFORE the dynamic `:id` route so that
+ * NestJS/Fastify routes them correctly without treating "google-drive" as an id.
+ */
+@ApiTags('Sources')
+@Controller('sources')
+export class SourcesController {
+  constructor(private readonly sourcesService: SourcesService) {}
+
+  // ---------------------------------------------------------------------------
+  // Authenticated routes
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns all knowledge sources connected by the authenticated user.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Get()
+  @ApiEndpoint({
+    summary: 'List connected sources',
+    description: 'Returns all knowledge sources connected by the authenticated user',
+    responseType: SourceResponseDto,
+    isArray: true,
+  })
+  async listSources(@CurrentUser('id') userId: string): Promise<SourceResponseDto[]> {
+    return this.sourcesService.listSources(userId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public OAuth routes (declared before :id to avoid route collision)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Initiates Google Drive OAuth flow.
+   *
+   * Returns JSON { authUrl } so the frontend can redirect client-side using
+   * the apiClient (which attaches the JWT Bearer token). A browser redirect
+   * cannot be used here because the JWT cookie is scoped to the frontend
+   * origin, not the API origin.
+   */
+  @UseGuards(JwtAuthGuard)
+  @RequireFeature('googleDrive')
+  @UseGuards(FeatureFlagGuard)
+  @Get('google-drive/oauth')
+  @ApiEndpoint({
+    summary: 'Get Google Drive OAuth URL',
+    description:
+      'Returns { authUrl } — the frontend redirects the browser to this URL. ' +
+      'Requires a valid JWT Bearer token.',
+    responseType: OAuthInitiateResponseDto,
+    responses: [
+      { status: HttpStatus.OK, description: 'Returns the Google consent screen URL' },
+    ],
+  })
+  async initiateGoogleDriveOAuth(
+    @CurrentUser('id') userId: string,
+  ): Promise<{ authUrl: string }> {
+    return this.sourcesService.initiateGoogleDriveOAuth(userId);
+  }
+
+  /**
+   * Google OAuth callback.
+   *
+   * Google redirects the browser here after the user grants (or denies) access.
+   * The `code` query param contains the authorization code; `state` carries the
+   * userId that was embedded during initiation.
+   *
+   * This endpoint is @Public because Google opens it directly, without the KMS
+   * JWT header.  Ownership validation is performed inside SourcesService using
+   * the userId from `state`.
+   */
+  @Public()
+  @RequireFeature('googleDrive')
+  @UseGuards(FeatureFlagGuard)
+  @Get('google-drive/callback')
+  @ApiEndpoint({
+    summary: 'Google Drive OAuth callback',
+    description:
+      'Receives the authorization code from Google, exchanges it for tokens, ' +
+      'encrypts them, persists the source, then redirects the browser back to ' +
+      'the frontend sources page.',
+    responseType: SourceResponseDto,
+    responses: [
+      { status: HttpStatus.FOUND, description: 'Redirects to frontend /sources page' },
+      { status: HttpStatus.BAD_REQUEST, description: 'Missing or invalid code / state' },
+    ],
+  })
+  @ApiQuery({ name: 'code', required: true, type: String, description: 'OAuth authorization code from Google' })
+  @ApiQuery({ name: 'state', required: true, type: String, description: 'userId embedded during OAuth initiation' })
+  async handleGoogleCallback(
+    @Query('code') code: string,
+    @Query('state') userId: string,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    // Determine frontend base URL — falls back to same-origin /kms path
+    const frontendBase =
+      process.env.FRONTEND_URL ??
+      process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') ??
+      'http://localhost:3000/kms';
+
+    try {
+      await this.sourcesService.handleGoogleCallback(code, userId);
+      reply.redirect(`${frontendBase}/sources?connected=true`, 302);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? encodeURIComponent(err.message) : 'oauth_failed';
+      reply.redirect(`${frontendBase}/sources?error=${message}`, 302);
+    }
+  }
+
+  /**
+   * Lists Google Drive folders one level below a given parent folder.
+   * Used by the UI folder-picker to let users select which folders to sync.
+   * Requires an authenticated, connected GOOGLE_DRIVE source.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Get('google-drive/folders')
+  @RequireFeature('googleDrive')
+  @UseGuards(FeatureFlagGuard)
+  @ApiEndpoint({
+    summary: 'List Google Drive folders',
+    description: 'Returns folder list one level deep from the specified parent. Use parentId=root for the Drive root.',
+    responses: [
+      { status: HttpStatus.NOT_FOUND, description: 'Source not found or not owned by caller' },
+    ],
+  })
+  @ApiQuery({ name: 'sourceId', required: true, type: String, description: 'Source UUID (must be GOOGLE_DRIVE type)' })
+  @ApiQuery({ name: 'parentId', required: false, type: String, description: 'Parent Drive folder ID (default: root)' })
+  async listDriveFolders(
+    @CurrentUser('id') userId: string,
+    @Query('sourceId') sourceId: string,
+    @Query('parentId') parentId: string = 'root',
+  ): Promise<{ folders: DriveFolderDto[] }> {
+    return this.sourcesService.listDriveFolders(userId, sourceId, parentId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Parameterised authenticated routes (must come after static sub-routes)
+  // IMPORTANT: static sub-paths like :id/scan, :id/clear-status must be declared
+  // BEFORE the bare :id routes to prevent NestJS/Fastify treating the sub-path
+  // segment as an id.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns the latest data-clear job for a source.
+   * Useful for polling progress after DELETE /sources/:id?clearData=true.
+   * Returns null (200) if no clear job has ever been triggered for this source.
+   *
+   * IMPORTANT: this route is declared before GET :id to avoid route collision.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Get(':id/clear-status')
+  @ApiParam({ name: 'id', type: String, description: 'Source UUID' })
+  @ApiEndpoint({
+    summary: 'Get data clear progress',
+    description:
+      'Returns the most recent KmsClearJob for the source. ' +
+      'Poll this endpoint after DELETE /sources/:id?clearData=true to track progress.',
+    responses: [
+      { status: HttpStatus.OK, description: 'KmsClearJob record or null' },
+    ],
+  })
+  async getClearStatus(
+    @Param('id') sourceId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.sourcesService.getLatestClearJob(userId, sourceId);
+  }
+
+  /**
+   * Returns a single source by UUID.
+   * Returns 404 if the source does not exist or belongs to a different user.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Get(':id')
+  @ApiParam({ name: 'id', type: String, description: 'Source UUID' })
+  @ApiEndpoint({
+    summary: 'Get a source by ID',
+    description: 'Returns a single connected source. 404 if not found or not owned by caller.',
+    responseType: SourceResponseDto,
+    responses: [{ status: HttpStatus.NOT_FOUND, description: 'Source not found' }],
+  })
+  async getSource(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ): Promise<SourceResponseDto> {
+    return this.sourcesService.getSource(id, userId);
+  }
+
+  /**
+   * Disconnects a source (sets status to DISCONNECTED, always wipes OAuth tokens).
+   *
+   * Pass `?clearData=true` to also launch an async background job that deletes
+   * all indexed files, chunks, and Qdrant vectors for the source. The response
+   * will include a `jobId` which can be polled via GET /sources/:id/clear-status.
+   *
+   * Returns 404 if the source does not exist or belongs to a different user.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'id', type: String, description: 'Source UUID' })
+  @ApiQuery({
+    name: 'clearData',
+    required: false,
+    type: String,
+    description: 'Pass "true" to async-delete all indexed files and vectors',
+  })
+  @ApiEndpoint({
+    summary: 'Disconnect a source',
+    description:
+      'Disconnects source. Pass ?clearData=true to also delete all indexed files and vectors.',
+    responses: [
+      { status: HttpStatus.OK, description: 'Disconnected (with optional jobId if clearData=true)' },
+      { status: HttpStatus.NOT_FOUND, description: 'Source not found' },
+    ],
+  })
+  async disconnectSource(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Query('clearData') clearData: string = 'false',
+  ): Promise<{ message: string; jobId?: string }> {
+    const result = await this.sourcesService.disconnectSource(id, userId, clearData === 'true');
+    return { message: 'Source disconnected', ...result };
+  }
+
+  /**
+   * Updates the sync configuration for a source.
+   * Merges provided fields into the existing configJson — partial update, not replacement.
+   * Returns 404 if the source does not exist or belongs to a different user.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Patch(':id/config')
+  @ApiParam({ name: 'id', type: String, description: 'Source UUID' })
+  @ApiEndpoint({
+    summary: 'Update source sync configuration',
+    description: 'Updates folder filter, file type filter, and transcription rules. Fields are merged (not replaced).',
+    responseType: SourceResponseDto,
+    responses: [
+      { status: HttpStatus.NOT_FOUND, description: 'Source not found' },
+      { status: HttpStatus.BAD_REQUEST, description: 'Invalid configuration payload' },
+    ],
+  })
+  async updateConfig(
+    @CurrentUser('id') userId: string,
+    @Param('id') sourceId: string,
+    @Body(new ZodValidationPipe(updateSourceConfigSchema)) dto: UpdateSourceConfigDto,
+  ): Promise<SourceResponseDto> {
+    return this.sourcesService.updateConfig(userId, sourceId, dto);
+  }
+
+  /**
+   * Register a local filesystem folder as a source.
+   * The path must be accessible to the scan-worker container.
+   * For Docker deployments, use the mounted path (e.g. /vault).
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Post('local')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiEndpoint({
+    summary: 'Register local folder as source',
+    description:
+      'Registers a local filesystem path. The scan-worker must have read access to this path.',
+    responseType: SourceResponseDto,
+    successStatus: HttpStatus.CREATED,
+  })
+  async registerLocalSource(
+    @Body() body: RegisterLocalSourceRequestDto,
+    @CurrentUser('id') userId: string,
+  ): Promise<SourceResponseDto> {
+    const dto = registerLocalSourceSchema.parse(body);
+    return this.sourcesService.registerLocalSource(userId, dto.path, dto.displayName);
+  }
+
+  /**
+   * Register an Obsidian vault as a source.
+   * In Docker: mount the vault as a volume and pass the container path.
+   * In local dev: pass the absolute path on the host.
+   *
+   * @example POST /sources/obsidian { "vaultPath": "/vault", "displayName": "My Notes" }
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @Post('obsidian')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiEndpoint({
+    summary: 'Register Obsidian vault as source',
+    description:
+      'Registers an Obsidian vault directory. Use /vault if using the Docker test-vault mount.',
+    responseType: SourceResponseDto,
+    successStatus: HttpStatus.CREATED,
+  })
+  @ApiBody({
+    schema: {
+      example: { vaultPath: '/vault', displayName: 'My Knowledge Base' },
+    },
+  })
+  async registerObsidianVault(
+    @Body() body: RegisterObsidianVaultRequestDto,
+    @CurrentUser('id') userId: string,
+  ): Promise<SourceResponseDto> {
+    const dto = registerObsidianVaultSchema.parse(body);
+    return this.sourcesService.registerObsidianVault(userId, dto.vaultPath, dto.displayName);
+  }
+}

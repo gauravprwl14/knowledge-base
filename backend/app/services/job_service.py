@@ -46,34 +46,46 @@ class JobService:
 
         Args:
             job: Job model instance to queue
+            
+        Raises:
+            Exception: If publishing to queue fails
         """
-        channel = await self._get_channel()
-        exchange = await channel.get_exchange(self.EXCHANGE_NAME)
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            channel = await self._get_channel()
+            exchange = await channel.get_exchange(self.EXCHANGE_NAME)
 
-        # Determine queue based on priority
-        if job.priority >= 5:
-            routing_key = "priority"
-        else:
-            routing_key = "transcription"
+            # Determine queue based on priority
+            if job.priority >= 5:
+                routing_key = "priority"
+            else:
+                routing_key = "transcription"
 
-        message_body = {
-            "job_id": str(job.id),
-            "file_path": job.file_path,
-            "provider": job.provider,
-            "model": job.model_name,
-            "language": job.language,
-            "target_language": job.target_language,
-            "webhook_url": job.webhook_url,
-            "priority": job.priority
-        }
+            message_body = {
+                "job_id": str(job.id),
+                "file_path": job.file_path,
+                "provider": job.provider,
+                "model": job.model_name,
+                "language": job.language,
+                "target_language": job.target_language,
+                "webhook_url": job.webhook_url,
+                "priority": job.priority
+            }
 
-        message = aio_pika.Message(
-            body=json.dumps(message_body).encode(),
-            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-            priority=job.priority
-        )
+            message = aio_pika.Message(
+                body=json.dumps(message_body).encode(),
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                priority=job.priority
+            )
 
-        await exchange.publish(message, routing_key=routing_key)
+            await exchange.publish(message, routing_key=routing_key)
+            logger.info(f"Job {job.id} published to queue '{routing_key}'")
+            
+        except Exception as e:
+            logger.error(f"Failed to queue job {job.id}: {str(e)}", exc_info=True)
+            raise
 
     async def close(self):
         """Close connection."""

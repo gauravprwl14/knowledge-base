@@ -1,0 +1,1514 @@
+openapi: 3.0.3
+info:
+  title: KMS API
+  description: |
+    Knowledge Management System API for file indexing, search, and duplicate detection.
+
+    ## Authentication
+
+    All endpoints require authentication via:
+    - **API Key**: `X-API-Key` header
+    - **JWT Token**: `Authorization: Bearer <token>` header
+
+    ## Rate Limiting
+
+    Default rate limits:
+    - Free tier: 60 requests/minute
+    - Pro tier: 300 requests/minute
+    - Enterprise: 1000 requests/minute
+
+    Rate limit headers are included in all responses.
+  version: 1.0.0
+  contact:
+    name: KMS API Support
+    email: api-support@kms.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Development
+  - url: https://staging-api.kms.example.com/api/v1
+    description: Staging
+  - url: https://api.kms.example.com/api/v1
+    description: Production
+
+tags:
+  - name: Auth
+    description: Authentication and API key management
+  - name: Sources
+    description: Data source connections
+  - name: Files
+    description: Indexed file operations
+  - name: Search
+    description: Hybrid search queries
+  - name: Duplicates
+    description: Duplicate detection and management
+  - name: Webhooks
+    description: Event notifications
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+paths:
+  # ============ AUTH ENDPOINTS ============
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  expires_in:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /auth/api-keys:
+    get:
+      tags: [Auth]
+      summary: List API keys
+      responses:
+        '200':
+          description: API keys list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/APIKey'
+    post:
+      tags: [Auth]
+      summary: Create API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAPIKeyRequest'
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyWithSecret'
+
+  /auth/api-keys/{key_id}:
+    delete:
+      tags: [Auth]
+      summary: Revoke API key
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      responses:
+        '204':
+          description: Key revoked
+
+  # ============ SOURCES ENDPOINTS ============
+  /sources:
+    get:
+      tags: [Sources]
+      summary: List sources
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/SourceType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SourceStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Sources list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourcesListResponse'
+
+    post:
+      tags: [Sources]
+      summary: Connect source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSourceRequest'
+      responses:
+        '201':
+          description: Source connected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+
+  /sources/{source_id}:
+    get:
+      tags: [Sources]
+      summary: Get source
+      parameters:
+        - $ref: '#/components/parameters/SourceId'
+      responses:
+        '200':
+          description: Source details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Sources]
+      summary: Update source
+      parameters:
+        - $ref: '#/components/parameters/SourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSourceRequest'
+      responses:
+        '200':
+          description: Source updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+
+    delete:
+      tags: [Sources]
+      summary: Disconnect source
+      parameters:
+        - $ref: '#/components/parameters/SourceId'
+        - name: delete_files
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: Source disconnected
+
+  /sources/{source_id}/scan:
+    post:
+      tags: [Sources]
+      summary: Trigger scan
+      parameters:
+        - $ref: '#/components/parameters/SourceId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_scan:
+                  type: boolean
+                  default: false
+                path:
+                  type: string
+      responses:
+        '202':
+          description: Scan initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanJob'
+
+  # ============ FILES ENDPOINTS ============
+  /files:
+    get:
+      tags: [Files]
+      summary: List files
+      parameters:
+        - name: source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: mime_type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/FileStatus'
+        - name: is_duplicate
+          in: query
+          schema:
+            type: boolean
+        - name: is_junk
+          in: query
+          schema:
+            type: boolean
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [created_at, name, size_bytes]
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Files list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilesListResponse'
+
+  /files/{file_id}:
+    get:
+      tags: [Files]
+      summary: Get file
+      parameters:
+        - $ref: '#/components/parameters/FileId'
+      responses:
+        '200':
+          description: File details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Files]
+      summary: Update file metadata
+      parameters:
+        - $ref: '#/components/parameters/FileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_metadata:
+                  type: object
+      responses:
+        '200':
+          description: File updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+
+    delete:
+      tags: [Files]
+      summary: Delete file
+      parameters:
+        - $ref: '#/components/parameters/FileId'
+        - name: permanent
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: File deleted
+
+  /files/{file_id}/content:
+    get:
+      tags: [Files]
+      summary: Get file content
+      parameters:
+        - $ref: '#/components/parameters/FileId'
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [text, markdown]
+            default: text
+      responses:
+        '200':
+          description: Extracted content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileContent'
+
+  /files/{file_id}/chunks:
+    get:
+      tags: [Files]
+      summary: Get file chunks
+      parameters:
+        - $ref: '#/components/parameters/FileId'
+        - name: include_vectors
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Text chunks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunksResponse'
+
+  /files/bulk-delete:
+    post:
+      tags: [Files]
+      summary: Bulk delete files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_ids]
+              properties:
+                file_ids:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 100
+                permanent:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Bulk delete result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                  failed:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: object
+
+  /files/stats:
+    get:
+      tags: [Files]
+      summary: Get file statistics
+      parameters:
+        - name: source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: File statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileStats'
+
+  # ============ SEARCH ENDPOINTS ============
+  /search:
+    post:
+      tags: [Search]
+      summary: Hybrid search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+
+  /search/semantic:
+    post:
+      tags: [Search]
+      summary: Semantic search only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Semantic search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+
+  /search/keyword:
+    post:
+      tags: [Search]
+      summary: Keyword search only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Keyword search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+
+  /search/suggestions:
+    get:
+      tags: [Search]
+      summary: Get search suggestions
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Search suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestionsResponse'
+
+  # ============ DUPLICATES ENDPOINTS ============
+  /duplicates/groups:
+    get:
+      tags: [Duplicates]
+      summary: List duplicate groups
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/DuplicateType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/GroupStatus'
+        - name: min_confidence
+          in: query
+          schema:
+            type: number
+            format: float
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Duplicate groups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicateGroupsResponse'
+
+  /duplicates/groups/{group_id}:
+    get:
+      tags: [Duplicates]
+      summary: Get duplicate group
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicateGroup'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Duplicates]
+      summary: Dismiss group
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - name: reason
+          in: query
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Group dismissed
+
+  /duplicates/groups/{group_id}/resolve:
+    post:
+      tags: [Duplicates]
+      summary: Resolve duplicate group
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveRequest'
+      responses:
+        '200':
+          description: Group resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicateGroup'
+
+  /duplicates/stats:
+    get:
+      tags: [Duplicates]
+      summary: Get duplicate statistics
+      parameters:
+        - name: source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Duplicate statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicateStats'
+
+  /duplicates/scan:
+    post:
+      tags: [Duplicates]
+      summary: Trigger duplicate scan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_ids:
+                  type: array
+                  items:
+                    type: string
+                types:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DuplicateType'
+                full_scan:
+                  type: boolean
+                  default: false
+      responses:
+        '202':
+          description: Scan initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scan_id:
+                    type: string
+                  status:
+                    type: string
+
+  # ============ WEBHOOKS ENDPOINTS ============
+  /webhooks:
+    get:
+      tags: [Webhooks]
+      summary: List webhooks
+      responses:
+        '200':
+          description: Webhooks list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Webhook'
+
+    post:
+      tags: [Webhooks]
+      summary: Create webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201':
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+
+  /webhooks/{webhook_id}:
+    patch:
+      tags: [Webhooks]
+      summary: Update webhook
+      parameters:
+        - $ref: '#/components/parameters/WebhookId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWebhookRequest'
+      responses:
+        '200':
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+
+    delete:
+      tags: [Webhooks]
+      summary: Delete webhook
+      parameters:
+        - $ref: '#/components/parameters/WebhookId'
+      responses:
+        '204':
+          description: Webhook deleted
+
+  /webhooks/{webhook_id}/test:
+    post:
+      tags: [Webhooks]
+      summary: Test webhook
+      parameters:
+        - $ref: '#/components/parameters/WebhookId'
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  response_code:
+                    type: integer
+                  response_time_ms:
+                    type: integer
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+    SourceId:
+      name: source_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    FileId:
+      name: file_id
+      in: path
+      required: true
+      schema:
+        type: string
+    GroupId:
+      name: group_id
+      in: path
+      required: true
+      schema:
+        type: string
+    KeyId:
+      name: key_id
+      in: path
+      required: true
+      schema:
+        type: string
+    WebhookId:
+      name: webhook_id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    # ========== Auth Schemas ==========
+    RegisterRequest:
+      type: object
+      required: [email, password, name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    APIKey:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        prefix:
+          type: string
+        is_active:
+          type: boolean
+        scopes:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    APIKeyWithSecret:
+      allOf:
+        - $ref: '#/components/schemas/APIKey'
+        - type: object
+          properties:
+            key:
+              type: string
+
+    CreateAPIKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    # ========== Source Schemas ==========
+    SourceType:
+      type: string
+      enum: [google_drive, local_fs, onedrive, dropbox]
+
+    SourceStatus:
+      type: string
+      enum: [active, syncing, error, disconnected, paused]
+
+    Source:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/SourceType'
+        status:
+          $ref: '#/components/schemas/SourceStatus'
+        root_path:
+          type: string
+        config:
+          type: object
+        stats:
+          $ref: '#/components/schemas/SourceStats'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SourceStats:
+      type: object
+      properties:
+        files_indexed:
+          type: integer
+        total_size_bytes:
+          type: integer
+        last_scan_at:
+          type: string
+          format: date-time
+        next_scan_at:
+          type: string
+          format: date-time
+
+    SourcesListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Source'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    CreateSourceRequest:
+      type: object
+      required: [name, type, config]
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/SourceType'
+        config:
+          type: object
+
+    UpdateSourceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        config:
+          type: object
+
+    ScanJob:
+      type: object
+      properties:
+        id:
+          type: string
+        source_id:
+          type: string
+        type:
+          type: string
+          enum: [full, incremental]
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        created_at:
+          type: string
+          format: date-time
+
+    # ========== File Schemas ==========
+    FileStatus:
+      type: string
+      enum: [pending, processing, indexed, failed, skipped]
+
+    File:
+      type: object
+      properties:
+        id:
+          type: string
+        source_id:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        mime_type:
+          type: string
+        extension:
+          type: string
+        size_bytes:
+          type: integer
+        hash_sha256:
+          type: string
+        status:
+          $ref: '#/components/schemas/FileStatus'
+        indexing:
+          $ref: '#/components/schemas/IndexingInfo'
+        metadata:
+          type: object
+        duplicate_info:
+          $ref: '#/components/schemas/DuplicateInfo'
+        junk_info:
+          $ref: '#/components/schemas/JunkInfo'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    IndexingInfo:
+      type: object
+      properties:
+        chunks_count:
+          type: integer
+        has_embeddings:
+          type: boolean
+        indexed_at:
+          type: string
+          format: date-time
+
+    DuplicateInfo:
+      type: object
+      properties:
+        is_duplicate:
+          type: boolean
+        group_id:
+          type: string
+
+    JunkInfo:
+      type: object
+      properties:
+        is_junk:
+          type: boolean
+        label:
+          type: string
+          enum: [normal, suspicious, junk]
+        confidence:
+          type: number
+
+    FilesListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    FileContent:
+      type: object
+      properties:
+        file_id:
+          type: string
+        content:
+          type: string
+        format:
+          type: string
+        word_count:
+          type: integer
+
+    ChunksResponse:
+      type: object
+      properties:
+        file_id:
+          type: string
+        total_chunks:
+          type: integer
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextChunk'
+
+    TextChunk:
+      type: object
+      properties:
+        index:
+          type: integer
+        text:
+          type: string
+        start_char:
+          type: integer
+        end_char:
+          type: integer
+        has_embedding:
+          type: boolean
+
+    FileStats:
+      type: object
+      properties:
+        total_files:
+          type: integer
+        total_size_bytes:
+          type: integer
+        by_status:
+          type: object
+        by_type:
+          type: object
+
+    # ========== Search Schemas ==========
+    SearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        options:
+          $ref: '#/components/schemas/SearchOptions'
+        filters:
+          $ref: '#/components/schemas/SearchFilters'
+        highlight:
+          $ref: '#/components/schemas/HighlightOptions'
+
+    SearchOptions:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [hybrid, semantic, keyword]
+          default: hybrid
+        keyword_weight:
+          type: number
+          default: 0.4
+        semantic_weight:
+          type: number
+          default: 0.6
+        limit:
+          type: integer
+          default: 20
+        offset:
+          type: integer
+          default: 0
+        min_score:
+          type: number
+          default: 0.3
+
+    SearchFilters:
+      type: object
+      properties:
+        source_ids:
+          type: array
+          items:
+            type: string
+        mime_types:
+          type: array
+          items:
+            type: string
+        extensions:
+          type: array
+          items:
+            type: string
+        exclude_duplicates:
+          type: boolean
+        exclude_junk:
+          type: boolean
+
+    HighlightOptions:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        max_fragments:
+          type: integer
+          default: 3
+        fragment_size:
+          type: integer
+          default: 150
+
+    SearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+        mode:
+          type: string
+        total_results:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    SearchResult:
+      type: object
+      properties:
+        file:
+          $ref: '#/components/schemas/FileReference'
+        score:
+          type: number
+        scores:
+          type: object
+        highlights:
+          type: array
+          items:
+            type: string
+
+    FileReference:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+        source_id:
+          type: string
+
+    SuggestionsResponse:
+      type: object
+      properties:
+        query:
+          type: string
+        suggestions:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              type:
+                type: string
+
+    # ========== Duplicate Schemas ==========
+    DuplicateType:
+      type: string
+      enum: [exact, near_duplicate, similar, version]
+
+    GroupStatus:
+      type: string
+      enum: [pending, resolved, dismissed]
+
+    DuplicateGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/DuplicateType'
+        status:
+          $ref: '#/components/schemas/GroupStatus'
+        confidence:
+          type: number
+        file_count:
+          type: integer
+        total_size_bytes:
+          type: integer
+        potential_savings_bytes:
+          type: integer
+        primary_file:
+          $ref: '#/components/schemas/FileReference'
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateFile'
+        detected_at:
+          type: string
+          format: date-time
+
+    DuplicateFile:
+      allOf:
+        - $ref: '#/components/schemas/FileReference'
+        - type: object
+          properties:
+            is_primary:
+              type: boolean
+            similarity_score:
+              type: number
+
+    DuplicateGroupsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateGroup'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    ResolveRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [keep_primary, keep_newest, keep_oldest, keep_specific, merge]
+        keep_file_id:
+          type: string
+        delete_file_ids:
+          type: array
+          items:
+            type: string
+        permanent_delete:
+          type: boolean
+          default: false
+
+    DuplicateStats:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            total_groups:
+              type: integer
+            total_duplicate_files:
+              type: integer
+            total_wasted_bytes:
+              type: integer
+        by_type:
+          type: object
+        by_status:
+          type: object
+
+    # ========== Webhook Schemas ==========
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        secret:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_triggered_at:
+          type: string
+          format: date-time
+
+    CreateWebhookRequest:
+      type: object
+      required: [url, events]
+      properties:
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        secret:
+          type: string
+
+    UpdateWebhookRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+
+    # ========== Common Schemas ==========
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        cursor:
+          type: string
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+            request_id:
+              type: string
+            timestamp:
+              type: string
+              format: date-time

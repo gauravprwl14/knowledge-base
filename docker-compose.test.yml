@@ -1,0 +1,125 @@
+# Docker Compose Test Configuration
+# Isolated test environment with database automation
+#
+# Usage:
+#   Run all tests:        docker-compose -f docker-compose.test.yml up --abort-on-container-exit
+#   Backend unit only:    docker-compose -f docker-compose.test.yml run --rm backend_unit_tests
+#   Backend integration:  docker-compose -f docker-compose.test.yml run --rm backend_integration_tests
+#   Frontend unit only:   docker-compose -f docker-compose.test.yml run --rm frontend_unit_tests
+#   Frontend E2E only:    docker-compose -f docker-compose.test.yml up --abort-on-container-exit frontend_e2e_tests
+
+services:
+  # Test database (in-memory for speed)
+  postgres_test:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: voiceapp
+      POSTGRES_PASSWORD: voiceapp
+      POSTGRES_DB: voiceapp_test
+    tmpfs:
+      # Use tmpfs (in-memory) for 10x faster tests
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceapp"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  # Test RabbitMQ (for integration tests)
+  rabbitmq_test:
+    image: rabbitmq:3-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend unit tests
+  backend_unit_tests:
+    build:
+      context: ./backend
+      target: test
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://voiceapp:voiceapp@postgres_test:5432/voiceapp_test
+      - TESTING=1
+    command: pytest tests/unit -v --cov=app --cov-report=term-missing --cov-report=html
+    volumes:
+      - ./backend/tests:/app/tests:ro
+      - ./backend/app:/app/app:ro
+      - backend_test_coverage:/app/htmlcov
+
+  # Backend integration tests
+  backend_integration_tests:
+    build:
+      context: ./backend
+      target: test
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      rabbitmq_test:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://voiceapp:voiceapp@postgres_test:5432/voiceapp_test
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq_test:5672/
+      - TESTING=1
+    command: pytest tests/integration -v
+    volumes:
+      - ./backend/tests:/app/tests:ro
+      - ./backend/app:/app/app:ro
+
+  # Frontend unit tests
+  frontend_unit_tests:
+    build:
+      context: ./frontend
+      target: test
+    command: npm test -- --coverage --watchAll=false
+    volumes:
+      - ./frontend/__tests__:/app/__tests__:ro
+      - ./frontend/components:/app/components:ro
+      - ./frontend/lib:/app/lib:ro
+      - ./frontend/app:/app/app:ro
+      - frontend_test_coverage:/app/coverage
+
+  # Frontend E2E tests (requires running backend)
+  frontend_e2e_tests:
+    build:
+      context: ./frontend
+      target: test
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      rabbitmq_test:
+        condition: service_healthy
+      backend_test_api:
+        condition: service_started
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend_test_api:8000
+    command: npx playwright test
+    volumes:
+      - ./frontend/__tests__/e2e:/app/__tests__/e2e:ro
+
+  # Backend API for E2E tests
+  backend_test_api:
+    build:
+      context: ./backend
+      target: test
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      rabbitmq_test:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://voiceapp:voiceapp@postgres_test:5432/voiceapp_test
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq_test:5672/
+      - TESTING=1
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+volumes:
+  backend_test_coverage:
+  frontend_test_coverage:

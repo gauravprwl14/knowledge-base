@@ -15,16 +15,9 @@ test.describe('Upload Workflow', () => {
 
   test('should have settings section', async ({ page }) => {
     await expect(page.getByText('Settings')).toBeVisible()
-    await expect(page.getByLabel(/api key/i)).toBeVisible()
     await expect(page.getByLabel(/provider/i)).toBeVisible()
     await expect(page.getByLabel(/model/i)).toBeVisible()
     await expect(page.getByLabel(/language/i)).toBeVisible()
-  })
-
-  test('should allow entering API key', async ({ page }) => {
-    const apiKeyInput = page.getByLabel(/api key/i)
-    await apiKeyInput.fill('test-api-key-123')
-    await expect(apiKeyInput).toHaveValue('test-api-key-123')
   })
 
   test('should allow selecting provider', async ({ page }) => {
@@ -67,18 +60,21 @@ test.describe('Jobs Page', () => {
   })
 
   test('should display jobs page correctly', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /transcription jobs/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /jobs/i })).toBeVisible()
+    await expect(page.getByText(/view and manage your transcription jobs/i)).toBeVisible()
   })
 
-  test('should have navigation back to upload', async ({ page }) => {
-    await page.click('a[href="/"]')
-    await expect(page).toHaveURL('/')
-    await expect(page.getByRole('heading', { name: /upload audio\/video/i })).toBeVisible()
+  test('should have auto-refresh toggle', async ({ page }) => {
+    await expect(page.getByText('Auto-refresh')).toBeVisible()
+  })
+
+  test('should have refresh button', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /refresh/i })).toBeVisible()
   })
 })
 
 test.describe('Error Handling', () => {
-  test('should show error when uploading without API key', async ({ page }) => {
+  test('should handle upload errors gracefully', async ({ page }) => {
     await page.goto('/')
 
     // Mock the upload endpoint to return error
@@ -90,9 +86,8 @@ test.describe('Error Handling', () => {
       })
     })
 
-    // Try to upload (this would require file selection interaction)
-    // For now, we just verify the error handling structure exists
-    await expect(page.getByLabel(/api key/i)).toBeVisible()
+    // Verify error handling structure exists
+    await expect(page.getByText('Settings')).toBeVisible()
   })
 })
 
