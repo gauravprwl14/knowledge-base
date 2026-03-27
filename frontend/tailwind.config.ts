@@ -7,6 +7,8 @@ const config: Config = {
     './components/**/*.{ts,tsx}',
     './features/**/*.{ts,tsx}',
     './lib/**/*.{ts,tsx}',
+    // Include @kb/ui package so Tailwind scans its class usage
+    '../packages/ui/src/**/*.{ts,tsx}',
   ],
   theme: {
     screens: {

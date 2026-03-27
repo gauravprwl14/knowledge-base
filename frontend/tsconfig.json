@@ -24,7 +24,9 @@
     "paths": {
       "@/*": [
         "./*"
-      ]
+      ],
+      "@kb/ui": ["../packages/ui/src/index.ts"],
+      "@kb/ui/*": ["../packages/ui/src/*"]
     },
     "target": "ES2017"
   },
@@ -33,7 +35,9 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "../packages/ui/src/**/*.ts",
+    "../packages/ui/src/**/*.tsx"
   ],
   "exclude": [
     "node_modules"

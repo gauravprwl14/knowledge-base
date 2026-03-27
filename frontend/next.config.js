@@ -7,6 +7,10 @@ const nextConfig = {
   basePath: '/kms',
   output: 'standalone',
 
+  // Tell Next.js to transpile @kb/ui through its SWC pipeline.
+  // Without this, Next.js would try to load raw TS from packages/ui and fail.
+  transpilePackages: ['@kb/ui'],
+
   // Prevent the Next.js Router Cache from serving stale route data
   // for dynamically-rendered pages (pages that depend on cookies/headers).
   // Setting dynamic to 0 means prefetch data for protected routes is always
