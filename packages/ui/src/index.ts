@@ -8,3 +8,7 @@
 
 // Types
 export type { ViewerFile, ViewerMode, ViewerProps } from './composites/viewers/types';
+
+// Primitives
+export { Button } from './primitives/Button';
+export type { ButtonProps } from './primitives/Button';
