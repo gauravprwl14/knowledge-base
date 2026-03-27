@@ -28,3 +28,7 @@ export { ProgressBar } from './primitives/ProgressBar';
 export type { ProgressBarProps, ProgressBarColor } from './primitives/ProgressBar';
 export { Divider } from './primitives/Divider';
 export type { DividerProps } from './primitives/Divider';
+
+// Composites — viewers
+export { UnsupportedFileViewer } from './composites/viewers/UnsupportedFileViewer';
+export { getViewer, MIME_REGISTRY } from './composites/viewers/registry';
