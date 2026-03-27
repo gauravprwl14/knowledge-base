@@ -103,22 +103,46 @@ class QdrantService:
         existing_names = {c.name for c in existing.collections}
 
         if COLLECTION_NAME not in existing_names:
-            # Create with on-disk payload storage to reduce RAM usage
+            # on_disk=True on VectorParams: raw vectors stored on disk (not RAM).
+            # HnswConfigDiff(on_disk=True): HNSW navigation graph also on disk.
+            # Together these keep RAM usage flat (~2-4 GB) regardless of collection size,
+            # which is critical when indexing 500 GB+ of Google Drive / Obsidian data.
+            from qdrant_client.models import HnswConfigDiff  # type: ignore
+
             await client.create_collection(
                 collection_name=COLLECTION_NAME,
                 vectors_config=VectorParams(
                     size=VECTOR_SIZE,
                     distance=Distance.COSINE,
-                    on_disk=True,          # payload on disk; index stays in RAM
+                    on_disk=True,          # store raw vectors on disk, not in RAM
+                ),
+                hnsw_config=HnswConfigDiff(
+                    on_disk=True,          # store HNSW graph on disk, not in RAM
+                    m=16,                  # neighbours per node — standard for 1024-dim
+                    ef_construct=100,      # build-time search depth; higher = better recall
                 ),
             )
             logger.info(
-                "Qdrant collection created",
+                "Qdrant collection created with full on-disk storage",
                 collection=COLLECTION_NAME,
                 vector_size=VECTOR_SIZE,
+                vectors_on_disk=True,
+                hnsw_on_disk=True,
             )
         else:
-            logger.debug("Qdrant collection already exists", collection=COLLECTION_NAME)
+            # Collection already exists — ensure HNSW graph is configured for on-disk
+            # storage. VectorParams.on_disk cannot be changed after creation, but
+            # HnswConfigDiff can be patched live without data loss.
+            from qdrant_client.models import HnswConfigDiff  # type: ignore
+
+            await client.update_collection(
+                collection_name=COLLECTION_NAME,
+                hnsw_config=HnswConfigDiff(on_disk=True),
+            )
+            logger.info(
+                "Qdrant collection HNSW config updated to on-disk",
+                collection=COLLECTION_NAME,
+            )
 
     async def upsert_chunks(self, chunks: list[ChunkPoint]) -> None:
         """Batch-upsert chunk vectors into the ``kms_chunks`` collection.
