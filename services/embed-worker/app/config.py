@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from functools import lru_cache
 
 class Settings(BaseSettings):
@@ -10,7 +10,10 @@ class Settings(BaseSettings):
     embed_queue: str = "kms.embed"
     voice_queue: str = Field(default="kms.voice", env="VOICE_QUEUE")
     dead_letter_exchange: str = "kms.dlx"
-    prefetch_count: int = Field(default=8, env="EMBED_PREFETCH_COUNT")
+    prefetch_count: int = Field(
+        default=8,
+        validation_alias=AliasChoices("EMBED_PREFETCH_COUNT", "prefetch_count"),
+    )
     max_retries: int = 3
     # Chunking
     chunk_size: int = 512
