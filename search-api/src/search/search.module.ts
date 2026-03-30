@@ -1,10 +1,10 @@
-import { Module } from '@nestjs/common';
-import { SearchController } from './search.controller';
-import { SearchService } from './search.service';
-import { Bm25Service } from './bm25.service';
-import { SemanticService } from './semantic.service';
-import { RrfService } from './rrf.service';
-import { PrismaModule } from '../prisma/prisma.module';
+import { Module } from "@nestjs/common";
+import { SearchController } from "./search.controller";
+import { SearchService } from "./search.service";
+import { Bm25Service } from "./bm25.service";
+import { SemanticService } from "./semantic.service";
+import { RrfService } from "./rrf.service";
+import { PrismaModule } from "../prisma/prisma.module";
 
 /**
  * SearchModule bundles all search-related providers and the controller.

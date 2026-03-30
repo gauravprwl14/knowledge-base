@@ -1,9 +1,9 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus } from "@nestjs/common";
 
 /**
  * Severity level for search-api errors.
  */
-export type ErrorSeverity = 'ERROR' | 'WARNING' | 'INFO';
+export type ErrorSeverity = "ERROR" | "WARNING" | "INFO";
 
 /**
  * Minimal error definition shape used by the search-api.
@@ -24,26 +24,26 @@ export interface ErrorDefinition {
 export const SEARCH_ERROR_CODES = {
   // SCH = Search domain
   QUERY_REQUIRED: {
-    code: 'KBSCH0001',
-    message: 'Search query is required',
+    code: "KBSCH0001",
+    message: "Search query is required",
     httpStatus: HttpStatus.BAD_REQUEST,
-    severity: 'ERROR' as ErrorSeverity,
+    severity: "ERROR" as ErrorSeverity,
     retryable: false,
     userFacing: true,
   },
   SEARCH_FAILED: {
-    code: 'KBSCH0002',
-    message: 'Search operation failed',
+    code: "KBSCH0002",
+    message: "Search operation failed",
     httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
-    severity: 'ERROR' as ErrorSeverity,
+    severity: "ERROR" as ErrorSeverity,
     retryable: true,
     userFacing: true,
   },
   INVALID_QUERY: {
-    code: 'KBSCH0003',
-    message: 'Invalid search query parameters',
+    code: "KBSCH0003",
+    message: "Invalid search query parameters",
     httpStatus: HttpStatus.BAD_REQUEST,
-    severity: 'ERROR' as ErrorSeverity,
+    severity: "ERROR" as ErrorSeverity,
     retryable: false,
     userFacing: true,
   },
@@ -54,26 +54,26 @@ export const SEARCH_ERROR_CODES = {
  */
 export const GEN_ERROR_CODES = {
   INTERNAL_ERROR: {
-    code: 'GEN0001',
-    message: 'An internal error occurred',
+    code: "GEN0001",
+    message: "An internal error occurred",
     httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
-    severity: 'ERROR' as ErrorSeverity,
+    severity: "ERROR" as ErrorSeverity,
     retryable: false,
     userFacing: true,
   },
   SERVICE_UNAVAILABLE: {
-    code: 'GEN0003',
-    message: 'Service is temporarily unavailable',
+    code: "GEN0003",
+    message: "Service is temporarily unavailable",
     httpStatus: HttpStatus.SERVICE_UNAVAILABLE,
-    severity: 'WARNING' as ErrorSeverity,
+    severity: "WARNING" as ErrorSeverity,
     retryable: true,
     userFacing: true,
   },
   NOT_IMPLEMENTED: {
-    code: 'GEN0004',
-    message: 'This operation is not available in the current environment',
+    code: "GEN0004",
+    message: "This operation is not available in the current environment",
     httpStatus: HttpStatus.NOT_IMPLEMENTED,
-    severity: 'WARNING' as ErrorSeverity,
+    severity: "WARNING" as ErrorSeverity,
     retryable: false,
     userFacing: true,
   },
@@ -89,8 +89,8 @@ export const ERROR_CODES = {
 
 /** Union type of all error code strings. */
 export type ErrorCode =
-  | (typeof SEARCH_ERROR_CODES)[keyof typeof SEARCH_ERROR_CODES]['code']
-  | (typeof GEN_ERROR_CODES)[keyof typeof GEN_ERROR_CODES]['code'];
+  | (typeof SEARCH_ERROR_CODES)[keyof typeof SEARCH_ERROR_CODES]["code"]
+  | (typeof GEN_ERROR_CODES)[keyof typeof GEN_ERROR_CODES]["code"];
 
 /**
  * Gets the error definition for a given code, scanning all categories.
@@ -98,7 +98,9 @@ export type ErrorCode =
  * @param code - The error code string.
  * @returns The ErrorDefinition, or undefined if not found.
  */
-export function getErrorDefinition(code: ErrorCode): ErrorDefinition | undefined {
+export function getErrorDefinition(
+  code: ErrorCode,
+): ErrorDefinition | undefined {
   for (const category of Object.values(ERROR_CODES)) {
     for (const def of Object.values(category)) {
       if ((def as ErrorDefinition).code === code) {
@@ -146,16 +148,10 @@ export class AppError extends HttpException {
   public readonly timestamp: string;
 
   constructor(options: AppErrorOptions) {
-    const {
-      code,
-      message,
-      statusCode,
-      cause,
-      isOperational = true,
-    } = options;
+    const { code, message, statusCode, cause, isOperational = true } = options;
 
     const definition = getErrorDefinition(code);
-    const finalMessage = message ?? definition?.message ?? 'An error occurred';
+    const finalMessage = message ?? definition?.message ?? "An error occurred";
     const finalStatus = statusCode ?? definition?.httpStatus ?? 500;
 
     const responseBody = {
@@ -192,7 +188,7 @@ export class AppError extends HttpException {
   toResponse(includeStack = false): Record<string, unknown> {
     const response = this.getResponse() as Record<string, unknown>;
     if (includeStack && this.stack) {
-      (response as any).error.stack = this.stack.split('\n').slice(0, 10);
+      (response as any).error.stack = this.stack.split("\n").slice(0, 10);
     }
     return response;
   }

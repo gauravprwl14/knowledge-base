@@ -232,11 +232,12 @@ export class Bm25Service {
           ts_rank(c.search_vector, to_tsquery('english', ${tsQueryStr}))
                                AS ts_rank,
           c.chunk_index,
-          f.source_type,
-          f.source_metadata->>'webViewLink' AS web_view_link,
+          s.type               AS source_type,
+          f.web_view_link,
           c.start_secs
         FROM   kms_chunks c
-        JOIN   kms_files  f ON f.id = c.file_id
+        JOIN   kms_files   f ON f.id = c.file_id
+        JOIN   kms_sources s ON s.id = f.source_id
         WHERE  c.search_vector @@ to_tsquery('english', ${tsQueryStr})
           AND  f.user_id = ${userId}::uuid
           AND  c.source_id = ANY(${sourceIds}::uuid[])
@@ -256,11 +257,12 @@ export class Bm25Service {
           ts_rank(c.search_vector, to_tsquery('english', ${tsQueryStr}))
                                AS ts_rank,
           c.chunk_index,
-          f.source_type,
-          f.source_metadata->>'webViewLink' AS web_view_link,
+          s.type               AS source_type,
+          f.web_view_link,
           c.start_secs
         FROM   kms_chunks c
-        JOIN   kms_files  f ON f.id = c.file_id
+        JOIN   kms_files   f ON f.id = c.file_id
+        JOIN   kms_sources s ON s.id = f.source_id
         WHERE  c.search_vector @@ to_tsquery('english', ${tsQueryStr})
           AND  f.user_id = ${userId}::uuid
         ORDER  BY ts_rank DESC
