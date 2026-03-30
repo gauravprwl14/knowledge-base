@@ -1,11 +1,16 @@
+import { Suspense } from 'react';
 import { FilesBrowserPage } from '@/components/features/files/FilesBrowserPage';
 
 /**
  * FilesPage — entry point for the /files dashboard route.
  *
- * Delegates all rendering to the FilesBrowserPage client component
- * so that the page itself can remain a Server Component.
+ * Suspense is required because FilesBrowserPage uses useSearchParams()
+ * to read the ?highlight= param from search result card navigation.
  */
 export default function FilesPage() {
-  return <FilesBrowserPage />;
+  return (
+    <Suspense>
+      <FilesBrowserPage />
+    </Suspense>
+  );
 }

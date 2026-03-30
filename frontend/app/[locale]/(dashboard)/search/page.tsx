@@ -15,7 +15,7 @@
  *   doesn't feel jumpy — the layout stays stable.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSearch } from '@/lib/hooks/use-search';
 import type { SearchMode } from '@/lib/api/search';
@@ -37,29 +37,34 @@ export default function SearchPage() {
   // not something another person needs to reproduce the same results.
   const [mode, setMode] = useState<SearchMode>('hybrid');
 
-  // Derive the current query from the URL — this is the single source of truth.
-  // The input's `value` is controlled by this, not by separate component state.
+  // Derive the committed query from the URL — the search fires against this.
   const query = searchParams.get('q') ?? '';
+
+  // inputValue mirrors what the user is typing; it leads the URL by up to 300 ms.
+  const [inputValue, setInputValue] = useState(query);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Execute the search — hook is gated to fire only when query >= 2 chars
   const { data, isLoading, isError } = useSearch(query, mode);
 
   /**
    * Updates the URL ?q= param without triggering a full page navigation.
-   * Using router.replace (not push) so that typing doesn't flood the browser
-   * history — the user can still press Back to leave the search page entirely.
-   * `scroll: false` prevents the page jumping to the top on every keystroke.
+   * Using router.replace (not push) so typing doesn't flood browser history.
+   * Debounced 300 ms so the API is not hit on every keystroke.
    */
   const handleQueryChange = useCallback(
     (newQuery: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (newQuery) {
-        params.set('q', newQuery);
-      } else {
-        // Remove the param entirely when the input is cleared — keeps the URL clean
-        params.delete('q');
-      }
-      router.replace(`?${params.toString()}`, { scroll: false });
+      setInputValue(newQuery);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (newQuery) {
+          params.set('q', newQuery);
+        } else {
+          params.delete('q');
+        }
+        router.replace(`?${params.toString()}`, { scroll: false });
+      }, 300);
     },
     [router, searchParams],
   );
@@ -79,7 +84,7 @@ export default function SearchPage() {
       <div className="mb-6">
         <input
           type="search"
-          value={query}
+          value={inputValue}
           onChange={(e) => handleQueryChange(e.target.value)}
           placeholder="Search your knowledge base…"
           aria-label="Search query"

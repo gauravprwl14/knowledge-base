@@ -1,17 +1,39 @@
 'use client';
 
-import { GitGraph } from 'lucide-react';
+/**
+ * GraphPage — client component shell for the knowledge graph route.
+ *
+ * Must be 'use client' because next/dynamic with ssr:false is only allowed
+ * inside Client Components. ReactFlow depends on browser APIs (ResizeObserver,
+ * pointer events) that are unavailable during SSR.
+ */
 
-export default function GraphPage() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-      <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-[#93c5fd]/10 border border-[#93c5fd]/20 mb-6">
-        <GitGraph className="w-8 h-8 text-[#93c5fd]" />
+import dynamic from 'next/dynamic';
+
+/**
+ * GraphExplorer is loaded client-side only because ReactFlow depends on
+ * browser APIs (ResizeObserver, SVG pointer events). The `ssr: false` flag
+ * prevents Next.js from attempting a server render and producing hydration
+ * mismatches.
+ */
+const GraphExplorer = dynamic(
+  () =>
+    import('@/components/features/graph/GraphExplorer').then(
+      (m) => m.GraphExplorer,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="p-6 text-slate-400" aria-busy="true">
+        Loading graph…
       </div>
-      <h1 className="text-2xl font-bold text-slate-100 mb-2">Knowledge Graph</h1>
-      <p className="text-slate-400 text-sm max-w-sm">
-        Visualise relationships between entities in your knowledge base. Coming soon.
-      </p>
-    </div>
-  );
+    ),
+  },
+);
+
+/**
+ * Default export — the Next.js page component for `/graph`.
+ */
+export default function GraphPage() {
+  return <GraphExplorer />;
 }

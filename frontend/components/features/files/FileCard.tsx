@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react';
-import { MoreVertical, Trash2 } from 'lucide-react';
+import { MoreVertical, Trash2, RefreshCw } from 'lucide-react';
 import { FileTypeIcon, getFileTypeInfo } from '@/components/features/drive/FileTypeIcon';
 import type { KmsFile, FileStatus } from '@/lib/api/files';
 
@@ -78,10 +78,12 @@ function StatusBadge({ status }: { status: FileStatus }) {
 
 interface ActionMenuProps {
   onDelete: () => void;
+  onReindex: () => void;
   isDeleting: boolean;
+  isReindexing: boolean;
 }
 
-function ActionMenu({ onDelete, isDeleting }: ActionMenuProps) {
+function ActionMenu({ onDelete, onReindex, isDeleting, isReindexing }: ActionMenuProps) {
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
@@ -103,6 +105,14 @@ function ActionMenu({ onDelete, isDeleting }: ActionMenuProps) {
     onDelete();
   }
 
+  function handleReindex(e: React.MouseEvent) {
+    e.stopPropagation();
+    setOpen(false);
+    onReindex();
+  }
+
+  const isBusy = isDeleting || isReindexing;
+
   return (
     <div ref={menuRef} className="relative" onClick={(e) => e.stopPropagation()}>
       <button
@@ -110,7 +120,7 @@ function ActionMenu({ onDelete, isDeleting }: ActionMenuProps) {
         aria-label="File actions"
         aria-haspopup="true"
         aria-expanded={open}
-        disabled={isDeleting}
+        disabled={isBusy}
         className="rounded-md p-1 text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-colors disabled:opacity-40"
       >
         <MoreVertical className="h-4 w-4" aria-hidden="true" />
@@ -119,8 +129,18 @@ function ActionMenu({ onDelete, isDeleting }: ActionMenuProps) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-20 mt-1 w-36 rounded-xl border border-white/10 bg-[#1a1a2e] shadow-xl py-1"
+          className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-white/10 bg-[#1a1a2e] shadow-xl py-1"
         >
+          {/* Re-index: deletes existing chunks and re-queues the full embed pipeline */}
+          <button
+            role="menuitem"
+            onClick={handleReindex}
+            disabled={isReindexing}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-white/5 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isReindexing ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {isReindexing ? 'Re-indexing…' : 'Re-index'}
+          </button>
           <button
             role="menuitem"
             onClick={handleDelete}
@@ -144,15 +164,15 @@ export interface FileCardProps {
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
   onDelete: (id: string) => Promise<void>;
-  /** Called when the user clicks the card body to preview the file */
-  onOpen?: (id: string) => void;
+  onReindex?: (id: string) => Promise<void>;
 }
 
 /**
  * Renders a single file as a glass card with checkbox, icon, metadata, and action menu.
  */
-export function FileCard({ file, selected, onSelect, onDelete, onOpen }: FileCardProps) {
+export function FileCard({ file, selected, onSelect, onDelete, onReindex }: FileCardProps) {
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [isReindexing, setIsReindexing] = React.useState(false);
   const { label } = getFileTypeInfo(file.mimeType);
 
   async function handleDelete() {
@@ -161,6 +181,16 @@ export function FileCard({ file, selected, onSelect, onDelete, onOpen }: FileCar
       await onDelete(file.id);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleReindex() {
+    if (!onReindex) return;
+    setIsReindexing(true);
+    try {
+      await onReindex(file.id);
+    } finally {
+      setIsReindexing(false);
     }
   }
 
@@ -173,13 +203,7 @@ export function FileCard({ file, selected, onSelect, onDelete, onOpen }: FileCar
           ? 'border-[#a78bfa]/60 bg-[#a78bfa]/5'
           : 'border-white/10 hover:border-white/20 hover:bg-white/[0.07]',
         isDeleting ? 'opacity-50 pointer-events-none' : '',
-        onOpen ? 'cursor-pointer' : '',
       ].join(' ')}
-      onClick={() => onOpen?.(file.id)}
-      role={onOpen ? 'button' : undefined}
-      tabIndex={onOpen ? 0 : undefined}
-      onKeyDown={onOpen ? (e) => e.key === 'Enter' && onOpen(file.id) : undefined}
-      aria-label={onOpen ? `Preview ${file.name}` : undefined}
     >
       {/* Checkbox + action menu row */}
       <div className="flex items-center justify-between">
@@ -192,7 +216,12 @@ export function FileCard({ file, selected, onSelect, onDelete, onOpen }: FileCar
           className="h-4 w-4 rounded border-white/20 bg-white/10 accent-[#a78bfa] cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         />
-        <ActionMenu onDelete={handleDelete} isDeleting={isDeleting} />
+        <ActionMenu
+          onDelete={handleDelete}
+          onReindex={handleReindex}
+          isDeleting={isDeleting}
+          isReindexing={isReindexing}
+        />
       </div>
 
       {/* File icon */}
