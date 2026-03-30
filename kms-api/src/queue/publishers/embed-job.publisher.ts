@@ -65,6 +65,21 @@ export class EmbedJobPublisher implements OnModuleInit, OnModuleDestroy {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
       this.connection = await amqplib.connect(url) as any;
+      // Guard against unhandled 'error' / 'close' events on the TCP connection.
+      // Without these handlers Node.js escalates to an uncaught exception and
+      // kills the process (root cause of the 2026-03-28 production outage).
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      this.connection.on('error', (err: Error) => {
+        this.logger.warn({ error: String(err) }, 'EmbedJobPublisher: RabbitMQ connection error — will reconnect on next publish');
+        this.channel = null;
+        this.connection = null;
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      this.connection.on('close', () => {
+        this.logger.warn('EmbedJobPublisher: RabbitMQ connection closed — will reconnect on next publish');
+        this.channel = null;
+        this.connection = null;
+      });
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       this.channel = await this.connection.createChannel() as any;
       await this.channel.assertQueue(AMQP_EMBED_QUEUE, {
