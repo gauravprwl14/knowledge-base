@@ -648,6 +648,94 @@ export class FilesService {
   }
 
   // ---------------------------------------------------------------------------
+  // REINDEX SINGLE FILE
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Re-queues a single file for re-embedding by resetting its status to PENDING,
+   * deleting its existing chunks, and publishing a fresh embed job to `kms.embed`.
+   *
+   * Ownership is verified before any mutation; if the file does not exist or
+   * belongs to a different user this method throws FILE_NOT_FOUND (404) rather
+   * than FORBIDDEN to avoid leaking resource existence.
+   *
+   * The chunk deletion happens first so that the embed-worker always writes to
+   * a clean slate — this prevents stale chunk rows being left behind if the
+   * worker crashes mid-run.
+   *
+   * @param id     - File UUID (validated by ParseUUIDPipe at the controller layer).
+   * @param userId - Authenticated user UUID (from JWT via `req.user.id`).
+   * @returns `{ fileId: id, status: 'queued' }` on success.
+   * @throws AppError FIL0001 (404) when the file is not found or not owned by userId.
+   * @throws AppError GEN0001 (500) when the RabbitMQ publish fails.
+   */
+  async reindexFile(id: string, userId: string): Promise<{ fileId: string; status: string }> {
+    this.logger.info('reindexFile — start', { fileId: id, userId });
+
+    // ── Step 1: Verify ownership ────────────────────────────────────────────
+    // findByIdAndUserId returns null for both "not found" and "wrong user".
+    // Returning 404 in both cases is intentional: it avoids leaking that a
+    // file with this UUID exists but belongs to someone else.
+    const file = await this.fileRepo.findByIdAndUserId(id, userId);
+    if (!file) {
+      throw new AppError({ code: ERROR_CODES.FIL.FILE_NOT_FOUND.code });
+    }
+
+    // ── Step 2: Delete existing chunks ──────────────────────────────────────
+    // Raw SQL is used here (matching the deleteFile pattern in this service) to
+    // avoid a round-trip through the Prisma ORM for a simple single-table DELETE.
+    // This must happen before the status reset so the embed-worker always starts
+    // from an empty chunk set — preventing duplicate chunk rows on partial reruns.
+    await this.prisma.$executeRaw`
+      DELETE FROM kms_chunks WHERE file_id = ${id}::uuid
+    `;
+
+    // ── Step 3: Reset file status to PENDING ────────────────────────────────
+    // updatedAt is set explicitly because Prisma's @updatedAt auto-update only
+    // triggers on managed model operations, not after raw SQL.
+    await this.prisma.kmsFile.update({
+      where: { id },
+      data: {
+        status: FileStatus.PENDING,
+        updatedAt: new Date(),
+      },
+    });
+
+    // ── Step 4: Publish embed job to kms.embed ──────────────────────────────
+    // Re-use the same message shape as bulkReEmbed; scan_job_id carries the
+    // file UUID (the embed-worker uses this as the Qdrant point ID).
+    try {
+      await this.embedJobPublisher.publishEmbedJob({
+        scan_job_id: file.id,
+        source_id: file.sourceId,
+        user_id: userId,
+        file_path: file.path,
+        original_filename: file.name,
+        mime_type: file.mimeType ?? undefined,
+        file_size_bytes: file.sizeBytes != null ? Number(file.sizeBytes) : undefined,
+        source_type: 'reindex',
+        source_metadata: {},
+      });
+    } catch (err) {
+      // Log the raw error before wrapping — ensures the full stack is captured
+      // in structured logs even though we re-throw a cleaner AppError to the client.
+      this.logger.error('reindexFile — failed to publish embed job', {
+        fileId: id,
+        userId,
+        error: String(err),
+      });
+      throw new AppError({
+        code: ERROR_CODES.GEN.INTERNAL_ERROR.code,
+        message: 'Failed to queue file for re-indexing',
+        cause: err instanceof Error ? err : undefined,
+      });
+    }
+
+    this.logger.info('reindexFile — queued successfully', { fileId: id, userId });
+    return { fileId: id, status: 'queued' };
+  }
+
+  // ---------------------------------------------------------------------------
   // TRANSCRIPT RAW TEXT
   // ---------------------------------------------------------------------------
 

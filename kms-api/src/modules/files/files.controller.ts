@@ -298,6 +298,39 @@ export class FilesController {
   }
 
   // ---------------------------------------------------------------------------
+  // REINDEX SINGLE FILE
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Re-queues a single file for re-embedding.
+   *
+   * Deletes the file's existing `kms_chunks`, resets its status to PENDING,
+   * and publishes a fresh embed job to the `kms.embed` RabbitMQ queue so the
+   * embed-worker reprocesses it from scratch.
+   *
+   * Returns 404 when the file does not exist or belongs to another user.
+   * Returns 500 when the RabbitMQ publish fails.
+   *
+   * @param id  - File UUID (validated as UUID v4 by ParseUUIDPipe).
+   * @param req - Fastify request carrying `req.user.id`.
+   * @returns `{ fileId, status: 'queued' }` on success.
+   */
+  @Post(':id/reindex')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Re-queue a single file for re-embedding' })
+  @ApiParam({ name: 'id', type: String, description: 'File UUID' })
+  @ApiResponse({ status: 200, description: 'File queued for re-indexing' })
+  @ApiResponse({ status: 404, description: 'File not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 500, description: 'Failed to publish to queue' })
+  async reindexFile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req: any,
+  ): Promise<{ fileId: string; status: string }> {
+    return this.filesService.reindexFile(id, req.user.id);
+  }
+
+  // ---------------------------------------------------------------------------
   // GET ONE
   // ---------------------------------------------------------------------------
 
