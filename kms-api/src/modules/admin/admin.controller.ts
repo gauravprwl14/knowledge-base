@@ -4,6 +4,8 @@ import {
   Post,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,13 +18,11 @@ import { AdminGuard } from './admin.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 import { AdminSourcesQueryDto } from './dto/admin-sources-query.dto';
-import { AdminFilesQueryDto } from './dto/admin-files-query.dto';
 import {
   AdminListResponseDto,
   AdminUserItemDto,
   AdminSourceItemDto,
   AdminScanJobItemDto,
-  AdminFileItemDto,
 } from './dto/admin-list-response.dto';
 import { AdminStatsResponseDto } from './dto/admin-stats-response.dto';
 
@@ -130,46 +130,31 @@ export class AdminController {
   }
 
   // ---------------------------------------------------------------------------
-  // Re-index all
+  // Reindex All
   // ---------------------------------------------------------------------------
 
   /**
-   * Publishes embed jobs for every PENDING or ERROR file in the system.
+   * Re-queues all files with status ERROR or PENDING across all users for
+   * re-embedding.
    *
-   * Recovery endpoint for when files are in the DB but the kms.embed queue
-   * is empty — i.e. the embed-worker is running but has nothing to process.
+   * Cursor-paginates through the `kms_files` table in batches of 100, deletes
+   * existing `kms_chunks` for each file, resets their status to PENDING, and
+   * publishes an embed job message to the `kms.embed` RabbitMQ queue.
    *
-   * @returns `{ queued: number }` — count of embed jobs published to the queue.
+   * This endpoint is intentionally synchronous from the caller's perspective —
+   * it does not return until all pages are processed.  For very large tables
+   * (millions of files) this will be slow; callers should fire-and-forget and
+   * watch the admin stats endpoint for the pending count to drop.
+   *
+   * @returns `{ queued: N }` where N is the number of files successfully queued.
    */
   @Post('reindex-all')
-  @ApiOperation({ summary: 'Re-queue all PENDING/ERROR files for embedding (admin only)' })
-  @ApiResponse({ status: 201, description: 'Jobs queued', schema: { example: { queued: 15488 } } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Re-queue all ERROR/PENDING files for re-embedding (admin only)' })
+  @ApiResponse({ status: 200, description: 'Files queued for re-indexing' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden — ADMIN role required (KBAUT0010)' })
   async reindexAll(): Promise<{ queued: number }> {
     return this.adminService.reindexAll();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Files
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Returns a cursor-paginated list of all files, optionally filtered by status.
-   *
-   * Used by the admin dashboard Files tab. Returns files across ALL users.
-   *
-   * @param query - Pagination cursor, limit, and optional status filter.
-   * @returns Paginated file list.
-   */
-  @Get('files')
-  @ApiOperation({ summary: 'List all files with cursor pagination and optional status filter (admin only)' })
-  @ApiResponse({ status: 200, description: 'Paginated file list', type: AdminListResponseDto })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden — ADMIN role required (KBAUT0010)' })
-  async getFiles(
-    @Query() query: AdminFilesQueryDto,
-  ): Promise<AdminListResponseDto<AdminFileItemDto>> {
-    return this.adminService.getFiles(query);
   }
 }

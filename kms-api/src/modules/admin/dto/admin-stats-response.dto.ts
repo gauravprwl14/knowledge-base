@@ -27,4 +27,8 @@ export class AdminStatsResponseDto {
   /** Number of files in ERROR status. */
   @ApiProperty({ description: 'Files in error state' })
   failedFiles: number;
+
+  /** Sum of sizeBytes across all non-deleted files, in bytes. */
+  @ApiProperty({ description: 'Total storage used across all files, in bytes' })
+  storageUsageBytes: number;
 }
