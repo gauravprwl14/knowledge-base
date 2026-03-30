@@ -6,8 +6,8 @@ Neo4j graph-expansion step to surface related documents via MENTIONS edges.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any
 
 import aiohttp
 import structlog
@@ -31,9 +31,8 @@ class RetrievedChunk:
         content: Raw text content of the chunk.
         score: Similarity score in [0, 1].
         chunk_index: Ordinal position of the chunk within the file.
-        web_view_link: External URL to view the source file (e.g. Google Drive).
-        start_secs: Start timestamp in seconds for voice transcript chunks.
-        source_type: Source type of the parent file (e.g. "google_drive", "local").
+        web_view_link: Optional external URL (e.g. Google Drive web view link).
+        start_secs: Optional playback offset for voice transcript chunks.
     """
 
     chunk_id: str
@@ -42,9 +41,8 @@ class RetrievedChunk:
     content: str
     score: float
     chunk_index: int = 0
-    web_view_link: Optional[str] = None
-    start_secs: Optional[float] = None
-    source_type: Optional[str] = None
+    web_view_link: str | None = None
+    start_secs: float | None = None
 
 
 class Retriever:
@@ -187,7 +185,7 @@ class Retriever:
         results: list[RetrievedChunk] = []
         for point in data.get("result", []):
             pl = point.get("payload", {})
-            start_secs_raw = pl.get("start_secs")
+            raw_start = pl.get("start_secs")
             results.append(
                 RetrievedChunk(
                     chunk_id=str(point.get("id", "")),
@@ -197,8 +195,7 @@ class Retriever:
                     score=float(point.get("score", 0.0)),
                     chunk_index=int(pl.get("chunk_index", 0)),
                     web_view_link=pl.get("web_view_link") or None,
-                    start_secs=float(start_secs_raw) if start_secs_raw is not None else None,
-                    source_type=pl.get("source_type") or None,
+                    start_secs=float(raw_start) if raw_start is not None else None,
                 )
             )
         return results
@@ -281,7 +278,7 @@ class Retriever:
 
             for point in data.get("result", {}).get("points", []):
                 pl = point.get("payload", {})
-                start_secs_raw = pl.get("start_secs")
+                raw_start = pl.get("start_secs")
                 extra_chunks.append(
                     RetrievedChunk(
                         chunk_id=str(point.get("id", "")),
@@ -291,8 +288,7 @@ class Retriever:
                         score=0.5,  # graph-expanded chunks use a fixed relevance proxy
                         chunk_index=int(pl.get("chunk_index", 0)),
                         web_view_link=pl.get("web_view_link") or None,
-                        start_secs=float(start_secs_raw) if start_secs_raw is not None else None,
-                        source_type=pl.get("source_type") or None,
+                        start_secs=float(raw_start) if raw_start is not None else None,
                     )
                 )
 
@@ -310,9 +306,6 @@ class ContextRetriever:
         db: asyncpg connection pool (stored for future use; not used in current retrieval path).
     """
 
-    #: Maximum characters for a citation snippet.
-    SNIPPET_MAX_CHARS: int = 300
-
     def __init__(self, db) -> None:
         self._db = db
         self._retriever = Retriever()
@@ -325,10 +318,6 @@ class ContextRetriever:
     ) -> tuple[str, list[Citation]]:
         """Retrieve context chunks and format them for the LLM.
 
-        Each chunk is mapped to a :class:`~app.schemas.chat.Citation` that
-        carries a ``snippet`` (up to 300 chars), ``web_view_link``, and
-        ``start_secs`` in addition to the standard file/score fields.
-
         Args:
             question: Natural-language question from the user.
             top_k: Maximum number of chunks to retrieve.
@@ -337,31 +326,27 @@ class ContextRetriever:
         Returns:
             Tuple of (context_text, citations) where context_text is a
             newline-joined string of chunk content and citations is a
-            list of :class:`~app.schemas.chat.Citation` objects deduplicated
-            by file_id, preserving the highest-scored chunk per file.
+            list of Citation objects populated with snippet, web_view_link,
+            and start_secs from the Qdrant payload.
         """
         chunks = await self._retriever.retrieve(question, user_id=user_id, top_k=top_k)
         context_text = "\n\n".join(c.content for c in chunks)
 
-        # Deduplicate by file_id keeping the highest-scored chunk per file,
-        # then build Citation objects with snippet, web_view_link, start_secs.
-        seen_files: dict[str, RetrievedChunk] = {}
+        # Build Citation objects — deduplicate by file_id, keeping highest score
+        seen_files: dict[str, Citation] = {}
         for chunk in chunks:
-            if chunk.file_id not in seen_files or chunk.score > seen_files[chunk.file_id].score:
-                seen_files[chunk.file_id] = chunk
+            if chunk.file_id not in seen_files:
+                seen_files[chunk.file_id] = Citation(
+                    file_id=chunk.file_id,
+                    filename=chunk.filename,
+                    # Truncate snippet to 300 chars as specified in the schema
+                    snippet=chunk.content[:300],
+                    score=chunk.score,
+                    web_view_link=chunk.web_view_link,
+                    timestamp_secs=chunk.start_secs,
+                )
 
-        citations: list[Citation] = [
-            Citation(
-                file_id=c.file_id,
-                filename=c.filename,
-                snippet=c.content[: self.SNIPPET_MAX_CHARS],
-                score=c.score,
-                web_view_link=c.web_view_link,
-                start_secs=c.start_secs,
-            )
-            for c in seen_files.values()
-        ]
-
+        citations = list(seen_files.values())
         return context_text, citations
 
 
