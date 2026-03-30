@@ -952,6 +952,40 @@ export const FIL_ERROR_CODES = {
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
+ * Graph/Neo4j Error Codes (KBGRP0000 - KBGRP9999)
+ *
+ * Used by GraphService and Neo4jService when Neo4j queries fail or graph
+ * data cannot be retrieved.
+ */
+export const GRP_ERROR_CODES = {
+  /**
+   * KBGRP0001 — Neo4j query execution failed.
+   * Raised when a Cypher query returns an error from the Neo4j driver.
+   * Typically indicates a schema mismatch, connection loss, or syntax error.
+   */
+  GRAPH_QUERY_FAILED: {
+    code: 'KBGRP0001',
+    message: 'Graph query failed',
+    httpStatus: 502,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  /**
+   * KBGRP0002 — Neo4j driver not available.
+   * Raised when NEO4J_URI/USER/PASSWORD are unset and graph feature is required.
+   */
+  GRAPH_UNAVAILABLE: {
+    code: 'KBGRP0002',
+    message: 'Graph service is unavailable',
+    httpStatus: 503,
+    severity: 'WARNING',
+    retryable: true,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
+
+/**
  * Tag Error Codes (TAG0000 - TAG9999)
  */
 export const TAG_ERROR_CODES = {
