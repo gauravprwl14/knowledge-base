@@ -112,6 +112,16 @@ export const mockFilesApi = {
     return { queued };
   },
 
+  async reindexFile(id: string): Promise<{ fileId: string; status: string }> {
+    await delay(300);
+    const file = _files.find((f) => f.id === id);
+    if (!file) throw new Error(`File not found: ${id}`);
+    _files = _files.map((f) =>
+      f.id === id ? { ...f, status: 'PENDING' as const, embeddingStatus: 'pending' as const } : f,
+    );
+    return { fileId: id, status: 'queued' };
+  },
+
   async retry(id: string): Promise<void> {
     await delay(300);
     const file = _files.find((f) => f.id === id);

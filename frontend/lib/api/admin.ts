@@ -12,6 +12,8 @@ export interface AdminStats {
   pendingEmbeds: number;
   processingEmbeds: number;
   failedFiles: number;
+  /** Sum of sizeBytes across all non-deleted files, in bytes. */
+  storageUsageBytes: number;
 }
 
 /** Cursor-paginated envelope returned by all admin list endpoints. */
