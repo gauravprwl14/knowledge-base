@@ -28,6 +28,8 @@ user stories, scope, task breakdown per layer (NestJS / Python / Frontend / DB /
 | **ACP Integration — KMS as ACP knowledge agent, tool registry, RAG pipeline refactor** | `PRD-M13-acp-integration.md` |
 | **Agentic Workflows — Workflow Engine, multi-agent, YouTube URL ingest, sub-agent spawning** | `PRD-M14-agentic-workflows.md` |
 | **External Agent Integration — KMS connects to Claude Code, Codex, Gemini; RAG context pipeline; MCP server** | `PRD-M15-external-agent-integration.md` |
+| **File Rendering Engine & @kb/ui Design System — inline viewers, design tokens, artifact panel** | `PRD-M16-rendering-engine.md` |
+| **Business Requirements — rendering engine (executive summary, stakeholders, risks)** | `BRD-rendering-engine.md` |
 | **Document Intelligence — master cross-pillar PRD (ingestion, discovery, search, ranking)** | `PRD-document-intelligence.md` |
 | **Content Processing Pipeline — engineering spec (extractors, chunking, embedding, error handling)** | `PRD-content-processing-pipeline.md` |
 | Phase 1 implementation plan — concrete build steps for ACP + Claude Code | `../PHASE1-IMPLEMENTATION-PLAN.md` |
@@ -55,6 +57,7 @@ user stories, scope, task breakdown per layer (NestJS / Python / Frontend / DB /
 | M13 ACP Integration | Draft | P1 |
 | M14 Agentic Workflows | Draft | P1 |
 | M15 External Agent Integration | Draft | P1 |
+| M16 File Rendering Engine & @kb/ui | Draft | P0 |
 
 ---
 

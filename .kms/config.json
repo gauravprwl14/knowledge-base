@@ -67,7 +67,7 @@
       "comment": "Requires embedding.enabled=true + llm.enabled=true"
     },
     "graph": {
-      "enabled": false,
+      "enabled": true,
       "maxTraversalDepth": 6,
       "communityDetection": true,
       "comment": "Requires Neo4j. Auto-disables if neo4j unreachable."
@@ -131,7 +131,7 @@
       "comment": "Auto-disabled when embedding.enabled=false"
     },
     "graphWorker": {
-      "enabled": false,
+      "enabled": true,
       "concurrency": 1,
       "comment": "Auto-disabled when graph.enabled=false"
     },
@@ -156,7 +156,7 @@
       "comment": "Always available for keyword search"
     },
     "graphAgent": {
-      "enabled": false,
+      "enabled": true,
       "comment": "Auto-disabled when graph.enabled=false"
     },
     "ragAgent": {

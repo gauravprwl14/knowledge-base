@@ -134,6 +134,14 @@ The following spec/test files must be written to reach 80% coverage:
 
 ---
 
+## Backlog
+
+| # | Item | Notes |
+|---|------|-------|
+| B-01 | **LLM provider for ACP chat** | `ANTHROPIC_API_KEY` not available. Options: (1) Google Gemini — free tier 1M tokens/day, `GeminiAdapter` already exists, just wire into `acp.service.ts`; (2) OpenRouter free tier (Llama 3.1 8B); (3) Ollama local. Recommended: Gemini — get free key at aistudio.google.com, no credit card needed. |
+
+---
+
 ## Blocked
 
 **Gate 3 (Tests)**: 80% test coverage not yet achieved. Sprint 5 test tasks are the current blocker for production deployment.

@@ -38,11 +38,16 @@ Files follow the naming convention: `NNNN-kebab-case-title.md`
 | [0026](./0026-llm-provider-abstraction.md) | LLM Provider Abstraction (Anthropic-primary) | Accepted | ai, llm, agents |
 | [0027](./0027-file-tagging-system.md) | File Tagging System — dual-source (manual + AI) | Accepted | files, tags, ai |
 | [0028](./0028-dual-queue-boundary.md) | Dual-queue boundary: RabbitMQ (Python IPC) replaces BullMQ | Accepted | queue, rabbitmq |
+| [0029](./0029-search-api-standalone-service.md) | Search API as standalone NestJS service | Accepted | search, architecture |
+| [0030](./0030-kb-ui-standalone-package.md) | `@kb/ui` as a standalone monorepo package | Accepted | frontend, design-system |
+| [0031](./0031-mime-registry-renderer.md) | Registry-driven MIME type file renderer | Accepted | frontend, rendering |
+| [0032](./0032-hybrid-viewer-ux.md) | Hybrid viewer UX — drawer + full detail page | Accepted | frontend, ux |
+| [0033](./0033-websocket-file-status.md) | WebSocket for file processing status updates | Accepted | frontend, realtime |
 
 ## Process
 
 1. Create a new ADR for any decision that is hard to reverse or will surprise a new team member
 2. Copy the template from `ENGINEERING_STANDARDS.md` Section 13.1
-3. Number sequentially (next: 0029)
+3. Number sequentially (next: 0034)
 4. Status: `Proposed` → team review → `Accepted`
 5. Update this README index when accepted
