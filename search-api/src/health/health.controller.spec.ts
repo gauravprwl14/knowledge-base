@@ -1,6 +1,6 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { HealthController } from './health.controller';
+import { Test, TestingModule } from "@nestjs/testing";
+import { ConfigService } from "@nestjs/config";
+import { HealthController } from "./health.controller";
 
 // ---------------------------------------------------------------------------
 // Mock ConfigService
@@ -14,15 +14,13 @@ const mockConfigService = {
 // Module setup
 // ---------------------------------------------------------------------------
 
-describe('HealthController', () => {
+describe("HealthController", () => {
   let controller: HealthController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
-      providers: [
-        { provide: ConfigService, useValue: mockConfigService },
-      ],
+      providers: [{ provide: ConfigService, useValue: mockConfigService }],
     }).compile();
 
     controller = module.get<HealthController>(HealthController);
@@ -34,8 +32,8 @@ describe('HealthController', () => {
   // Controller instantiation
   // =========================================================================
 
-  describe('controller instantiation', () => {
-    it('is defined', () => {
+  describe("controller instantiation", () => {
+    it("is defined", () => {
       expect(controller).toBeDefined();
     });
   });
@@ -44,13 +42,13 @@ describe('HealthController', () => {
   // GET /health — liveness probe
   // =========================================================================
 
-  describe('health() — GET /health', () => {
+  describe("health() — GET /health", () => {
     it('returns 200 with status "ok"', () => {
       mockConfigService.get.mockReturnValue(undefined);
 
       const result = controller.health();
 
-      expect(result.status).toBe('ok');
+      expect(result.status).toBe("ok");
     });
 
     it('returns service name "search-api"', () => {
@@ -58,15 +56,15 @@ describe('HealthController', () => {
 
       const result = controller.health();
 
-      expect(result.service).toBe('search-api');
+      expect(result.service).toBe("search-api");
     });
 
-    it('returns a numeric uptime value', () => {
+    it("returns a numeric uptime value", () => {
       mockConfigService.get.mockReturnValue(undefined);
 
       const result = controller.health();
 
-      expect(typeof result.uptime).toBe('number');
+      expect(typeof result.uptime).toBe("number");
       expect(result.uptime as number).toBeGreaterThanOrEqual(0);
     });
 
@@ -75,13 +73,13 @@ describe('HealthController', () => {
 
       const result = controller.health();
 
-      expect(result.version).toBe('1.0.0');
+      expect(result.version).toBe("1.0.0");
     });
 
-    it('defaults mockBm25 to true when MOCK_BM25 env var is not set', () => {
+    it("defaults mockBm25 to true when MOCK_BM25 env var is not set", () => {
       mockConfigService.get.mockImplementation((key: string) => {
-        if (key === 'MOCK_BM25') return undefined;
-        if (key === 'MOCK_SEMANTIC') return undefined;
+        if (key === "MOCK_BM25") return undefined;
+        if (key === "MOCK_SEMANTIC") return undefined;
         return undefined;
       });
 
@@ -91,10 +89,10 @@ describe('HealthController', () => {
       expect(result.mockBm25).toBe(true);
     });
 
-    it('defaults mockSemantic to true when MOCK_SEMANTIC env var is not set', () => {
+    it("defaults mockSemantic to true when MOCK_SEMANTIC env var is not set", () => {
       mockConfigService.get.mockImplementation((key: string) => {
-        if (key === 'MOCK_BM25') return undefined;
-        if (key === 'MOCK_SEMANTIC') return undefined;
+        if (key === "MOCK_BM25") return undefined;
+        if (key === "MOCK_SEMANTIC") return undefined;
         return undefined;
       });
 
@@ -103,9 +101,9 @@ describe('HealthController', () => {
       expect(result.mockSemantic).toBe(true);
     });
 
-    it('reflects MOCK_BM25=false when config returns false', () => {
+    it("reflects MOCK_BM25=false when config returns false", () => {
       mockConfigService.get.mockImplementation((key: string) => {
-        if (key === 'MOCK_BM25') return false;
+        if (key === "MOCK_BM25") return false;
         return undefined;
       });
 
@@ -114,9 +112,9 @@ describe('HealthController', () => {
       expect(result.mockBm25).toBe(false);
     });
 
-    it('reflects MOCK_SEMANTIC=false when config returns false', () => {
+    it("reflects MOCK_SEMANTIC=false when config returns false", () => {
       mockConfigService.get.mockImplementation((key: string) => {
-        if (key === 'MOCK_SEMANTIC') return false;
+        if (key === "MOCK_SEMANTIC") return false;
         return undefined;
       });
 
@@ -125,16 +123,16 @@ describe('HealthController', () => {
       expect(result.mockSemantic).toBe(false);
     });
 
-    it('reads mock flags from ConfigService', () => {
+    it("reads mock flags from ConfigService", () => {
       mockConfigService.get.mockReturnValue(undefined);
 
       controller.health();
 
-      expect(mockConfigService.get).toHaveBeenCalledWith('MOCK_BM25');
-      expect(mockConfigService.get).toHaveBeenCalledWith('MOCK_SEMANTIC');
+      expect(mockConfigService.get).toHaveBeenCalledWith("MOCK_BM25");
+      expect(mockConfigService.get).toHaveBeenCalledWith("MOCK_SEMANTIC");
     });
 
-    it('does not throw when all config values are undefined', () => {
+    it("does not throw when all config values are undefined", () => {
       mockConfigService.get.mockReturnValue(undefined);
 
       expect(() => controller.health()).not.toThrow();
