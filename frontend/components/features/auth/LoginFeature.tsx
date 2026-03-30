@@ -18,12 +18,9 @@ import { LoginForm } from './LoginForm';
 import { useLogin } from '@/lib/hooks/auth/use-login';
 import { login as storeLogin } from '@/lib/stores/auth.store';
 import { getMe } from '@/lib/api/auth.api';
+import { getApiBaseUrl } from '@/lib/api/client';
 import { ME_QUERY_KEY } from '@/lib/hooks/auth/use-me';
 import type { LoginRequest } from '@/lib/types/auth.types';
-
-const GOOGLE_OAUTH_URL =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) ||
-  'http://localhost:8000';
 
 const REFRESH_TOKEN_KEY = 'kms_refresh_token';
 
@@ -89,8 +86,10 @@ export function LoginFeature() {
   );
 
   const handleGoogleLogin = useCallback(() => {
-    // Redirect to backend Google OAuth initiation endpoint
-    window.location.href = `${GOOGLE_OAUTH_URL}/api/v1/auth/google`;
+    // Redirect to backend Google OAuth initiation endpoint.
+    // getApiBaseUrl() resolves BASE_URL + /api/v1, correctly handling
+    // both the /kms basePath in production and localhost in development.
+    window.location.href = `${getApiBaseUrl()}/auth/google`;
   }, []);
 
   return (
