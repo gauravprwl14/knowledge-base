@@ -1,6 +1,6 @@
-import { Module, Global } from '@nestjs/common';
-import { ConfigModule as NestConfigModule } from '@nestjs/config';
-import { configSchema } from './config.schema';
+import { Module, Global } from "@nestjs/common";
+import { ConfigModule as NestConfigModule } from "@nestjs/config";
+import { configSchema } from "./config.schema";
 
 /**
  * Global ConfigModule — validates env vars with Zod at startup and makes
@@ -28,7 +28,7 @@ import { configSchema } from './config.schema';
       },
       isGlobal: true,
       // Load .env file in non-production environments
-      ignoreEnvFile: process.env.NODE_ENV === 'production',
+      ignoreEnvFile: process.env.NODE_ENV === "production",
     }),
   ],
 })

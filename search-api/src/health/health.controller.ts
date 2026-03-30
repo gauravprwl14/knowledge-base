@@ -1,6 +1,6 @@
-import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { ConfigService } from '@nestjs/config';
+import { Controller, Get, HttpCode, HttpStatus } from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { ConfigService } from "@nestjs/config";
 
 /**
  * HealthController provides a lightweight liveness probe for orchestrators
@@ -9,8 +9,8 @@ import { ConfigService } from '@nestjs/config';
  * GET /health returns 200 with service metadata when the process is alive.
  * No dependency checks are performed — this is a liveness probe, not readiness.
  */
-@ApiTags('health')
-@Controller('health')
+@ApiTags("health")
+@Controller("health")
 export class HealthController {
   constructor(private readonly config: ConfigService) {}
 
@@ -22,33 +22,34 @@ export class HealthController {
   @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Liveness probe',
-    description: 'Returns 200 if the process is alive. Used by Docker healthcheck.',
+    summary: "Liveness probe",
+    description:
+      "Returns 200 if the process is alive. Used by Docker healthcheck.",
   })
   @ApiResponse({
     status: 200,
-    description: 'Service is alive',
+    description: "Service is alive",
     schema: {
-      type: 'object',
+      type: "object",
       properties: {
-        status: { type: 'string', example: 'ok' },
-        service: { type: 'string', example: 'search-api' },
-        version: { type: 'string', example: '1.0.0' },
-        mockBm25: { type: 'boolean', example: true },
-        mockSemantic: { type: 'boolean', example: true },
-        uptime: { type: 'number', example: 42.5 },
+        status: { type: "string", example: "ok" },
+        service: { type: "string", example: "search-api" },
+        version: { type: "string", example: "1.0.0" },
+        mockBm25: { type: "boolean", example: true },
+        mockSemantic: { type: "boolean", example: true },
+        uptime: { type: "number", example: 42.5 },
       },
     },
   })
   health(): Record<string, unknown> {
     // Read mock-mode flags so operators can confirm the service configuration at a glance
-    const mockBm25 = this.config.get<boolean>('MOCK_BM25') ?? true;
-    const mockSemantic = this.config.get<boolean>('MOCK_SEMANTIC') ?? true;
+    const mockBm25 = this.config.get<boolean>("MOCK_BM25") ?? true;
+    const mockSemantic = this.config.get<boolean>("MOCK_SEMANTIC") ?? true;
 
     return {
-      status: 'ok',
-      service: 'search-api',
-      version: '1.0.0',
+      status: "ok",
+      service: "search-api",
+      version: "1.0.0",
       // Mock flags help operators confirm dev vs production mode without reading env vars
       mockBm25,
       mockSemantic,

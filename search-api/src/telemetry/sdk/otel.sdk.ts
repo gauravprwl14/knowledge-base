@@ -1,15 +1,15 @@
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { resourceFromAttributes } from '@opentelemetry/resources';
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-grpc";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   SEMRESATTRS_SERVICE_NAME,
   SEMRESATTRS_SERVICE_VERSION,
   SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
-} from '@opentelemetry/semantic-conventions';
-import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+} from "@opentelemetry/semantic-conventions";
+import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import {
   diag,
   DiagConsoleLogger,
@@ -18,7 +18,7 @@ import {
   context,
   Span,
   SpanStatusCode,
-} from '@opentelemetry/api';
+} from "@opentelemetry/api";
 
 /**
  * OpenTelemetry SDK configuration options
@@ -55,7 +55,7 @@ let sdk: NodeSDK | null = null;
  */
 export function initOtelSdk(config: OtelSdkConfig): NodeSDK | null {
   if (config.enabled === false) {
-    console.log('[OTel] OpenTelemetry is disabled');
+    console.log("[OTel] OpenTelemetry is disabled");
     return null;
   }
 
@@ -67,7 +67,7 @@ export function initOtelSdk(config: OtelSdkConfig): NodeSDK | null {
   // Create resource with service information
   const resource = resourceFromAttributes({
     [SEMRESATTRS_SERVICE_NAME]: config.serviceName,
-    [SEMRESATTRS_SERVICE_VERSION]: config.serviceVersion || '1.0.0',
+    [SEMRESATTRS_SERVICE_VERSION]: config.serviceVersion || "1.0.0",
     [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: config.environment,
   });
 
@@ -94,14 +94,14 @@ export function initOtelSdk(config: OtelSdkConfig): NodeSDK | null {
     spanProcessor: new BatchSpanProcessor(traceExporter),
     instrumentations: [
       getNodeAutoInstrumentations({
-        '@opentelemetry/instrumentation-http': {
+        "@opentelemetry/instrumentation-http": {
           ignoreIncomingRequestHook: (req) => {
             // Ignore health check endpoints
-            const url = req.url || '';
-            return url.includes('/health') || url.includes('/ready');
+            const url = req.url || "";
+            return url.includes("/health") || url.includes("/ready");
           },
         },
-        '@opentelemetry/instrumentation-fs': {
+        "@opentelemetry/instrumentation-fs": {
           enabled: false, // Disable filesystem instrumentation (too noisy)
         },
       }),
@@ -122,9 +122,9 @@ export async function shutdownOtelSdk(): Promise<void> {
   if (sdk) {
     try {
       await sdk.shutdown();
-      console.log('[OTel] OpenTelemetry SDK shut down successfully');
+      console.log("[OTel] OpenTelemetry SDK shut down successfully");
     } catch (error) {
-      console.error('[OTel] Error shutting down OpenTelemetry SDK:', error);
+      console.error("[OTel] Error shutting down OpenTelemetry SDK:", error);
     }
   }
 }
@@ -166,7 +166,7 @@ export async function withSpan<T>(
   fn: (span: Span) => Promise<T>,
   attributes?: Record<string, string | number | boolean>,
 ): Promise<T> {
-  const tracer = trace.getTracer('search-api');
+  const tracer = trace.getTracer("search-api");
 
   return tracer.startActiveSpan(name, async (span) => {
     try {
@@ -182,7 +182,7 @@ export async function withSpan<T>(
     } catch (error) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: error instanceof Error ? error.message : "Unknown error",
       });
       if (error instanceof Error) {
         span.recordException(error);
@@ -202,7 +202,7 @@ export function withSpanSync<T>(
   fn: (span: Span) => T,
   attributes?: Record<string, string | number | boolean>,
 ): T {
-  const tracer = trace.getTracer('search-api');
+  const tracer = trace.getTracer("search-api");
 
   return tracer.startActiveSpan(name, (span) => {
     try {
@@ -218,7 +218,7 @@ export function withSpanSync<T>(
     } catch (error) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: error instanceof Error ? error.message : "Unknown error",
       });
       if (error instanceof Error) {
         span.recordException(error);

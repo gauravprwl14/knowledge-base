@@ -5,9 +5,9 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-} from '@nestjs/common';
-import { FastifyReply, FastifyRequest } from 'fastify';
-import { AppError, ERROR_CODES } from '../../errors/app-error';
+} from "@nestjs/common";
+import { FastifyReply, FastifyRequest } from "fastify";
+import { AppError, ERROR_CODES } from "../../errors/app-error";
 
 /**
  * Global exception filter for the search-api.
@@ -25,7 +25,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private readonly isProduction: boolean;
 
   constructor() {
-    this.isProduction = process.env.NODE_ENV === 'production';
+    this.isProduction = process.env.NODE_ENV === "production";
   }
 
   catch(exception: unknown, host: ArgumentsHost): void {
@@ -52,13 +52,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse();
       const message =
-        typeof exceptionResponse === 'string'
+        typeof exceptionResponse === "string"
           ? exceptionResponse
           : (exceptionResponse as any).message || exception.message;
 
       return new AppError({
         code: ERROR_CODES.GEN.INTERNAL_ERROR.code,
-        message: Array.isArray(message) ? message.join(', ') : message,
+        message: Array.isArray(message) ? message.join(", ") : message,
         statusCode: exception.getStatus(),
         cause: exception,
         isOperational: true,
@@ -67,7 +67,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (exception instanceof Error) {
       const message = this.isProduction
-        ? 'An internal server error occurred'
+        ? "An internal server error occurred"
         : exception.message;
 
       return new AppError({
@@ -81,7 +81,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     return new AppError({
       code: ERROR_CODES.GEN.INTERNAL_ERROR.code,
-      message: 'An unknown error occurred',
+      message: "An unknown error occurred",
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       isOperational: false,
     });
