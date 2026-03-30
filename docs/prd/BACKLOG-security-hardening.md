@@ -191,13 +191,11 @@ ALTER TABLE kms_voice_jobs
 
 ## User Stories
 
-| As a... | I want to... | So that... |
-|---------|-------------|-----------|
-| Registered user | I want my voice transcripts encrypted at rest | So that sensitive speech content cannot be read if storage is compromised |
-| Registered user | I want the system to limit how many OAuth attempts I can make per hour | So that my account cannot be abused via automated flooding |
-| Admin | I want to be able to rotate the token encryption key without forcing users to reconnect sources | So that key compromise does not require a disruptive re-authentication for all users |
-| Admin | I want an audit log of every transcript access with user and timestamp | So that I can investigate incidents and demonstrate GDPR compliance |
-| Platform operator | I want Qdrant to require an API key from all internal services | So that accidental exposure of port 6333 does not leak all vector data |
+- As a registered user, I want my voice transcripts encrypted at rest so that sensitive speech content cannot be read if storage is compromised.
+- As a registered user, I want the system to limit how many OAuth attempts I can make per hour so that my account cannot be abused via automated flooding.
+- As an admin, I want to be able to rotate the token encryption key without forcing users to reconnect sources so that key compromise does not require a disruptive re-authentication for all users.
+- As an admin, I want an audit log of every transcript access with user and timestamp so that I can investigate incidents and demonstrate GDPR compliance.
+- As a platform operator, I want Qdrant to require an API key from all internal services so that accidental exposure of port 6333 does not leak all vector data.
 
 ---
 

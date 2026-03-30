@@ -121,12 +121,10 @@ The prerequisite for all items in this ticket is that `BACKLOG-image-ocr-product
 
 ## User Stories
 
-| As a... | I want to... | So that... |
-|---------|-------------|-----------|
-| Registered user | I want video files in my knowledge base to be searchable by their visual and spoken content | So that I can find meeting recordings by topic without watching the full video |
-| Registered user | I want charts and diagrams in PDF documents to be understood and indexed | So that visual information in reports is as searchable as the surrounding text |
-| Registered user | I want PowerPoint slides to contribute their text and visual context to search | So that presentation content is fully discoverable |
-| Platform operator | I want multimodal processing gated by feature flags with cost controls | So that cloud vision API costs do not exceed approved budget |
+- As a registered user, I want video files in my knowledge base to be searchable by their visual and spoken content so that I can find meeting recordings by topic without watching the full video.
+- As a registered user, I want charts and diagrams in PDF documents to be understood and indexed so that visual information in reports is as searchable as the surrounding text.
+- As a registered user, I want PowerPoint slides to contribute their text and visual context to search so that presentation content is fully discoverable.
+- As a platform operator, I want multimodal processing gated by feature flags with cost controls so that cloud vision API costs do not exceed approved budget.
 
 ---
 

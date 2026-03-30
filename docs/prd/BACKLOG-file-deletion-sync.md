@@ -96,11 +96,9 @@ ALTER TABLE kms_files
 
 ## User Stories
 
-| As a... | I want to... | So that... |
-|---------|-------------|-----------|
-| Registered user | I want files I delete from Google Drive to disappear from my knowledge base | So that I do not receive search results for content that no longer exists |
-| Registered user | I want the deletion to propagate automatically without manual intervention | So that my knowledge base stays in sync with my Drive without extra effort |
-| Admin | I want deleted file metadata retained with a `deleted_at` timestamp | So that I can audit when files were removed from user sources |
+- As a registered user, I want files I delete from Google Drive to disappear from my knowledge base so that I do not receive search results for content that no longer exists.
+- As a registered user, I want the deletion to propagate automatically without manual intervention so that my knowledge base stays in sync with my Drive without extra effort.
+- As an admin, I want deleted file metadata retained with a `deleted_at` timestamp so that I can audit when files were removed from user sources.
 
 ---
 

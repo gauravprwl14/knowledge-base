@@ -145,11 +145,9 @@ GET /api/v1/sources/:id/scan-progress
 
 ## User Stories
 
-| As a... | I want to... | So that... |
-|---------|-------------|-----------|
-| Registered user | I want to see real-time scan progress on a source card | So that I know how many files have been discovered and processed without refreshing the page |
-| Registered user | I want to see a progress bar and file count while my Drive source is scanning | So that I can distinguish a healthy long-running scan from a stuck one |
-| Admin | I want scan progress updates to be scoped per job and per user | So that one user's scan events are never visible to another user |
+- As a registered user, I want to see real-time scan progress on a source card so that I know how many files have been discovered and processed without refreshing the page.
+- As a registered user, I want to see a progress bar and file count while my Drive source is scanning so that I can distinguish a healthy long-running scan from a stuck one.
+- As an admin, I want scan progress updates to be scoped per job and per user so that one user's scan events are never visible to another user.
 
 ---
 

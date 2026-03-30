@@ -120,11 +120,9 @@ Manual test procedure (after Docker rebuild):
 
 ## User Stories
 
-| As a... | I want to... | So that... |
-|---------|-------------|-----------|
-| Registered user | I want image files (PNG, JPEG, TIFF) in my knowledge base to be searchable by their text content | So that screenshots and scanned documents are as useful as text files |
-| Registered user | I want to be clearly informed if a file type cannot be processed | So that I know why an image file returns no search results |
-| Platform operator | I want OCR to be gated by a feature flag | So that I can enable it only after verifying the Docker image rebuild |
+- As a registered user, I want image files (PNG, JPEG, TIFF) in my knowledge base to be searchable by their text content so that screenshots and scanned documents are as useful as text files.
+- As a registered user, I want to be clearly informed if a file type cannot be processed so that I know why an image file returns no search results.
+- As a platform operator, I want OCR to be gated by a feature flag so that I can enable it only after verifying the Docker image rebuild.
 
 ---
 
