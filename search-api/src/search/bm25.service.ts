@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
-import { PrismaService } from "../prisma/prisma.service";
-import { SearchResult } from "./dto/search-response.dto";
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { SearchResult } from './dto/search-response.dto';
 
 /**
  * Five canonical seed documents used when MOCK_BM25=true.
@@ -75,7 +76,7 @@ const MOCK_DOCUMENTS: Omit<SearchResult, "score">[] = [
  * dependency during development and testing.
  *
  * In real mode it issues a `$queryRaw` Prisma call using `ts_rank` and
- * `to_tsquery` for proper BM25-style PostgreSQL FTS.
+ * `plainto_tsquery` for proper BM25-style PostgreSQL FTS.
  */
 @Injectable()
 export class Bm25Service {
@@ -84,9 +85,9 @@ export class Bm25Service {
 
   constructor(
     private readonly config: ConfigService,
-    private readonly prisma: PrismaService,
     @InjectPinoLogger(Bm25Service.name)
     private readonly logger: PinoLogger,
+    private readonly prisma: PrismaService,
   ) {
     // Read MOCK_BM25 from validated config; default true so the service starts without a DB
     this.mockMode = this.config.get<boolean>("MOCK_BM25") ?? true;
@@ -163,19 +164,19 @@ export class Bm25Service {
   }
 
   /**
-   * Executes a raw PostgreSQL FTS query using ts_rank + to_tsquery.
+   * Executes a raw PostgreSQL FTS query using ts_rank + plainto_tsquery.
    *
-   * Uses the generated ``search_vector`` tsvector column (GIN-indexed) on
-   * ``kms_chunks`` for efficient full-text search.  Results are scoped to
-   * ``userId`` via the ``user_id`` column and ranked by ``ts_rank``.
+   * Uses a GIN-indexed tsvector column on kms_chunks for fast full-text search.
+   * The query is wrapped in plainto_tsquery so no special syntax knowledge is
+   * required from the caller (spaces become AND, punctuation is stripped).
    *
-   * ``ts_headline`` produces a highlighted snippet so callers receive the
-   * relevant excerpt rather than the raw full-chunk content.
+   * ts_headline generates an HTML-marked snippet showing the matching terms
+   * in context; this is stored in `content` so callers can render highlights.
    *
-   * @param query     - Search query string (sanitised before passing to tsquery)
-   * @param userId    - Owner user ID for multi-tenant isolation
-   * @param limit     - Row limit
-   * @param sourceIds - Optional source filter
+   * @param query     - Free-text search query from the caller
+   * @param userId    - Caller's user ID for row-level security scoping
+   * @param limit     - Maximum number of rows to return
+   * @param sourceIds - Optional list of source UUIDs to restrict results
    */
   private async pgSearch(
     query: string,
@@ -183,108 +184,63 @@ export class Bm25Service {
     limit: number,
     sourceIds?: string[],
   ): Promise<SearchResult[]> {
-    // Convert free-text query to a ts_query-safe AND-joined expression.
-    // Strip non-alphanumeric chars to prevent injection via plainto_tsquery path.
-    const safeTerms = query
-      .trim()
-      .split(/\s+/)
-      .map((t) => t.replace(/[^a-zA-Z0-9]/g, ""))
-      .filter(Boolean);
+    this.logger.info({ userId, limit, sourceIds }, 'bm25: executing PostgreSQL FTS');
 
-    if (safeTerms.length === 0) {
-      return [];
-    }
+    // Build the optional source filter fragment.
+    // Prisma $queryRaw uses tagged-template interpolation — parameters are
+    // automatically escaped; arrays must be spread as Prisma.sql literals.
+    const sourceFilter =
+      sourceIds && sourceIds.length > 0
+        ? Prisma.sql`AND c.source_id = ANY(ARRAY[${Prisma.join(sourceIds)}]::uuid[])`
+        : Prisma.sql``;
 
-    const tsQueryStr = safeTerms.join(" & ");
-
-    this.logger.info(
-      { tsQueryStr, userId, limit, sourceIds },
-      "bm25: executing PostgreSQL FTS",
-    );
-
-    // Build the optional source_id IN clause (injected safely via array binding)
-    // Prisma $queryRaw uses tagged template literals for safe parameterisation.
-    // We build two variants to avoid "no parameter" branch complexity.
     type RawRow = {
       id: string;
-      file_id: string;
+      fileId: string;
       filename: string;
+      content: string;
+      chunkIndex: number;
+      startSecs: number | null;
+      webViewLink: string | null;
+      score: number;
       snippet: string;
-      ts_rank: number;
-      chunk_index: number;
-      source_type: string | null;
-      web_view_link: string | null;
-      start_secs: number | null;
     };
 
-    let rows: RawRow[];
+    const rows = await this.prisma.$queryRaw<RawRow[]>(Prisma.sql`
+      SELECT
+        c.id::text                                          AS "id",
+        c.file_id::text                                     AS "fileId",
+        f.name                                              AS "filename",
+        c.content                                           AS "content",
+        c.chunk_index                                       AS "chunkIndex",
+        c.start_secs                                        AS "startSecs",
+        f.web_view_link                                     AS "webViewLink",
+        ts_rank(c.search_vector, plainto_tsquery('english', ${query})) AS "score",
+        ts_headline(
+          'english',
+          c.content,
+          plainto_tsquery('english', ${query}),
+          'MaxWords=30, MinWords=15, StartSel=<mark>, StopSel=</mark>'
+        )                                                   AS "snippet"
+      FROM kms_chunks c
+      JOIN kms_files f ON f.id = c.file_id
+      WHERE c.user_id = ${userId}::uuid
+        AND c.search_vector @@ plainto_tsquery('english', ${query})
+        ${sourceFilter}
+      ORDER BY "score" DESC
+      LIMIT ${limit}
+    `);
 
-    if (sourceIds && sourceIds.length > 0) {
-      rows = await this.prisma.$queryRaw<RawRow[]>`
-        SELECT
-          c.id::text,
-          c.file_id::text,
-          f.name               AS filename,
-          ts_headline('english', c.content,
-            to_tsquery('english', ${tsQueryStr}),
-            'MaxWords=50,MinWords=15,ShortWord=3,HighlightAll=false'
-          )                    AS snippet,
-          ts_rank(c.search_vector, to_tsquery('english', ${tsQueryStr}))
-                               AS ts_rank,
-          c.chunk_index,
-          f.source_type,
-          f.source_metadata->>'webViewLink' AS web_view_link,
-          c.start_secs
-        FROM   kms_chunks c
-        JOIN   kms_files  f ON f.id = c.file_id
-        WHERE  c.search_vector @@ to_tsquery('english', ${tsQueryStr})
-          AND  f.user_id = ${userId}::uuid
-          AND  c.source_id = ANY(${sourceIds}::uuid[])
-        ORDER  BY ts_rank DESC
-        LIMIT  ${limit}
-      `;
-    } else {
-      rows = await this.prisma.$queryRaw<RawRow[]>`
-        SELECT
-          c.id::text,
-          c.file_id::text,
-          f.name               AS filename,
-          ts_headline('english', c.content,
-            to_tsquery('english', ${tsQueryStr}),
-            'MaxWords=50,MinWords=15,ShortWord=3,HighlightAll=false'
-          )                    AS snippet,
-          ts_rank(c.search_vector, to_tsquery('english', ${tsQueryStr}))
-                               AS ts_rank,
-          c.chunk_index,
-          f.source_type,
-          f.source_metadata->>'webViewLink' AS web_view_link,
-          c.start_secs
-        FROM   kms_chunks c
-        JOIN   kms_files  f ON f.id = c.file_id
-        WHERE  c.search_vector @@ to_tsquery('english', ${tsQueryStr})
-          AND  f.user_id = ${userId}::uuid
-        ORDER  BY ts_rank DESC
-        LIMIT  ${limit}
-      `;
-    }
-
-    this.logger.info(
-      { rowCount: rows.length, userId },
-      "bm25: PostgreSQL FTS complete",
-    );
-
-    // Normalise ts_rank (0–1) and map raw rows to SearchResult objects.
-    // ts_rank is already in [0, 1] range from PostgreSQL; clamp just in case.
     return rows.map((row) => ({
       id: row.id,
-      fileId: row.file_id,
+      fileId: row.fileId,
       filename: row.filename,
-      content: row.snippet,
-      score: Math.min(Math.max(Number(row.ts_rank), 0), 1),
-      chunkIndex: Number(row.chunk_index),
-      webViewLink: row.web_view_link ?? undefined,
-      startSecs: row.start_secs != null ? Number(row.start_secs) : undefined,
-      sourceType: row.source_type ?? undefined,
+      // Use ts_headline snippet so callers can render highlighted matches
+      content: row.snippet || row.content,
+      score: Number(row.score),
+      chunkIndex: Number(row.chunkIndex),
+      webViewLink: row.webViewLink ?? undefined,
+      startSecs: row.startSecs != null ? Number(row.startSecs) : undefined,
     }));
   }
 }

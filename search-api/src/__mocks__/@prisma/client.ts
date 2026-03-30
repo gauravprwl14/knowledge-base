@@ -18,7 +18,27 @@ export const PrismaClient = jest.fn().mockImplementation(() => ({
   $on: jest.fn(),
 }));
 
+/**
+ * Minimal tagged-template helper that mirrors Prisma.sql behaviour.
+ * In tests we only need it to return something passable to $queryRaw mocks.
+ */
+function sql(strings: TemplateStringsArray, ...values: unknown[]): { sql: string; values: unknown[] } {
+  return { sql: strings.join('?'), values };
+}
+
+/**
+ * Minimal join helper — concatenates values for test purposes.
+ */
+function join(values: unknown[], separator = ', '): string {
+  return values.join(separator);
+}
+
 export const Prisma = {
+  // Tagged-template helpers used by BM25 raw queries
+  sql,
+  join,
+  empty: sql``,
+
   PrismaClientKnownRequestError: class extends Error {
     code: string;
     constructor(message: string, { code }: { code: string }) {

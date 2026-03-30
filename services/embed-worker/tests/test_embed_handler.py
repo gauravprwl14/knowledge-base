@@ -211,3 +211,104 @@ async def test_handle_extraction_error_rejects_non_retryable():
     amqp_msg.reject.assert_awaited_once_with(requeue=False)
     amqp_msg.ack.assert_not_awaited()
     amqp_msg.nack.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# kms_chunks dual-write: user_id and source_id must be written
+# ---------------------------------------------------------------------------
+
+
+async def test_chunk_written_to_postgres_after_qdrant_upsert():
+    """After a successful embed + Qdrant upsert, chunks must be written to PostgreSQL kms_chunks
+    including user_id and source_id so BM25 search can scope results correctly."""
+    db_pool = AsyncMock()
+    # Track all execute calls
+    execute_calls: list[tuple] = []
+
+    async def capture_execute(sql: str, *args):
+        execute_calls.append((sql, args))
+
+    db_pool.execute = capture_execute
+
+    emb = AsyncMock()
+    emb.encode_batch = AsyncMock(return_value=[[0.0] * 1024])
+
+    qdr = AsyncMock()
+    qdr.ensure_collection = AsyncMock()
+    qdr.upsert_chunks = AsyncMock()
+
+    handler = EmbedHandler(db_pool=db_pool, embedding_service=emb, qdrant_service=qdr)
+
+    user_id = str(uuid.uuid4())
+    source_id = str(uuid.uuid4())
+    payload = _make_valid_payload(user_id=user_id, source_id=source_id)
+    amqp_msg = _make_message(json.dumps(payload).encode())
+
+    with (
+        patch("app.handlers.embed_handler.Path") as mock_path_cls,
+        patch("app.handlers.embed_handler.get_extractor") as mock_get_extractor,
+    ):
+        mock_path_inst = MagicMock()
+        mock_path_inst.exists.return_value = True
+        mock_path_cls.return_value = mock_path_inst
+
+        mock_extractor = AsyncMock()
+        mock_extractor.extract = AsyncMock(return_value="chunk content for testing")
+        mock_get_extractor.return_value = mock_extractor
+
+        await handler.handle(amqp_msg)
+
+    amqp_msg.ack.assert_awaited_once()
+
+    # Find the kms_chunks INSERT call(s)
+    chunk_inserts = [
+        (sql, args) for sql, args in execute_calls if "kms_chunks" in sql
+    ]
+    assert len(chunk_inserts) >= 1, "Expected at least one INSERT INTO kms_chunks"
+
+    # Verify user_id and source_id are among the arguments passed
+    first_sql, first_args = chunk_inserts[0]
+    all_args_str = [str(a) for a in first_args]
+    assert user_id in all_args_str, f"user_id {user_id} not found in chunk INSERT args"
+    assert source_id in all_args_str, f"source_id {source_id} not found in chunk INSERT args"
+
+
+async def test_chunk_insert_uses_upsert_on_conflict():
+    """kms_chunks INSERT must use ON CONFLICT (id) DO UPDATE to be idempotent."""
+    db_pool = AsyncMock()
+    chunk_insert_sqls: list[str] = []
+
+    async def capture_execute(sql: str, *args):
+        if "kms_chunks" in sql:
+            chunk_insert_sqls.append(sql)
+
+    db_pool.execute = capture_execute
+
+    emb = AsyncMock()
+    emb.encode_batch = AsyncMock(return_value=[[0.0] * 1024])
+    qdr = AsyncMock()
+    qdr.ensure_collection = AsyncMock()
+    qdr.upsert_chunks = AsyncMock()
+
+    handler = EmbedHandler(db_pool=db_pool, embedding_service=emb, qdrant_service=qdr)
+    payload = _make_valid_payload()
+    amqp_msg = _make_message(json.dumps(payload).encode())
+
+    with (
+        patch("app.handlers.embed_handler.Path") as mock_path_cls,
+        patch("app.handlers.embed_handler.get_extractor") as mock_get_extractor,
+    ):
+        mock_path_inst = MagicMock()
+        mock_path_inst.exists.return_value = True
+        mock_path_cls.return_value = mock_path_inst
+
+        mock_extractor = AsyncMock()
+        mock_extractor.extract = AsyncMock(return_value="some content")
+        mock_get_extractor.return_value = mock_extractor
+
+        await handler.handle(amqp_msg)
+
+    assert len(chunk_insert_sqls) >= 1
+    assert "ON CONFLICT" in chunk_insert_sqls[0].upper(), (
+        "kms_chunks INSERT must include ON CONFLICT for idempotency"
+    )
