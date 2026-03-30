@@ -186,3 +186,128 @@ ALTER TABLE kms_voice_jobs
 - `docs/architecture/ENGINEERING_STANDARDS.md` — security standards
 - `kms-api/src/modules/auth/` — token encryption logic (Item 3)
 - `docker-compose.kms.yml` — Qdrant service config (Item 6)
+
+---
+
+## User Stories
+
+| As a... | I want to... | So that... |
+|---------|-------------|-----------|
+| Registered user | I want my voice transcripts encrypted at rest | So that sensitive speech content cannot be read if storage is compromised |
+| Registered user | I want the system to limit how many OAuth attempts I can make per hour | So that my account cannot be abused via automated flooding |
+| Admin | I want to be able to rotate the token encryption key without forcing users to reconnect sources | So that key compromise does not require a disruptive re-authentication for all users |
+| Admin | I want an audit log of every transcript access with user and timestamp | So that I can investigate incidents and demonstrate GDPR compliance |
+| Platform operator | I want Qdrant to require an API key from all internal services | So that accidental exposure of port 6333 does not leak all vector data |
+
+---
+
+## Out of Scope
+
+- Full GDPR data-subject-access-request (DSAR) workflow — separate ticket
+- End-to-end encryption of file content in PostgreSQL (only transcripts in MinIO are in scope here)
+- Multi-factor authentication (MFA) for user login — separate auth hardening ticket
+- Penetration testing or third-party security audit
+
+---
+
+## Happy Path Flows
+
+### Item 3: Token Key Rotation (happy path)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Admin
+    participant API as kms-api
+    participant DB as PostgreSQL
+
+    Admin->>Admin: rotate key — set TOKEN_ENCRYPTION_KEY_v2
+    Admin->>API: POST /admin/token-rotation/migrate (admin role)
+    API->>DB: SELECT id, encrypted_token, key_version FROM kms_oauth_tokens WHERE key_version = 1
+    loop For each token
+        API->>API: decrypt with v1 key, re-encrypt with v2 key
+        API->>DB: UPDATE kms_oauth_tokens SET encrypted_token=<new>, key_version=2 WHERE id=<id>
+    end
+    API-->>Admin: 200 { migrated: N }
+```
+
+### Item 4: Rate Limiting (happy path)
+
+Normal OAuth connect — under limit → 200 returned. Sixth attempt within 1 hour → 429 with `Retry-After` header.
+
+---
+
+## Error Flows
+
+| Item | Scenario | Behaviour |
+|------|----------|-----------|
+| 3 | Re-encryption fails for one token (DB error) | Log `KBAUT0030`; skip token and continue; report failed count in response |
+| 4 | Rate limit exceeded | Return 429 with `{ code: "KBAUT0031", message: "Too many requests", retryAfter: <seconds> }` |
+| 1 | MinIO SSE-S3 misconfigured | Upload fails with MinIO error; voice-app raises `KMSWorkerError(KBWRK0030, retryable=False)` |
+| 6 | Qdrant API key missing in worker env | Worker startup fails with clear error `KBWRK0031`; container exits non-zero |
+| 7 | Gitleaks pre-commit hook detects high-entropy string | Commit blocked; developer prompted to add to `.gitleaksignore` if false positive |
+
+---
+
+## Edge Cases
+
+| Case | Handling |
+|------|----------|
+| Admin triggers key rotation while a user is actively scanning (token in use) | `key_version` stored per-row; in-flight requests use the version stored at decrypt time — no race condition |
+| Rate limit Redis store is unavailable | Fail open with warning log `KBAUT0032`; do not block OAuth if Redis is down |
+| PII detection (item 5) adds > 2 s to transcription latency | Feature flag `features.piiDetection.enabled` defaults to `false`; opt-in per deployment |
+| Multiple concurrent audit log writes for same file | Append-only table; no UPDATE conflicts |
+
+---
+
+## Integration Contracts
+
+| Item | Component | API / Payload |
+|------|-----------|--------------|
+| 3 | Token rotation endpoint | `POST /admin/token-rotation/migrate` — admin role; returns `{ migrated: N, failed: N }` |
+| 2 | Audit log endpoint | `GET /admin/audit-log?user_id=&file_id=&page=&limit=` — admin role |
+| 4 | Rate limit config | `@nestjs/throttler` with Redis store; `THROTTLE_TTL=3600`, `THROTTLE_LIMIT=5` env vars |
+| 6 | Qdrant API key | `QDRANT__SERVICE__API_KEY` env var in `docker-compose.kms.yml`; passed via `api-key` header in all Qdrant HTTP calls |
+
+---
+
+## KB Error Codes
+
+| Code | Meaning |
+|------|---------|
+| `KBAUT0030` | Token re-encryption failed for a specific token during key rotation |
+| `KBAUT0031` | Rate limit exceeded on OAuth or auth endpoint |
+| `KBAUT0032` | Rate limit Redis store unavailable — fail-open warning |
+| `KBWRK0030` | MinIO SSE-S3 configuration error — upload rejected |
+| `KBWRK0031` | Qdrant API key missing — worker cannot start |
+
+---
+
+## Test Scenarios
+
+| # | Scenario | Type | Expected Outcome |
+|---|----------|------|-----------------|
+| 1 | POST /admin/token-rotation/migrate — all tokens re-encrypted | Integration | `key_version = 2` for all rows; tokens still decrypt correctly |
+| 2 | 6th OAuth attempt within 1 hour returns 429 | Integration | 429 with `KBAUT0031` code and `Retry-After` header |
+| 3 | Qdrant without API key — unauthenticated curl returns 401 | Manual | `curl http://qdrant:6333/collections` returns 401 |
+| 4 | Gitleaks blocks commit with fake AWS key in source file | Unit/pre-commit | Commit rejected with secret detection message |
+| 5 | Audit log row created on every transcript text fetch | Integration | `kms_audit_log` count increments by 1 per fetch |
+| 6 | PII detected in transcript — flag set, entity types logged but not entity text | Unit | `pii_detected=true`, log contains `entity_types` not raw PII strings |
+
+---
+
+## Non-Functional Requirements
+
+| Concern | Requirement |
+|---------|-------------|
+| Latency (item 4) | Rate limit check adds < 5 ms overhead per request (Redis TTL check) |
+| SLO (item 1) | MinIO SSE-S3 encryption must not degrade upload throughput by more than 5% |
+| Rate limit | Max 5 OAuth connect attempts per user per hour; max 20 auth refresh attempts per user per hour |
+| Audit log retention | `kms_audit_log` rows retained for 90 days minimum; no application-layer DELETE permitted |
+| Key rotation | Migration script must process all tokens with zero downtime (users remain logged in) |
+
+---
+
+## Sequence Diagram
+
+See: `docs/architecture/sequence-diagrams/` — add a sequence diagram for the token key rotation flow and for the rate-limited OAuth endpoint before implementation of items 3 and 4.
