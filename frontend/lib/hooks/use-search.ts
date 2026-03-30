@@ -38,11 +38,7 @@ export function useSearch(query: string, mode: SearchMode = 'hybrid') {
     // Only fire when the query is meaningful — avoids spamming the API
     // on every single keystroke while the user is still typing.
     enabled: query.trim().length >= 2,
-    // 30 s cache — a corpus doesn't change fast enough to justify re-fetching
-    // the same query every time the component re-renders.
-    staleTime: 30_000,
-    // Keep showing the previous result set while the next request is loading.
-    // Prevents a jarring flash to empty when the user tweaks the mode toggle.
-    placeholderData: (prev) => prev,
+    // 10 s cache — short enough that new queries feel fresh.
+    staleTime: 10_000,
   });
 }

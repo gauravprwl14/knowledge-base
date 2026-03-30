@@ -105,6 +105,17 @@ Run `/task-completion-check` to validate any completed task against the full 10-
 | Lint documentation quality | `/lint-docs` |
 | Onboard new developer | `/onboard` |
 
+## Code Documentation Standards — Non-Negotiable
+
+All code written in this project MUST include:
+
+1. **Detailed inline comments** — every non-obvious block of logic must have a comment explaining *why*, not just *what*. Any developer reading the code later should be able to understand intent and trade-offs without asking.
+2. **TSDoc (TypeScript/NestJS)** — all public functions, classes, methods, interfaces, and exported constants must have a `/** ... */` TSDoc block. Include `@param`, `@returns`, `@throws` where applicable.
+3. **Google-style docstrings (Python)** — all `def` functions and classes must have a docstring with Args, Returns, Raises sections where applicable.
+4. **No silent logic** — if a function has a non-obvious side effect or skips a step under certain conditions, that must be commented inline.
+
+This applies to ALL new code and to any code you modify. It is not optional.
+
 ## Mandatory Patterns
 
 Full details in `docs/architecture/ENGINEERING_STANDARDS.md`. Summary only:

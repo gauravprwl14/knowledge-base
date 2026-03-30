@@ -3,10 +3,10 @@ import {
   OnModuleInit,
   OnModuleDestroy,
   Logger,
-} from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { ConfigService } from '@nestjs/config';
+} from "@nestjs/common";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { ConfigService } from "@nestjs/config";
 
 /**
  * PrismaService — wraps PrismaClient for the search-api.
@@ -30,7 +30,7 @@ import { ConfigService } from '@nestjs/config';
  */
 @Injectable()
 export class PrismaService
-  extends PrismaClient<Prisma.PrismaClientOptions, 'query' | 'error' | 'warn'>
+  extends PrismaClient<Prisma.PrismaClientOptions, "query" | "error" | "warn">
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger = new Logger(PrismaService.name);
@@ -38,9 +38,9 @@ export class PrismaService
 
   constructor(private readonly configService: ConfigService) {
     const isDevelopment =
-      configService.get<string>('NODE_ENV') === 'development';
-    const connectionString = configService.get<string>('DATABASE_URL')!;
-    const logLevel = configService.get<string>('LOG_LEVEL', 'info');
+      configService.get<string>("NODE_ENV") === "development";
+    const connectionString = configService.get<string>("DATABASE_URL")!;
+    const logLevel = configService.get<string>("LOG_LEVEL", "info");
 
     const adapter = new PrismaPg({ connectionString });
 
@@ -48,15 +48,15 @@ export class PrismaService
       adapter,
       log: isDevelopment
         ? [
-            { emit: 'event', level: 'query' },
-            { emit: 'event', level: 'error' },
-            { emit: 'event', level: 'warn' },
+            { emit: "event", level: "query" },
+            { emit: "event", level: "error" },
+            { emit: "event", level: "warn" },
           ]
         : [
-            { emit: 'event', level: 'error' },
-            { emit: 'event', level: 'warn' },
+            { emit: "event", level: "error" },
+            { emit: "event", level: "warn" },
           ],
-      errorFormat: isDevelopment ? 'pretty' : 'minimal',
+      errorFormat: isDevelopment ? "pretty" : "minimal",
     });
 
     this.setupEventListeners(isDevelopment, logLevel);
@@ -68,26 +68,23 @@ export class PrismaService
    * @param isDevelopment - Enable verbose query logging.
    * @param logLevel - Active log level.
    */
-  private setupEventListeners(
-    isDevelopment: boolean,
-    logLevel: string,
-  ): void {
-    this.$on('error', (event) => {
+  private setupEventListeners(isDevelopment: boolean, logLevel: string): void {
+    this.$on("error", (event) => {
       this.logger.error(`Database error: ${event.message}`, {
         target: event.target,
         timestamp: event.timestamp,
       });
     });
 
-    this.$on('warn', (event) => {
+    this.$on("warn", (event) => {
       this.logger.warn(`Database warning: ${event.message}`, {
         target: event.target,
         timestamp: event.timestamp,
       });
     });
 
-    if (isDevelopment && logLevel === 'debug') {
-      this.$on('query', (event) => {
+    if (isDevelopment && logLevel === "debug") {
+      this.$on("query", (event) => {
         this.logger.debug(`Query: ${event.query}`, {
           params: event.params,
           duration: `${event.duration}ms`,
@@ -104,9 +101,9 @@ export class PrismaService
     try {
       await this.$connect();
       this.isConnected = true;
-      this.logger.log('Successfully connected to database');
+      this.logger.log("Successfully connected to database");
     } catch (error) {
-      this.logger.error('Failed to connect to database', error);
+      this.logger.error("Failed to connect to database", error);
       throw error;
     }
   }
@@ -118,9 +115,9 @@ export class PrismaService
     try {
       await this.$disconnect();
       this.isConnected = false;
-      this.logger.log('Disconnected from database');
+      this.logger.log("Disconnected from database");
     } catch (error) {
-      this.logger.error('Error disconnecting from database', error);
+      this.logger.error("Error disconnecting from database", error);
       throw error;
     }
   }

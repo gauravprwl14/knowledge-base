@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
-import { LoggerModule } from 'nestjs-pino';
-import { AppConfigModule } from './config/config.module';
-import { SearchModule } from './search/search.module';
-import { HealthController } from './health/health.controller';
+import { Module } from "@nestjs/common";
+import { LoggerModule } from "nestjs-pino";
+import { AppConfigModule } from "./config/config.module";
+import { SearchModule } from "./search/search.module";
+import { HealthController } from "./health/health.controller";
 
 /**
  * AppModule is the root NestJS module for search-api.
@@ -22,16 +22,20 @@ import { HealthController } from './health/health.controller';
     LoggerModule.forRoot({
       pinoHttp: {
         // Log level from env (falls back to 'info' if not set at this point)
-        level: process.env.LOG_LEVEL ?? 'info',
+        level: process.env.LOG_LEVEL ?? "info",
         // Redact sensitive headers from access logs
-        redact: ['req.headers.authorization', 'req.headers["x-user-id"]'],
+        redact: ["req.headers.authorization", 'req.headers["x-user-id"]'],
         // Use pretty printing in non-production for developer ergonomics
         transport:
-          process.env.NODE_ENV !== 'production'
-            ? { target: 'pino-pretty', options: { colorize: true, singleLine: true } }
+          process.env.NODE_ENV !== "production"
+            ? {
+                target: "pino-pretty",
+                options: { colorize: true, singleLine: true },
+              }
             : undefined,
         // Attach request ID to every log line for trace correlation
-        genReqId: (req) => (req.headers['x-request-id'] as string) ?? crypto.randomUUID(),
+        genReqId: (req) =>
+          (req.headers["x-request-id"] as string) ?? crypto.randomUUID(),
       },
     }),
 

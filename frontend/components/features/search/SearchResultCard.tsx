@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { FileText, Image, Music, Video, Table, File, Copy, ExternalLink, Check } from 'lucide-react';
 import type { SearchResult } from '@/lib/api/search';
 
@@ -173,14 +174,26 @@ export function SearchResultCard({ result, query }: SearchResultCardProps) {
               <Copy className="w-3.5 h-3.5" />
             )}
           </button>
-          {/* Open file — links to the file detail page by fileId */}
-          <a
-            href={`/files/${result.fileId}`}
-            aria-label="Open source file"
-            className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          {/* Open file — external link for Google Drive files, internal files page otherwise */}
+          {result.webViewLink ? (
+            <a
+              href={result.webViewLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open source file"
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          ) : (
+            <Link
+              href={`/files?highlight=${result.fileId}`}
+              aria-label="Open source file"
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          )}
         </div>
       </div>
 

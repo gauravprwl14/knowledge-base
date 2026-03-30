@@ -14,6 +14,7 @@
  */
 
 import * as React from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Files, LayoutGrid, List, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { filesApi } from '@/lib/api/files';
@@ -25,7 +26,6 @@ import { FileCard } from './FileCard';
 import { FilesTable } from './FilesTable';
 import { BulkActionToolbar } from './BulkActionToolbar';
 import { BulkDeleteConfirmModal } from './BulkDeleteConfirmModal';
-import { FilesDrawer } from './FilesDrawer';
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
@@ -112,6 +112,11 @@ function hasActiveFilters(f: FilesFilterState): boolean {
  * FilesBrowserPage — orchestrates the entire file browsing experience.
  */
 export function FilesBrowserPage() {
+  // Read ?highlight=<fileId> from URL — set by search result card links
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('highlight') ?? undefined;
+  const highlightRef = React.useRef<HTMLDivElement | null>(null);
+
   const [files, setFiles] = React.useState<KmsFile[]>([]);
   const [nextCursor, setNextCursor] = React.useState<string | undefined>(undefined);
   const [total, setTotal] = React.useState<number>(0);
@@ -125,9 +130,6 @@ export function FilesBrowserPage() {
   const [isBulkDeleting, setIsBulkDeleting] = React.useState(false);
   const [isBulkReEmbedding, setIsBulkReEmbedding] = React.useState(false);
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
-
-  // Track which file is open in the preview drawer (null = drawer closed)
-  const [selectedFileId, setSelectedFileId] = React.useState<string | null>(null);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -167,6 +169,13 @@ export function FilesBrowserPage() {
 
     return () => { cancelled = true; };
   }, [filters, fetchFiles]);
+
+  // Scroll to the highlighted file once it's rendered
+  React.useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightId, files]);
 
   // ── Filter handlers ────────────────────────────────────────────────────────
 
@@ -215,6 +224,19 @@ export function FilesBrowserPage() {
     setFiles((prev) => prev.filter((f) => f.id !== id));
     setTotal((t) => Math.max(0, t - 1));
     setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  }
+
+  // ── Re-index ──────────────────────────────────────────────────────────────
+  // Deletes existing chunks and re-queues the file through the full embed
+  // pipeline.  Optimistically resets the local status to PENDING so the badge
+  // updates immediately without a refetch.
+
+  async function handleReindex(id: string): Promise<void> {
+    await filesApi.reindexFile(id);
+    // Optimistic update: flip status badge to PENDING immediately
+    setFiles((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, status: 'PENDING' as const } : f)),
+    );
   }
 
   // Opens the confirmation modal
@@ -356,14 +378,19 @@ export function FilesBrowserPage() {
       ) : view === 'grid' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="files-grid">
           {files.map((file) => (
-            <FileCard
+            <div
               key={file.id}
-              file={file}
-              selected={selectedIds.has(file.id)}
-              onSelect={handleSelect}
-              onDelete={handleDelete}
-              onOpen={setSelectedFileId}
-            />
+              ref={file.id === highlightId ? highlightRef : undefined}
+              className={file.id === highlightId ? 'ring-2 ring-[#93c5fd]/60 rounded-xl' : undefined}
+            >
+              <FileCard
+                file={file}
+                selected={selectedIds.has(file.id)}
+                onSelect={handleSelect}
+                onDelete={handleDelete}
+                onReindex={handleReindex}
+              />
+            </div>
           ))}
         </div>
       ) : (
@@ -396,12 +423,6 @@ export function FilesBrowserPage() {
           </button>
         </div>
       )}
-
-      {/* File preview drawer — mounts once, slides in when selectedFileId is non-null */}
-      <FilesDrawer
-        fileId={selectedFileId}
-        onClose={() => setSelectedFileId(null)}
-      />
     </div>
   );
 }

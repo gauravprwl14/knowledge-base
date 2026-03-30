@@ -186,6 +186,13 @@ const _realFilesApi = {
     apiClient.post<void>(`/files/${id}/retry`),
 
   /**
+   * POST /files/:id/reindex — deletes existing chunks and re-queues the file
+   * for the full embed pipeline. Returns `{ fileId, status: 'queued' }`.
+   */
+  reindexFile: (id: string): Promise<{ fileId: string; status: string }> =>
+    apiClient.post<{ fileId: string; status: string }>(`/files/${id}/reindex`),
+
+  /**
    * GET /files/:id/transcription — returns transcription job status for audio/video files.
    * Returns null when no transcription job exists for the file.
    */

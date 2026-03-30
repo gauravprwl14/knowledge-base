@@ -28,6 +28,7 @@ Each guide has exactly 6 sections: Business Use Case, Flow Diagram, Code Structu
 | Tiered retrieval, Query Classifier, LLM Guard, when to skip LLM, threshold tuning | `FOR-tiered-retrieval.md` |
 | Collections CRUD, file membership, userId scoping, N+1 note | `FOR-collections.md` |
 | Files list/delete/bulk ops, scan trigger, internal worker callback, merge-conflict note | `FOR-files.md` |
+| File rendering engine, @kb/ui design system, FileViewerShell, MIME registry, viewers, artifact panel | `FOR-rendering-engine.md` |
 | Sources (local, Obsidian, Google Drive OAuth), token encryption, reconnect flow | `FOR-sources.md` |
 | Frontend API clients (`lib/api/*.ts`), React Query hooks, loading/error states, TypeScript DTO alignment | `FOR-frontend-api-patterns.md` |
 | Next.js auth store (Zustand), middleware route guards, session cookie, login/logout hooks | `FOR-frontend-auth.md` |

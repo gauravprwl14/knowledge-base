@@ -75,7 +75,9 @@ async function _realAcpInitialize(): Promise<AcpCapabilities> {
     }),
   });
   if (!res.ok) throw new Error(`ACP initialize failed: ${res.status}`);
-  return res.json() as Promise<AcpCapabilities>;
+  // kms-api wraps all responses via TransformInterceptor — unwrap the data field.
+  const body = (await res.json()) as { data: AcpCapabilities };
+  return body.data;
 }
 
 /**
@@ -95,8 +97,10 @@ async function _realAcpCreateSession(token: string): Promise<string> {
     body: JSON.stringify({}),
   });
   if (!res.ok) throw new Error(`ACP create session failed: ${res.status}`);
-  const data = (await res.json()) as { sessionId: string };
-  return data.sessionId;
+  // kms-api wraps all responses in { success, data, ... } via TransformInterceptor.
+  // Raw fetch (unlike KmsApiClient/Axios) does not auto-unwrap, so read data.data.sessionId.
+  const body = (await res.json()) as { data: { sessionId: string } };
+  return body.data.sessionId;
 }
 
 /**
@@ -147,14 +151,15 @@ async function* _realAcpPromptStream(
   token: string,
   question: string,
 ): AsyncGenerator<AcpEvent> {
-  const res = await fetch(`${KMS_API_URL}/acp/v1/sessions/${sessionId}/prompt`, {
-    method: 'POST',
+  // NestJS @Sse registers a GET endpoint. Pass the question as ?q= query param.
+  const url = new URL(`${KMS_API_URL}/acp/v1/sessions/${sessionId}/prompt`);
+  url.searchParams.set('q', question);
+  const res = await fetch(url.toString(), {
+    method: 'GET',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
       Accept: 'text/event-stream',
     },
-    body: JSON.stringify({ prompt: [{ type: 'text', text: question }] }),
   });
 
   if (!res.ok || !res.body) {

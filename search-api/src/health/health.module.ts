@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
-import { HealthController } from './health.controller';
+import { Module } from "@nestjs/common";
+import { HealthController } from "./health.controller";
 
 /**
  * HealthModule — provides liveness (`GET /health`) and readiness

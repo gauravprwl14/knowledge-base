@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { PrismaService } from '../prisma/prisma.service';
-import { SearchResultItemDto } from './dto/search-result.dto';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
+import { PrismaService } from "../prisma/prisma.service";
+import { SearchResultItemDto } from "./dto/search-result.dto";
 
 /** Raw row returned by the PostgreSQL FTS query. */
 interface KeywordRow {
@@ -52,7 +52,7 @@ export class KeywordService {
   ): Promise<SearchResultItemDto[]> {
     this.logger.info(
       { query, userId, limit, offset, sourceIds },
-      'Executing keyword search',
+      "Executing keyword search",
     );
 
     try {
@@ -103,12 +103,15 @@ export class KeywordService {
         filename: row.filename,
         mimeType: row.mime_type,
         sourceId: row.source_id,
-        score: typeof row.rank === 'string' ? parseFloat(row.rank) : row.rank,
-        snippet: row.snippet ?? '',
+        score: typeof row.rank === "string" ? parseFloat(row.rank) : row.rank,
+        snippet: row.snippet ?? "",
         chunkIndex: 0,
       }));
     } catch (error) {
-      this.logger.error({ error, query, userId }, 'Keyword search query failed');
+      this.logger.error(
+        { error, query, userId },
+        "Keyword search query failed",
+      );
       return [];
     }
   }

@@ -1,10 +1,10 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { Bm25Service } from './bm25.service';
-import { SemanticService } from './semantic.service';
-import { RrfService } from './rrf.service';
-import { SearchRequestDto, SearchType } from './dto/search-request.dto';
-import { SearchResponseDto, SearchResult } from './dto/search-response.dto';
+import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
+import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
+import { Bm25Service } from "./bm25.service";
+import { SemanticService } from "./semantic.service";
+import { RrfService } from "./rrf.service";
+import { SearchRequestDto, SearchType } from "./dto/search-request.dto";
+import { SearchResponseDto, SearchResult } from "./dto/search-response.dto";
 
 /**
  * SearchService orchestrates the three-stage hybrid search pipeline:
@@ -35,11 +35,17 @@ export class SearchService {
    * @throws HttpException(400) if the query is empty after trimming
    * @throws HttpException(500) if an underlying search stage fails unexpectedly
    */
-  async search(dto: SearchRequestDto, userId: string): Promise<SearchResponseDto> {
+  async search(
+    dto: SearchRequestDto,
+    userId: string,
+  ): Promise<SearchResponseDto> {
     // Guard: ensure the query contains meaningful content after whitespace trim
     const query = dto.query.trim();
     if (!query) {
-      throw new HttpException('Search query must not be empty', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        "Search query must not be empty",
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // Resolve effective limit — caller may omit it, default is 10 capped at 50
@@ -55,11 +61,21 @@ export class SearchService {
       // Dispatch to the appropriate search stage(s) based on searchType
       if (searchType === SearchType.KEYWORD) {
         // Keyword-only path: run BM25 and skip RRF (single list, no fusion needed)
-        const bm25Results = await this.bm25.search(query, userId, limit, dto.sourceIds);
+        const bm25Results = await this.bm25.search(
+          query,
+          userId,
+          limit,
+          dto.sourceIds,
+        );
         results = bm25Results;
       } else if (searchType === SearchType.SEMANTIC) {
         // Semantic-only path: run vector search and skip RRF
-        const semanticResults = await this.semantic.search(query, userId, limit, dto.sourceIds);
+        const semanticResults = await this.semantic.search(
+          query,
+          userId,
+          limit,
+          dto.sourceIds,
+        );
         results = semanticResults;
       } else {
         // Hybrid path: run both stages in parallel, then fuse with RRF
@@ -74,9 +90,12 @@ export class SearchService {
       }
     } catch (err) {
       // Log the full error but surface a clean 500 to the caller
-      this.logger.error({ err, query, userId, searchType }, 'search: pipeline error');
+      this.logger.error(
+        { err, query, userId, searchType },
+        "search: pipeline error",
+      );
       throw new HttpException(
-        'Search pipeline encountered an error',
+        "Search pipeline encountered an error",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -87,7 +106,7 @@ export class SearchService {
     // Structured log on every search — useful for latency dashboards
     this.logger.info(
       { query, userId, searchType, resultCount: results.length, took },
-      'search: completed',
+      "search: completed",
     );
 
     return {

@@ -34,6 +34,12 @@ export interface SearchResult {
   chunkIndex: number;
   /** Arbitrary extra metadata stored alongside the embedding (e.g. headings, page). */
   metadata: Record<string, unknown>;
+  /** Google Drive / external view link for the source file, if available. */
+  webViewLink?: string;
+  /** Source type identifier (e.g. 'google_drive', 'local', 'obsidian'). */
+  sourceType?: string;
+  /** Start time in seconds for audio/video chunks. */
+  startSecs?: number;
 }
 
 /**

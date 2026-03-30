@@ -231,6 +231,13 @@ export class Bm25Service {
       LIMIT ${limit}
     `);
 
+    this.logger.info(
+      { rowCount: rows.length, userId },
+      "bm25: PostgreSQL FTS complete",
+    );
+
+    // Normalise ts_rank (0–1) and map raw rows to SearchResult objects.
+    // ts_rank is already in [0, 1] range from PostgreSQL; clamp just in case.
     return rows.map((row) => ({
       id: row.id,
       fileId: row.fileId,

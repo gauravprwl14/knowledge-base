@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { SearchResult } from './dto/search-response.dto';
+import { Injectable } from "@nestjs/common";
+import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
+import { SearchResult } from "./dto/search-response.dto";
 
 /**
  * RRF smoothing constant — k=60 is the value recommended in the original
@@ -80,7 +80,9 @@ export class RrfService {
     }
 
     // Convert the fusion map values to an array sorted by descending RRF score
-    const sorted = Array.from(fusionMap.values()).sort((a, b) => b.rrfScore - a.rrfScore);
+    const sorted = Array.from(fusionMap.values()).sort(
+      (a, b) => b.rrfScore - a.rrfScore,
+    );
 
     // Normalise scores to [0, 1] so the API returns a consistent range.
     // maxScore guard: if all scores are zero (empty lists), avoid division by zero.
@@ -99,7 +101,7 @@ export class RrfService {
         returned: normalised.length,
         topScore: normalised[0]?.score ?? 0,
       },
-      'rrf: fusion complete',
+      "rrf: fusion complete",
     );
 
     return normalised;
