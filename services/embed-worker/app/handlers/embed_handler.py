@@ -332,8 +332,9 @@ class EmbedHandler:
         )
 
         # Step 5b: Insert each chunk with a deterministic UUID so re-processing
-        # the same file produces the same chunk IDs (enables ON CONFLICT DO NOTHING
-        # to be truly idempotent rather than just silently swallowing errors).
+        # the same file produces the same chunk IDs (enables ON CONFLICT / upsert
+        # to be truly idempotent).  source_id and user_id are included so the
+        # BM25 service can filter by them without joining kms_files.
         for chunk in chunks:
             chunk_id = str(uuid.uuid5(
                 uuid.NAMESPACE_URL,
@@ -342,14 +343,19 @@ class EmbedHandler:
             await self._db.execute(
                 """
                 INSERT INTO kms_chunks (
-                    id, file_id, chunk_index, content, token_count, created_at
+                    id, file_id, user_id, source_id, chunk_index, content,
+                    token_count, created_at
                 ) VALUES (
-                    $1::uuid, $2::uuid, $3, $4, $5, now()
+                    $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, now()
                 )
-                ON CONFLICT DO NOTHING
+                ON CONFLICT (id) DO UPDATE SET
+                    content     = EXCLUDED.content,
+                    token_count = EXCLUDED.token_count
                 """,
                 chunk_id,
                 str(msg.scan_job_id),
+                str(msg.user_id),
+                str(msg.source_id),
                 chunk.chunk_index,
                 chunk.text,
                 chunk.token_count or len(chunk.text.split()),
