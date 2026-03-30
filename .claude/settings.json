@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/Sites/projects/gp/knowledge-base/scripts/write-session-context.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
