@@ -14,7 +14,6 @@ import {
 } from './dto/admin-list-response.dto';
 import { AdminStatsResponseDto } from './dto/admin-stats-response.dto';
 import { AdminFilesQueryDto } from './dto/admin-files-query.dto';
-import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
 
 /**
  * AdminService — system-wide read-only queries for the admin dashboard.
@@ -435,81 +434,6 @@ export class AdminService {
 
     this.logger.info({ event: 'admin.reindexAll.done', totalQueued }, 'admin: reindexAll completed');
     return { queued: totalQueued };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Re-index all
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Publishes embed jobs for every file currently in PENDING or ERROR status.
-   *
-   * This is the recovery path when files exist in the DB but the kms.embed
-   * queue is empty — e.g. after a broker restart, a failed scan run, or a
-   * bulk Drive import that populated the DB without going through the queue.
-   *
-   * Files are fetched in pages of 200 and published in sequence to avoid
-   * overwhelming the RabbitMQ broker.  The method returns a count of jobs
-   * published rather than waiting for embeddings to complete (that is async).
-   *
-   * @returns Object with `queued` — number of embed jobs published.
-   */
-  @Trace({ name: 'admin.reindexAll' })
-  async reindexAll(): Promise<{ queued: number }> {
-    this.logger.info({ event: 'admin.reindexAll.start' }, 'admin: re-indexing all pending/error files');
-
-    const PAGE_SIZE = 200;
-    let cursor: string | undefined;
-    let queued = 0;
-
-    // Paginate through all PENDING/ERROR files and publish an embed job per file.
-    // Using cursor pagination avoids loading all 15k+ records into memory at once.
-    do {
-      const page = await this.prisma.kmsFile.findMany({
-        where: { status: { in: [FileStatus.PENDING, FileStatus.ERROR] } },
-        select: {
-          id: true,
-          sourceId: true,
-          userId: true,
-          path: true,
-          name: true,
-          mimeType: true,
-          sizeBytes: true,
-          checksumSha256: true,
-          source: { select: { type: true } },
-        },
-        take: PAGE_SIZE,
-        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-        orderBy: { id: 'asc' },
-      });
-
-      if (page.length === 0) break;
-
-      for (const file of page) {
-        await this.embedJobPublisher.publishEmbedJob({
-          scan_job_id: file.id,
-          source_id: file.sourceId,
-          user_id: file.userId,
-          file_path: file.path ?? '',
-          original_filename: file.name ?? file.id,
-          mime_type: file.mimeType ?? undefined,
-          // BigInt sizeBytes must be coerced to Number for JSON serialisation
-          file_size_bytes: file.sizeBytes ? Number(file.sizeBytes) : undefined,
-          checksum_sha256: file.checksumSha256 ?? undefined,
-          source_type: file.source?.type ?? 'unknown',
-        });
-        queued++;
-      }
-
-      cursor = page[page.length - 1].id;
-    } while (true);
-
-    this.logger.info(
-      { event: 'admin.reindexAll.done', queued },
-      `admin: published ${queued} embed jobs`,
-    );
-
-    return { queued };
   }
 
   // ---------------------------------------------------------------------------

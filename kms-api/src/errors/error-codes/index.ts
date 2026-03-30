@@ -1016,29 +1016,6 @@ export const TAG_ERROR_CODES = {
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
- * Graph Error Codes (GRP0000 - GRP9999)
- * Used by the Neo4j-backed graph API endpoints.
- */
-export const GRP_ERROR_CODES = {
-  GRAPH_QUERY_FAILED: {
-    code: 'KBGRP0001',
-    message: 'Graph query failed',
-    httpStatus: 500,
-    severity: 'ERROR',
-    retryable: false,
-    userFacing: false,
-  },
-  GRAPH_UNAVAILABLE: {
-    code: 'KBGRP0002',
-    message: 'Graph service is unavailable',
-    httpStatus: 503,
-    severity: 'WARNING',
-    retryable: true,
-    userFacing: true,
-  },
-} as const satisfies Record<string, ErrorDefinition>;
-
-/**
  * Combined error codes object
  */
 export const ERROR_CODES = {
