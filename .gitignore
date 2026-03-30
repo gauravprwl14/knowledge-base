@@ -70,3 +70,6 @@ test-vault/**/*.jpeg
 !test-vault/**/*.md
 !test-vault/**/*.csv
 .env.prod
+
+# KMS engineering process — session context files (ephemeral, per-worktree)
+.gstack-context.md
