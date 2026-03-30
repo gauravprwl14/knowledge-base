@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { QdrantClient } from '@qdrant/js-client-rest';
+import { AppError, ERROR_CODES } from '../errors/app-error';
 import { SearchResult } from './dto/search-response.dto';
 
 /**
@@ -101,33 +101,19 @@ export class SemanticService {
   /** Target Qdrant collection for chunk vectors. */
   private readonly collection: string;
 
-  /** Base URL of the embed-worker HTTP service. */
+  /** Base URL of the embed-worker HTTP API (/embed endpoint). */
   private readonly embedWorkerUrl: string;
-
-  /** Lazy-initialised Qdrant REST client (real mode only). */
-  private _qdrantClient?: QdrantClient;
 
   constructor(
     private readonly config: ConfigService,
     @InjectPinoLogger(SemanticService.name)
     private readonly logger: PinoLogger,
   ) {
-    // Read Qdrant config and mock flag from validated env vars
+    // Read Qdrant config, embed-worker URL and mock flag from validated env vars
     this.mockMode = this.config.get<boolean>('MOCK_SEMANTIC') ?? true;
     this.qdrantUrl = this.config.get<string>('QDRANT_URL') ?? 'http://localhost:6333';
     this.collection = this.config.get<string>('QDRANT_COLLECTION') ?? 'kms_chunks';
-    this.embedWorkerUrl = this.config.get<string>('EMBED_WORKER_URL') ?? 'http://localhost:8004';
-  }
-
-  /**
-   * Returns a lazily-created QdrantClient for real-mode searches.
-   * The client is shared across calls to avoid repeated TCP handshakes.
-   */
-  private get qdrantClient(): QdrantClient {
-    if (!this._qdrantClient) {
-      this._qdrantClient = new QdrantClient({ url: this.qdrantUrl });
-    }
-    return this._qdrantClient;
+    this.embedWorkerUrl = this.config.get<string>('EMBED_WORKER_URL') ?? 'http://embed-worker:8004';
   }
 
   /**
@@ -180,14 +166,14 @@ export class SemanticService {
    * Executes a real Qdrant ANN search.
    *
    * Steps:
-   * 1. POST to embed-worker ``/embed`` to obtain a 1024-dim BGE-M3 vector.
-   * 2. Build the Qdrant ``must`` filter on ``user_id`` (+ optional ``source_id``).
-   * 3. Search the Qdrant collection and map point payloads to SearchResult objects.
+   * 1. Generate a 1024-dim BGE-M3 embedding for the query via the embed-worker /embed endpoint.
+   * 2. Build the Qdrant search payload with a user_id must-filter and optional source_id filter.
+   * 3. POST to Qdrant /collections/{collection}/points/search and map the response points.
    *
    * @param query     - Query text to embed
-   * @param userId    - User ID payload filter (multi-tenant isolation)
-   * @param limit     - Top-k limit for Qdrant
-   * @param sourceIds - Optional list of source IDs for additional filtering
+   * @param userId    - User ID payload filter (enforces multi-tenant isolation)
+   * @param limit     - Top-k limit for Qdrant ANN search
+   * @param sourceIds - Optional additional source_id filter
    */
   private async qdrantSearch(
     query: string,
@@ -200,66 +186,89 @@ export class SemanticService {
       'semantic: executing Qdrant ANN search',
     );
 
-    // ── Step 1: Obtain a BGE-M3 embedding for the query ─────────────────────
-    const embedResponse = await fetch(`${this.embedWorkerUrl}/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: query }),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!embedResponse.ok) {
-      throw new Error(
-        `embed-worker returned HTTP ${embedResponse.status} for query embedding`,
-      );
+    // ── Step 1: Obtain query embedding from embed-worker ────────────────────
+    let queryVector: number[];
+    try {
+      const embedResp = await fetch(`${this.embedWorkerUrl}/embed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: query }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!embedResp.ok) {
+        const body = await embedResp.text();
+        throw new Error(`embed-worker returned ${embedResp.status}: ${body}`);
+      }
+      const embedData = (await embedResp.json()) as { embedding: number[] };
+      queryVector = embedData.embedding;
+    } catch (cause) {
+      this.logger.error({ error: String(cause) }, 'semantic: embed-worker call failed');
+      throw new AppError({
+        code: ERROR_CODES.GEN.SERVICE_UNAVAILABLE.code,
+        message: `embed-worker unavailable: ${String(cause)}`,
+        cause: cause instanceof Error ? cause : undefined,
+      });
     }
 
-    const embedData = (await embedResponse.json()) as { embedding: number[] };
-    const vector = embedData.embedding;
-
-    if (!Array.isArray(vector) || vector.length === 0) {
-      throw new Error('embed-worker returned an empty or invalid embedding vector');
-    }
-
-    this.logger.debug({ vectorLength: vector.length }, 'semantic: query vector obtained');
-
-    // ── Step 2: Build Qdrant payload filter ─────────────────────────────────
-    // Always filter by user_id for multi-tenant isolation.
-    // Optionally narrow to specific source IDs when provided.
-    const mustClauses: Record<string, unknown>[] = [
+    // ── Step 2: Build Qdrant filter ─────────────────────────────────────────
+    const mustFilters: Array<{ key: string; match: { value?: string; any?: string[] } }> = [
       { key: 'user_id', match: { value: userId } },
     ];
-
     if (sourceIds && sourceIds.length > 0) {
-      mustClauses.push({ key: 'source_id', match: { any: sourceIds } });
+      mustFilters.push({ key: 'source_id', match: { any: sourceIds } });
     }
 
-    // ── Step 3: Search Qdrant ────────────────────────────────────────────────
-    const searchResult = await this.qdrantClient.search(this.collection, {
-      vector,
-      limit,
-      with_payload: true,
-      filter: { must: mustClauses } as Parameters<QdrantClient['search']>[1]['filter'],
-    });
+    // ── Step 3: Search Qdrant ───────────────────────────────────────────────
+    const qdrantSearchUrl = `${this.qdrantUrl}/collections/${this.collection}/points/search`;
+    let qdrantPoints: Array<{
+      id: string | number;
+      score: number;
+      payload?: Record<string, unknown>;
+    }>;
 
-    this.logger.info({ resultCount: searchResult.length, userId }, 'semantic: Qdrant search complete');
+    try {
+      const qdrantResp = await fetch(qdrantSearchUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vector: queryVector,
+          filter: { must: mustFilters },
+          with_payload: true,
+          limit,
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!qdrantResp.ok) {
+        const body = await qdrantResp.text();
+        throw new Error(`Qdrant returned ${qdrantResp.status}: ${body}`);
+      }
+      const qdrantData = (await qdrantResp.json()) as {
+        result: typeof qdrantPoints;
+      };
+      qdrantPoints = qdrantData.result ?? [];
+    } catch (cause) {
+      this.logger.error({ error: String(cause) }, 'semantic: Qdrant search failed');
+      throw new AppError({
+        code: ERROR_CODES.SCH.SEARCH_FAILED.code,
+        message: `Qdrant search failed: ${String(cause)}`,
+        cause: cause instanceof Error ? cause : undefined,
+      });
+    }
 
-    // ── Step 4: Map Qdrant points to SearchResult objects ───────────────────
-    return searchResult.map((point) => {
-      const pl = (point.payload ?? {}) as Record<string, unknown>;
+    // ── Step 4: Map Qdrant points to SearchResult ───────────────────────────
+    return qdrantPoints.map((point) => {
+      const pl = point.payload ?? {};
       return {
         id: String(point.id),
         fileId: String(pl['file_id'] ?? ''),
         filename: String(pl['filename'] ?? ''),
+        // content from Qdrant payload is used directly as the snippet
         content: String(pl['content'] ?? ''),
-        score: point.score,
+        score: Number(point.score),
         chunkIndex: Number(pl['chunk_index'] ?? 0),
-        webViewLink: pl['web_view_link'] ? String(pl['web_view_link']) : undefined,
+        webViewLink: pl['web_view_link'] != null ? String(pl['web_view_link']) : undefined,
         startSecs: pl['start_secs'] != null ? Number(pl['start_secs']) : undefined,
-        sourceType: pl['source_type'] ? String(pl['source_type']) : undefined,
-        metadata: typeof pl['metadata'] === 'object' && pl['metadata'] !== null
-          ? (pl['metadata'] as Record<string, unknown>)
-          : undefined,
+        sourceType: pl['source_type'] != null ? String(pl['source_type']) : undefined,
       };
     });
   }

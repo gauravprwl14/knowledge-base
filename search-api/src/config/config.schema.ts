@@ -14,6 +14,9 @@ export const configSchema = z.object({
   // PostgreSQL connection string — used by Prisma for BM25 raw queries
   DATABASE_URL: z.string().url().optional(),
 
+  // Embed-worker base URL — called to generate query vectors in semantic real mode
+  EMBED_WORKER_URL: z.string().url().default('http://embed-worker:8004'),
+
   // Qdrant base URL — used for semantic ANN queries
   QDRANT_URL: z.string().url().default('http://localhost:6333'),
 

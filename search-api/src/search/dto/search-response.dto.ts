@@ -13,7 +13,7 @@ export class SearchResult {
   @ApiProperty({ description: 'Human-readable filename' })
   filename: string;
 
-  @ApiProperty({ description: 'Text content of the matching chunk' })
+  @ApiProperty({ description: 'Text content of the matching chunk (also serves as the snippet)' })
   content: string;
 
   @ApiProperty({
@@ -23,6 +23,21 @@ export class SearchResult {
 
   @ApiProperty({ description: 'Zero-based chunk index within the parent file' })
   chunkIndex: number;
+
+  @ApiPropertyOptional({
+    description: 'Google Drive or external web-view URL for the source file',
+  })
+  webViewLink?: string;
+
+  @ApiPropertyOptional({
+    description: 'Playback offset in seconds — populated for voice transcript chunks',
+  })
+  startSecs?: number;
+
+  @ApiPropertyOptional({
+    description: 'Source type of the originating document: google_drive | voice_transcript | local',
+  })
+  sourceType?: string;
 
   @ApiPropertyOptional({
     description: 'Arbitrary key-value metadata attached to the chunk',
