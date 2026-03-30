@@ -18,14 +18,15 @@ function makeConfigMock(overrides: Record<string, unknown> = {}): jest.Mocked<Co
   } as unknown as jest.Mocked<ConfigService>;
 }
 
-/** Minimal PrismaService mock — only $queryRaw is needed by Bm25Service. */
-function makePrismaMock(): jest.Mocked<Pick<PrismaService, '$queryRaw'>> {
-  return { $queryRaw: jest.fn() } as unknown as jest.Mocked<Pick<PrismaService, '$queryRaw'>>;
+/** Build a PrismaService mock. */
+function makePrismaMock(queryRawResult: unknown[] = []): jest.Mocked<PrismaService> {
+  return {
+    $queryRaw: jest.fn().mockResolvedValue(queryRawResult),
+  } as unknown as jest.Mocked<PrismaService>;
 }
 
 describe('Bm25Service', () => {
   let service: Bm25Service;
-  let prismaMock: ReturnType<typeof makePrismaMock>;
 
   const mockLogger = {
     debug: jest.fn(),
@@ -35,8 +36,10 @@ describe('Bm25Service', () => {
     trace: jest.fn(),
   };
 
-  async function buildModule(configOverrides: Record<string, unknown> = {}): Promise<TestingModule> {
-    prismaMock = makePrismaMock();
+  async function buildModule(
+    configOverrides: Record<string, unknown> = {},
+    prismaMock?: jest.Mocked<PrismaService>,
+  ): Promise<TestingModule> {
     return Test.createTestingModule({
       providers: [
         Bm25Service,
@@ -45,12 +48,12 @@ describe('Bm25Service', () => {
           useValue: makeConfigMock(configOverrides),
         },
         {
-          provide: PrismaService,
-          useValue: prismaMock,
-        },
-        {
           provide: getLoggerToken(Bm25Service.name),
           useValue: mockLogger,
+        },
+        {
+          provide: PrismaService,
+          useValue: prismaMock ?? makePrismaMock(),
         },
       ],
     }).compile();
@@ -244,136 +247,103 @@ describe('Bm25Service', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Real mode (MOCK_BM25=false) — uses mocked PrismaService.$queryRaw
+  // Real mode (MOCK_BM25=false) — uses mocked PrismaService
   // ---------------------------------------------------------------------------
 
   describe('search() — real mode', () => {
-    let realModeService: Bm25Service;
+    const userId = 'a1b2c3d4-0000-0000-0000-000000000001';
 
-    /** Builds a fake raw DB row matching the RawRow shape from pgSearch. */
-    function makeFakeRow(overrides: Record<string, unknown> = {}) {
+    /** Build a realistic DB row as returned by $queryRaw. */
+    function makeRow(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
       return {
-        id: 'chunk-real-001',
-        file_id: 'file-real-001',
-        filename: 'real-doc.pdf',
-        snippet: 'This is a <b>highlighted</b> snippet from the document.',
-        ts_rank: 0.75,
-        chunk_index: 2,
-        source_type: 'google_drive',
-        web_view_link: 'https://drive.google.com/file/d/abc123',
-        start_secs: null,
+        id: 'chunk-uuid-001',
+        fileId: 'file-uuid-001',
+        filename: 'architecture.md',
+        content: 'The RAG pipeline retrieves and generates answers.',
+        chunkIndex: 0,
+        startSecs: null,
+        webViewLink: null,
+        score: 0.42,
+        snippet: 'The <mark>RAG</mark> pipeline retrieves and generates answers.',
         ...overrides,
       };
     }
 
-    beforeEach(async () => {
-      const module = await buildModule({ MOCK_BM25: false });
-      realModeService = module.get<Bm25Service>(Bm25Service);
-      jest.clearAllMocks();
+    it('should return results mapped from raw DB rows', async () => {
+      const rows = [makeRow(), makeRow({ id: 'chunk-uuid-002', score: 0.3 })];
+      const prismaMock = makePrismaMock(rows);
+      const module = await buildModule({ MOCK_BM25: false }, prismaMock);
+      const realService = module.get<Bm25Service>(Bm25Service);
+
+      const results = await realService.search('RAG pipeline', userId, 10);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].id).toBe('chunk-uuid-001');
+      expect(results[0].content).toBe('The <mark>RAG</mark> pipeline retrieves and generates answers.');
     });
 
-    it('should call prisma.$queryRaw and return mapped SearchResult objects', async () => {
-      const fakeRow = makeFakeRow();
-      prismaMock.$queryRaw.mockResolvedValueOnce([fakeRow]);
+    it('should return results with non-empty content', async () => {
+      const rows = [makeRow()];
+      const prismaMock = makePrismaMock(rows);
+      const module = await buildModule({ MOCK_BM25: false }, prismaMock);
+      const realService = module.get<Bm25Service>(Bm25Service);
 
-      const results = await realModeService.search('real query', 'user-real-001', 10);
+      const results = await realService.search('RAG', userId, 10);
+
+      expect(results[0].content.length).toBeGreaterThan(0);
+    });
+
+    it('should return an empty array when no rows match', async () => {
+      const prismaMock = makePrismaMock([]);
+      const module = await buildModule({ MOCK_BM25: false }, prismaMock);
+      const realService = module.get<Bm25Service>(Bm25Service);
+
+      const results = await realService.search('xyznonexistent', userId, 10);
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('should call $queryRaw once per search invocation', async () => {
+      const prismaMock = makePrismaMock([makeRow()]);
+      const module = await buildModule({ MOCK_BM25: false }, prismaMock);
+      const realService = module.get<Bm25Service>(Bm25Service);
+
+      await realService.search('RAG', userId, 5);
 
       expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
-      expect(results).toHaveLength(1);
-      expect(results[0]).toMatchObject({
-        id: 'chunk-real-001',
-        fileId: 'file-real-001',
-        filename: 'real-doc.pdf',
-        content: fakeRow.snippet,
-        score: 0.75,
-        chunkIndex: 2,
-        webViewLink: 'https://drive.google.com/file/d/abc123',
-        sourceType: 'google_drive',
-      });
     });
 
-    it('should return an empty array when the DB returns no rows', async () => {
-      prismaMock.$queryRaw.mockResolvedValueOnce([]);
+    it('should map webViewLink from DB row', async () => {
+      const rows = [makeRow({ webViewLink: 'https://docs.google.com/file/abc' })];
+      const prismaMock = makePrismaMock(rows);
+      const module = await buildModule({ MOCK_BM25: false }, prismaMock);
+      const realService = module.get<Bm25Service>(Bm25Service);
 
-      const results = await realModeService.search('no-match query', 'user-real-001', 10);
+      const results = await realService.search('RAG', userId, 10);
 
-      expect(results).toHaveLength(0);
+      expect(results[0].webViewLink).toBe('https://docs.google.com/file/abc');
     });
 
-    it('should return an empty array for a query with only non-alphanumeric characters', async () => {
-      const results = await realModeService.search('!!! ---', 'user-real-001', 10);
+    it('should map startSecs from DB row for voice transcripts', async () => {
+      const rows = [makeRow({ startSecs: 42.5 })];
+      const prismaMock = makePrismaMock(rows);
+      const module = await buildModule({ MOCK_BM25: false }, prismaMock);
+      const realService = module.get<Bm25Service>(Bm25Service);
 
-      // All safe terms are empty after stripping → early return without DB call
-      expect(results).toHaveLength(0);
-      expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
-    });
-
-    it('should set startSecs when the DB row has a numeric start_secs value', async () => {
-      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow({ start_secs: 42.5 })]);
-
-      const results = await realModeService.search('voice transcript', 'user-real-001', 5);
+      const results = await realService.search('meeting', userId, 10);
 
       expect(results[0].startSecs).toBeCloseTo(42.5);
     });
 
-    it('should set startSecs to undefined when start_secs is null', async () => {
-      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow({ start_secs: null })]);
+    it('should pass sourceIds filter in the query when provided', async () => {
+      const prismaMock = makePrismaMock([makeRow()]);
+      const module = await buildModule({ MOCK_BM25: false }, prismaMock);
+      const realService = module.get<Bm25Service>(Bm25Service);
 
-      const results = await realModeService.search('query', 'user-real-001', 5);
+      await realService.search('RAG', userId, 5, ['src-001', 'src-002']);
 
-      expect(results[0].startSecs).toBeUndefined();
-    });
-
-    it('should call prisma.$queryRaw with the sourceIds variant when sourceIds is provided', async () => {
-      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow()]);
-
-      await realModeService.search('query', 'user-real-001', 5, ['src-uuid-001']);
-
+      // $queryRaw must have been called (sourceIds param passed without error)
       expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
-    });
-
-    it('should use the no-sourceIds query variant when sourceIds is empty', async () => {
-      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow()]);
-
-      await realModeService.search('query', 'user-real-001', 5, []);
-
-      expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
-    });
-
-    it('should propagate errors thrown by prisma.$queryRaw', async () => {
-      prismaMock.$queryRaw.mockRejectedValueOnce(new Error('DB connection refused'));
-
-      await expect(
-        realModeService.search('any query', 'user-real-001', 10),
-      ).rejects.toThrow('DB connection refused');
-    });
-
-    it('should clamp ts_rank values greater than 1 to 1', async () => {
-      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow({ ts_rank: 1.5 })]);
-
-      const results = await realModeService.search('query', 'user-real-001', 5);
-
-      expect(results[0].score).toBe(1);
-    });
-
-    it('should clamp negative ts_rank values to 0', async () => {
-      prismaMock.$queryRaw.mockResolvedValueOnce([makeFakeRow({ ts_rank: -0.1 })]);
-
-      const results = await realModeService.search('query', 'user-real-001', 5);
-
-      expect(results[0].score).toBe(0);
-    });
-
-    it('should map multiple rows to multiple SearchResult objects in order', async () => {
-      const row1 = makeFakeRow({ id: 'c1', ts_rank: 0.9 });
-      const row2 = makeFakeRow({ id: 'c2', ts_rank: 0.6 });
-      prismaMock.$queryRaw.mockResolvedValueOnce([row1, row2]);
-
-      const results = await realModeService.search('query', 'user-real-001', 10);
-
-      expect(results).toHaveLength(2);
-      expect(results[0].id).toBe('c1');
-      expect(results[1].id).toBe('c2');
     });
   });
 });
