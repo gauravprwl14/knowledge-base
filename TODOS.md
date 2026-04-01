@@ -66,4 +66,52 @@ Items here are NOT in scope for the current sprint but are worth tracking.
 
 ---
 
-_Last updated: 2026-03-30 — TODO-001, TODO-002, TODO-004 implemented (feat/process-improvements)_
+---
+
+## Content Creator Integration (from /autoplan 2026-03-31)
+
+### TODO-008: Outbox pattern for RabbitMQ publish at job creation
+**What:** Currently: job INSERT → then RabbitMQ publish. If publish fails, job exists in DB with QUEUED status but no worker will pick it up. Fix: write job + outbox row in same Prisma transaction; separate publisher polls outbox and publishes.
+**Why:** KBCNT0012 error handling (rollback on publish failure) is complex without this. Outbox makes it atomic by design.
+**Context:** Deferred from content creator integration Phase 3 Eng Review (v1 uses KBCNT0012 throw + manual retry as workaround).
+
+### TODO-009: CONTENT_WORKER_CONCURRENCY > 1
+**What:** Allow content-worker to process multiple jobs in parallel. Currently defaults to 1.
+**Why:** Parallel processing requires distributed locking on job state (no single registry.json race condition risk, but DB write order matters).
+**Context:** Deferred from content creator integration. Single concurrency is safe and sufficient for v1.
+
+### TODO-010: Automated social publishing (LinkedIn API, Instagram API)
+**What:** OAuth flows + direct publishing to LinkedIn and Instagram from the job viewer.
+**Why:** Currently users copy-paste content manually. Direct publishing eliminates that step.
+**Context:** Explicitly out of scope for content creator v1. OAuth flows are a meaningful separate feature.
+
+### TODO-011: Image generation API integration
+**What:** Call Midjourney or DALL-E API using the generated image prompts.
+**Why:** Pipeline currently generates prompts + SVG placeholders. Actual image generation requires a separate API integration.
+**Context:** Deferred from content creator v1 PRD. Separate PRD needed.
+
+### TODO-012: Content scheduling / calendar view
+**What:** Schedule generated content for future publishing; calendar view of scheduled posts.
+**Context:** Deferred from content creator v1. Requires publishing integrations (TODO-010) first.
+
+### TODO-013: Real-time collaboration on content jobs
+**What:** Multiple users can edit/comment on the same content job simultaneously.
+**Context:** Deferred from content creator v1. Requires operational transform or CRDT.
+
+### TODO-014: Worker heartbeat to prevent false stale job detection
+**What:** content-worker updates `job.updated_at` every 2 minutes during active pipeline run.
+**Why:** An 8-minute pipeline can trigger the 15-minute stale job cron near the end of its run if the last DB write was early. Heartbeat prevents false positives.
+**Context:** Deferred from content creator Phase 3 Eng Review (E10).
+
+### TODO-015: Firecrawl self-hosted option
+**What:** Deploy Firecrawl as a Docker service in docker-compose.kms.yml instead of using cloud API.
+**Why:** Cloud API has per-request cost. Self-hosted is free after initial setup.
+**Context:** Deferred from content creator v1. Use cloud API first, evaluate cost.
+
+### TODO-016: Migrate content-creator-app POC SQLite data to KMS PostgreSQL
+**What:** One-time migration script for any existing POC jobs/outputs.
+**Context:** Deferred. POC data is test data only; no production data to migrate.
+
+---
+
+_Last updated: 2026-03-31 — TODO-008 through TODO-016 added from content creator /autoplan Eng Review_
