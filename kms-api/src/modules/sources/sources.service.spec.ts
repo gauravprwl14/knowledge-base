@@ -2,6 +2,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SourcesService } from './sources.service';
 import { SourceRepository } from '../../database/repositories/source.repository';
+import { ScanJobRepository } from '../../database/repositories/scan-job.repository';
+import { ScanJobPublisher } from '../../queue/publishers/scan-job.publisher';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { TokenEncryptionService } from './token-encryption.service';
 import { AppError } from '../../errors/types/app-error';
@@ -150,6 +152,8 @@ describe('SourcesService', () => {
       providers: [
         SourcesService,
         { provide: SourceRepository, useValue: mockSourceRepo },
+        { provide: ScanJobRepository, useValue: { create: jest.fn(), findById: jest.fn(), update: jest.fn(), findActiveBySourceId: jest.fn(), createJob: jest.fn(), findBySourceId: jest.fn() } },
+        { provide: ScanJobPublisher, useValue: { publishScanJob: jest.fn().mockResolvedValue(undefined) } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TokenEncryptionService, useValue: mockTokenEncryption },
         { provide: getLoggerToken(SourcesService.name), useValue: mockLogger },

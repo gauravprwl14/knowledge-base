@@ -4,7 +4,6 @@ import {
   Delete,
   Body,
   Param,
-  Query,
   Request,
   HttpCode,
   HttpStatus,
@@ -77,11 +76,12 @@ export class AcpController {
   /**
    * Runs a prompt against the ACP pipeline and streams the response via SSE.
    *
-   * Uses GET (required by NestJS @Sse). The prompt text is passed as ?q=
-   * query param. A PromptSessionDto is constructed from it internally.
+   * Accepts a {@link PromptSessionDto} request body containing a structured
+   * prompt array. Each SSE event is a JSON object of type:
+   * agent_message_chunk | tool_call_start | tool_call_result | done | error.
    *
-   * Each SSE event is a JSON object: agent_message_chunk | tool_call_start |
-   * tool_call_result | done | error.
+   * The `@Query('q')` shorthand was removed in favour of a structured body so
+   * that multi-part and non-text prompt messages are supported correctly.
    */
   @Sse('sessions/:id/prompt')
   @ApiBearerAuth('jwt')
@@ -92,10 +92,9 @@ export class AcpController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   promptSession(
     @Param('id') sessionId: string,
-    @Query('q') question: string,
+    @Body() dto: PromptSessionDto,
     @Request() req: { user: { id: string } },
   ): Observable<MessageEvent> {
-    const dto: PromptSessionDto = { prompt: [{ type: 'text', text: question ?? '' }] };
     return this.acpService.runPrompt(sessionId, dto, req.user.id);
   }
 

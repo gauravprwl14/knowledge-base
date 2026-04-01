@@ -16,6 +16,7 @@ import { AppLogger } from '../../../logger/logger.service';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { EmbedJobPublisher } from '../../../queue/publishers/embed-job.publisher';
 import { ScanJobPublisher } from '../../../queue/publishers/scan-job.publisher';
+import { MinioService } from '../minio.service';
 import { AppError } from '../../../errors/types/app-error';
 
 // ---------------------------------------------------------------------------
@@ -103,6 +104,10 @@ describe('FilesService.deleteFile()', () => {
         {
           provide: ScanJobPublisher,
           useValue: { publishScanJob: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: MinioService,
+          useValue: { getPresignedUrl: jest.fn().mockResolvedValue('http://minio/url'), getTranscriptText: jest.fn().mockResolvedValue(''), uploadTranscript: jest.fn().mockResolvedValue('object-key') },
         },
       ],
     }).compile();

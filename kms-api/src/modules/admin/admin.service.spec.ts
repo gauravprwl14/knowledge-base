@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AdminService } from './admin.service';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { EmbedJobPublisher } from '../../queue/publishers/embed-job.publisher';
+import { CacheService } from '../../cache/cache.service';
 import { getLoggerToken } from 'nestjs-pino';
 import { FileStatus } from '@prisma/client';
 
@@ -65,6 +66,11 @@ const mockPrisma = {
   kmsFile: {
     count: jest.fn(),
     findMany: jest.fn(),
+    aggregate: jest.fn().mockResolvedValue({ _sum: { sizeBytes: BigInt(0) } }),
+    updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
+  kmsChunk: {
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
 };
 
@@ -89,11 +95,16 @@ describe('AdminService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockEmbedPublisher.publishEmbedJob.mockResolvedValue(undefined);
+    // Re-apply default resolved values cleared by clearAllMocks()
+    mockPrisma.kmsFile.aggregate.mockResolvedValue({ _sum: { sizeBytes: BigInt(0) } });
+    mockPrisma.kmsFile.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.kmsChunk.deleteMany.mockResolvedValue({ count: 0 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CacheService, useValue: { get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined) } },
         { provide: EmbedJobPublisher, useValue: mockEmbedPublisher },
         { provide: getLoggerToken(AdminService.name), useValue: mockLogger },
       ],
@@ -273,6 +284,7 @@ describe('AdminService', () => {
 
       const stats = await service.getStats();
 
+      // storageUsageBytes is included in the response (coerced from BigInt aggregate)
       expect(stats).toEqual({
         totalUsers: 10,
         totalSources: 5,
@@ -280,6 +292,7 @@ describe('AdminService', () => {
         pendingEmbeds: 7,
         processingEmbeds: 3,
         failedFiles: 2,
+        storageUsageBytes: 0,
       });
     });
 
@@ -318,19 +331,23 @@ describe('AdminService', () => {
     });
 
     it('publishes one embed job per file and returns queued count', async () => {
+      // Only one batch needed: batch.length (2) < batchSize (100) so the loop
+      // exits without making a second findMany call. Adding a second
+      // mockResolvedValueOnce([]) would leak an unconsumed value into subsequent
+      // tests because the service never asks for a second page.
       mockPrisma.kmsFile.findMany
-        .mockResolvedValueOnce([makeFile('file-1'), makeFile('file-2')])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce([makeFile('file-1'), makeFile('file-2')]);
 
       const result = await service.reindexAll();
 
       expect(result.queued).toBe(2);
       expect(mockEmbedPublisher.publishEmbedJob).toHaveBeenCalledTimes(2);
+      // source_type is always 'admin-reindex' for this operation (not the file's source type)
       expect(mockEmbedPublisher.publishEmbedJob).toHaveBeenCalledWith(
         expect.objectContaining({
           source_id: SRC_ID,
           user_id: USER_ID,
-          source_type: 'LOCAL',
+          source_type: 'admin-reindex',
         }),
       );
     });
@@ -351,17 +368,20 @@ describe('AdminService', () => {
 
       expect(mockPrisma.kmsFile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: { in: [FileStatus.PENDING, FileStatus.ERROR] } },
-          take: 200,
+          // Service uses [ERROR, PENDING] order (targetStatuses defined that way)
+          // and batchSize of 100 (not 200) for cursor pagination
+          where: { status: { in: [FileStatus.ERROR, FileStatus.PENDING] } },
+          take: 100,
           orderBy: { id: 'asc' },
         }),
       );
     });
 
     it('coerces BigInt sizeBytes to Number in the published message', async () => {
+      // One batch (1 file) is enough — batch.length (1) < batchSize (100) so
+      // the loop exits without a second findMany call.
       mockPrisma.kmsFile.findMany
-        .mockResolvedValueOnce([makeFile('file-bigint')])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce([makeFile('file-bigint')]);
 
       await service.reindexAll();
 

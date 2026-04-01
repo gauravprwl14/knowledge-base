@@ -7,6 +7,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SourcesService } from '../sources.service';
 import { SourceRepository } from '../../../database/repositories/source.repository';
+import { ScanJobRepository } from '../../../database/repositories/scan-job.repository';
+import { ScanJobPublisher } from '../../../queue/publishers/scan-job.publisher';
+import { PrismaService } from '../../../database/prisma/prisma.service';
 import { TokenEncryptionService } from '../token-encryption.service';
 import { AppError } from '../../../errors/types/app-error';
 import { getLoggerToken } from 'nestjs-pino';
@@ -109,6 +112,9 @@ describe('SourcesService — updateConfig', () => {
       providers: [
         SourcesService,
         { provide: SourceRepository, useValue: mockSourceRepo },
+        { provide: ScanJobRepository, useValue: { create: jest.fn(), findById: jest.fn(), update: jest.fn(), findActiveBySourceId: jest.fn(), createJob: jest.fn(), findBySourceId: jest.fn() } },
+        { provide: ScanJobPublisher, useValue: { publishScanJob: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PrismaService, useValue: { kmsFile: { count: jest.fn(), findMany: jest.fn(), deleteMany: jest.fn() }, kmsChunk: { count: jest.fn() }, kmsClearJob: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() }, kmsScanJob: { deleteMany: jest.fn() } } },
         { provide: TokenEncryptionService, useValue: mockTokenEncryption },
         { provide: getLoggerToken(SourcesService.name), useValue: mockLogger },
       ],
@@ -202,6 +208,9 @@ describe('SourcesService — listDriveFolders', () => {
       providers: [
         SourcesService,
         { provide: SourceRepository, useValue: mockSourceRepo },
+        { provide: ScanJobRepository, useValue: { create: jest.fn(), findById: jest.fn(), update: jest.fn(), findActiveBySourceId: jest.fn(), createJob: jest.fn(), findBySourceId: jest.fn() } },
+        { provide: ScanJobPublisher, useValue: { publishScanJob: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PrismaService, useValue: { kmsFile: { count: jest.fn(), findMany: jest.fn(), deleteMany: jest.fn() }, kmsChunk: { count: jest.fn() }, kmsClearJob: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() }, kmsScanJob: { deleteMany: jest.fn() } } },
         { provide: TokenEncryptionService, useValue: mockTokenEncryption },
         { provide: getLoggerToken(SourcesService.name), useValue: mockLogger },
       ],

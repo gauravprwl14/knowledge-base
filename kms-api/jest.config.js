@@ -1,6 +1,11 @@
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
+  // Cap parallelism at 50% of available CPUs. On a 40-CPU machine this limits
+  // Jest to 20 worker processes instead of the default 39, preventing the host
+  // from becoming unresponsive due to NestJS TestingModule boot overhead per
+  // worker multiplied by the number of spec files.
+  maxWorkers: '50%',
   testRegex: '.*\\.spec\\.ts$',
   transform: {
     '^.+\\.(t|j)s$': 'ts-jest',

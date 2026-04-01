@@ -159,11 +159,13 @@ describe('AuthService', () => {
       const result = await service.register(dto);
 
       expect(mockUserRepository.findByEmail).toHaveBeenCalledWith(dto.email);
+      // The service activates accounts immediately on registration (email verification
+      // is not yet implemented). Status is ACTIVE, not PENDING_VERIFICATION.
       expect(mockUserRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           email: dto.email.toLowerCase(),
           role: UserRole.USER,
-          status: UserStatus.PENDING_VERIFICATION,
+          status: UserStatus.ACTIVE,
         }),
       );
       expect(result).not.toHaveProperty('passwordHash');

@@ -19,6 +19,7 @@ import { AppLogger } from '../../../logger/logger.service';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { EmbedJobPublisher } from '../../../queue/publishers/embed-job.publisher';
 import { ScanJobPublisher } from '../../../queue/publishers/scan-job.publisher';
+import { MinioService } from '../minio.service';
 
 // ---------------------------------------------------------------------------
 // Helpers — camelCase job shape as returned by Prisma kmsVoiceJob.findFirst()
@@ -101,6 +102,7 @@ describe('FilesService.getTranscription()', () => {
         { provide: EmbedJobPublisher, useValue: { publishEmbedJob: jest.fn().mockResolvedValue(undefined) } },
         { provide: ScanJobRepository, useValue: mockScanJobRepo },
         { provide: ScanJobPublisher, useValue: { publishScanJob: jest.fn().mockResolvedValue(undefined) } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn().mockResolvedValue('http://minio/url'), getTranscriptText: jest.fn().mockResolvedValue(''), uploadTranscript: jest.fn().mockResolvedValue('object-key') } },
       ],
     }).compile();
 
