@@ -60,8 +60,11 @@ model User {
   deletedAt         DateTime?   @map("deleted_at")
 
   // Relations
-  apiKeys           ApiKey[]
-  refreshTokens     RefreshToken[]
+  apiKeys               ApiKey[]
+  refreshTokens         RefreshToken[]
+  contentJobs           ContentJob[]
+  contentConfiguration  ContentConfiguration?
+  creatorVoiceProfile   CreatorVoiceProfile?
 
   @@index([email])
   @@index([status])
@@ -154,6 +157,10 @@ enum SourceType {
   LOCAL
   GOOGLE_DRIVE
   OBSIDIAN
+  YOUTUBE   // YouTube video URL — transcript extracted via yt-dlp
+  URL       // Web page / blog post — scraped via Firecrawl or requests+BS4
+  VIDEO     // Raw video file — transcribed via Whisper (voice-app)
+  DOCUMENT  // PDF/DOCX — processed via existing KMS extraction pipeline
 }
 
 enum SourceStatus {
@@ -564,4 +571,163 @@ model KmsWorkflowJob {
   @@index([userId])
   @@index([status])
   @@map("kms_workflow_jobs")
+}
+
+// =============================================================================
+// CONTENT CREATOR DOMAIN (M17)
+// Integrates the content creator pipeline into KMS.
+// Source: /content-creator-app POC (2026-03-31)
+// ADR: docs/architecture/decisions/0029-content-creator-kms-integration.md
+// =============================================================================
+
+/// Which source type drives a content creator job
+enum ContentSourceType {
+  YOUTUBE   // YouTube URL → yt-dlp transcript
+  URL       // Web URL → Firecrawl / requests+BS4
+  VIDEO     // Raw video file → Whisper (voice-app)
+  DOCUMENT  // PDF/DOCX → KMS extraction pipeline
+  KMS_FILE  // Already-indexed KMS file → reuse kms_chunks
+}
+
+/// Lifecycle status of a content generation job
+enum ContentJobStatus {
+  QUEUED      // Published to kms.content queue, not yet picked up
+  INGESTING   // Source ingestion step running (yt-dlp, Firecrawl, etc.)
+  EXTRACTING  // Concept extraction step running
+  GENERATING  // Platform writers running
+  DONE        // All enabled steps completed (some may have failed)
+  FAILED      // Critical step failed (ingestion or concept extraction)
+  CANCELLED   // Cancelled by user before completion
+}
+
+/// Top-level content generation job — one per source submission
+model ContentJob {
+  id              String            @id @default(uuid()) @db.Uuid
+  /// Owner of this job — enforced on all reads and writes (IDOR guard)
+  userId          String            @map("user_id") @db.Uuid
+  sourceType      ContentSourceType @map("source_type")
+  /// URL of the source (YouTube URL, web URL, video URL). Null for KMS_FILE source.
+  sourceUrl       String?           @map("source_url") @db.Text
+  /// If source is KMS_FILE, links to the existing kms_files row
+  sourceFileId    String?           @map("source_file_id") @db.Uuid
+  title           String?           @db.VarChar(512)
+  status          ContentJobStatus  @default(QUEUED) @map("status")
+  /// Per-step status map: { "yt-ingest": "done", "concept-extractor": "in_progress", ... }
+  stepsJson       Json              @default("{}") @map("steps_json")
+  /// Snapshot of user's content configuration at job creation time — never changes after creation
+  configSnapshot  Json              @default("{}") @map("config_snapshot")
+  errorMessage    String?           @map("error_message") @db.Text
+  /// Extracted transcript text (stored inline for short transcripts; use sourceFileId for large)
+  transcriptText  String?           @map("transcript_text") @db.Text
+  /// Claude-extracted concepts JSON/markdown — input to all writer steps
+  conceptsText    String?           @map("concepts_text") @db.Text
+  /// Per-job voice brief derived from user's voice profile — applied to all writer steps
+  voiceBriefText  String?           @map("voice_brief_text") @db.Text
+  tags            String[]          @default([])
+  completedAt     DateTime?         @map("completed_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pieces       ContentPiece[]
+  chatMessages ContentChatMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([userId, status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("content_jobs")
+}
+
+/// A single generated content piece — one row per platform+format+variation
+model ContentPiece {
+  id             String   @id @default(uuid()) @db.Uuid
+  jobId          String   @map("job_id") @db.Uuid
+  /// Denormalized for efficient per-user queries without joining content_jobs
+  userId         String   @map("user_id") @db.Uuid
+  /// Platform name: 'linkedin', 'blog', 'instagram', 'twitter', 'reels', 'newsletter'
+  platform       String   @db.VarChar(50)
+  /// Format within platform: 'post', 'thread', 'carousel', 'reel', 'newsletter', 'long-form'
+  format         String   @db.VarChar(50)
+  /// 0 = primary variation; 1-N = additional variations generated on demand
+  variationIndex Int      @default(0) @map("variation_index")
+  content        String   @db.Text
+  /// draft | published
+  status         String   @default("draft") @db.VarChar(20)
+  /// Only one variation per (jobId, platform, format) should be active at a time
+  isActive       Boolean  @default(true) @map("is_active")
+  /// Optimistic locking — incremented on every update; client must send current version
+  version        Int      @default(1)
+  metadata       Json?    @default("{}")
+  editedAt       DateTime? @map("edited_at")
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  job          ContentJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  chatMessages ContentChatMessage[]
+
+  /// Idempotency: worker INSERT ON CONFLICT DO NOTHING uses this unique constraint
+  @@unique([jobId, platform, format, variationIndex])
+  @@index([jobId])
+  @@index([jobId, platform])
+  @@index([jobId, platform, isActive])
+  @@index([userId])
+  @@map("content_pieces")
+}
+
+/// Per-user content creator configuration — replaces creator-settings.json
+model ContentConfiguration {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// One configuration row per user
+  userId       String   @unique @map("user_id") @db.Uuid
+  /// Platform + format + variation settings JSON (see plan for full structure)
+  platformConfig Json   @default("{}") @map("platform_config")
+  /// Voice mode: 'auto' | 'interactive' | 'disabled'
+  voiceMode    String   @default("auto") @map("voice_mode") @db.VarChar(20)
+  /// Hashnode API key — AES-256-GCM encrypted with ENCRYPTION_KEY env var
+  hashnodeApiKeyEncrypted String? @map("hashnode_api_key_encrypted") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("content_configurations")
+}
+
+/// User's creator voice profile — applied to all content generation jobs
+model CreatorVoiceProfile {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// One profile per user — upserted via PUT /api/v1/content/voice
+  userId      String   @unique @map("user_id") @db.Uuid
+  /// Free-form text describing writing style, tone, audience, analogies, etc.
+  profileText String   @map("profile_text") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("creator_voice_profiles")
+}
+
+/// Chat messages for refining generated content pieces
+model ContentChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  /// Null = job-level chat (not scoped to a specific piece)
+  pieceId   String?  @map("piece_id") @db.Uuid
+  /// Denormalized for auth checks without joining content_jobs
+  userId    String   @map("user_id") @db.Uuid
+  /// 'user' | 'assistant'
+  role      String   @db.VarChar(20)
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  job   ContentJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  piece ContentPiece? @relation(fields: [pieceId], references: [id], onDelete: SetNull)
+
+  @@index([jobId])
+  @@index([pieceId])
+  @@index([jobId, createdAt])
+  @@map("content_chat_messages")
 }
