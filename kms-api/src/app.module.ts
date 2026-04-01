@@ -24,6 +24,7 @@ import { AcpModule } from './modules/acp/acp.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { GraphModule } from './modules/graph/graph.module';
+import { ContentModule } from './modules/content/content.module';
 
 // Infrastructure modules
 import { QueueModule } from './queue/queue.module';
@@ -90,6 +91,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     WorkflowModule,
     AdminModule,
     GraphModule,
+    ContentModule,
   ],
   providers: [
     // Global exception filters — order matters: registered last = runs first.

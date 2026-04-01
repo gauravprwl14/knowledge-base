@@ -986,6 +986,139 @@ export const GRP_ERROR_CODES = {
 } as const satisfies Record<string, ErrorDefinition>;
 
 /**
+ * Content Creator Error Codes (KBCNT0000 - KBCNT9999)
+ *
+ * Used by ContentJobsService, ContentPiecesService, and ContentJobPublisher
+ * when content generation jobs fail, pieces cannot be found, or the queue
+ * is unavailable.
+ */
+export const CNT_ERROR_CODES = {
+  /** KBCNT0001 — Content job not found or not owned by the requesting user. */
+  JOB_NOT_FOUND: {
+    code: 'KBCNT0001',
+    message: 'Content job not found',
+    httpStatus: 404,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0002 — Source type is not supported by the ingestion pipeline. */
+  UNSUPPORTED_SOURCE_TYPE: {
+    code: 'KBCNT0002',
+    message: 'Unsupported source type',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0003 — Source ingestion step (yt-dlp, Firecrawl, Whisper) failed. */
+  INGESTION_FAILED: {
+    code: 'KBCNT0003',
+    message: 'Source ingestion failed',
+    httpStatus: 422,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0004 — A content generation step (concept extraction or platform writer) failed. */
+  GENERATION_FAILED: {
+    code: 'KBCNT0004',
+    message: 'Content generation step failed',
+    httpStatus: 422,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0005 — Content piece not found or not owned by the requesting user. */
+  PIECE_NOT_FOUND: {
+    code: 'KBCNT0005',
+    message: 'Content piece not found',
+    httpStatus: 404,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0006 — Platform configuration is missing required fields or malformed. */
+  INVALID_PLATFORM_CONFIG: {
+    code: 'KBCNT0006',
+    message: 'Invalid platform configuration',
+    httpStatus: 400,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0007 — User has not configured a creator voice profile yet. */
+  VOICE_PROFILE_NOT_SET: {
+    code: 'KBCNT0007',
+    message: 'Voice profile not configured',
+    httpStatus: 400,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0008 — Failed to assemble chat context for content refinement. */
+  CHAT_CONTEXT_FAILED: {
+    code: 'KBCNT0008',
+    message: 'Failed to build chat context',
+    httpStatus: 422,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0009 — Variation generation failed or the per-platform variation limit was exceeded. */
+  VARIATION_FAILED: {
+    code: 'KBCNT0009',
+    message: 'Variation generation failed',
+    httpStatus: 422,
+    severity: 'ERROR',
+    retryable: false,
+    userFacing: true,
+  },
+  /** KBCNT0010 — Firecrawl URL scraping service is unavailable (retryable). */
+  FIRECRAWL_UNAVAILABLE: {
+    code: 'KBCNT0010',
+    message: 'URL scraping service unavailable',
+    httpStatus: 503,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  /** KBCNT0011 — Voice-app transcription service is unavailable (retryable). */
+  VOICE_APP_UNAVAILABLE: {
+    code: 'KBCNT0011',
+    message: 'Transcription service unavailable',
+    httpStatus: 503,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  /** KBCNT0012 — Failed to publish content job message to RabbitMQ (retryable). */
+  QUEUE_PUBLISH_FAILED: {
+    code: 'KBCNT0012',
+    message: 'Failed to queue content job',
+    httpStatus: 503,
+    severity: 'ERROR',
+    retryable: true,
+    userFacing: true,
+  },
+  /**
+   * KBCNT0013 — Optimistic locking version conflict on ContentPiece update.
+   *
+   * The client submitted a version number that no longer matches the current
+   * DB version — another write raced ahead. The client must re-fetch the piece
+   * and retry its edit against the latest version.
+   */
+  PIECE_VERSION_CONFLICT: {
+    code: 'KBCNT0013',
+    message: 'Content piece was modified by another request. Re-fetch and retry.',
+    httpStatus: 409,
+    severity: 'WARNING',
+    retryable: false,
+    userFacing: true,
+  },
+} as const satisfies Record<string, ErrorDefinition>;
+
+/**
  * Tag Error Codes (TAG0000 - TAG9999)
  */
 export const TAG_ERROR_CODES = {
@@ -1031,6 +1164,7 @@ export const ERROR_CODES = {
   FIL: FIL_ERROR_CODES,
   TAG: TAG_ERROR_CODES,
   GRP: GRP_ERROR_CODES,
+  CNT: CNT_ERROR_CODES,
 } as const;
 
 /**
@@ -1048,7 +1182,8 @@ export type ErrorCode =
   | (typeof WRK_ERROR_CODES)[keyof typeof WRK_ERROR_CODES]['code']
   | (typeof FIL_ERROR_CODES)[keyof typeof FIL_ERROR_CODES]['code']
   | (typeof TAG_ERROR_CODES)[keyof typeof TAG_ERROR_CODES]['code']
-  | (typeof GRP_ERROR_CODES)[keyof typeof GRP_ERROR_CODES]['code'];
+  | (typeof GRP_ERROR_CODES)[keyof typeof GRP_ERROR_CODES]['code']
+  | (typeof CNT_ERROR_CODES)[keyof typeof CNT_ERROR_CODES]['code'];
 
 
 /**
@@ -1071,7 +1206,8 @@ export type AnyErrorDefinition =
   | ExtractErrorDef<typeof WRK_ERROR_CODES>
   | ExtractErrorDef<typeof FIL_ERROR_CODES>
   | ExtractErrorDef<typeof TAG_ERROR_CODES>
-  | ExtractErrorDef<typeof GRP_ERROR_CODES>;
+  | ExtractErrorDef<typeof GRP_ERROR_CODES>
+  | ExtractErrorDef<typeof CNT_ERROR_CODES>;
 
 /**
  * Gets the error definition for a given error code
