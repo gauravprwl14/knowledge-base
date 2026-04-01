@@ -423,6 +423,9 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: embed-worker
       PYTHONUNBUFFERED: "1"
+      # Controls RabbitMQ prefetch (in-flight jobs).  Each job triggers one
+      # BGE-M3 encode() which saturates multiple CPU cores.  Keep ≤ cpus limit.
+      EMBED_WORKER_PREFETCH_COUNT: ${EMBED_WORKER_PREFETCH_COUNT:-2}
     volumes:
       - ./services/embed-worker/app:/app/app:ro
     depends_on:
@@ -433,6 +436,16 @@ services:
     networks:
       - backend
       - observability
+    # Resource limits prevent BGE-M3 BLAS from pegging all CPU cores.
+    # Raise cpus if the server has dedicated headroom for embedding.
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
 
   voice-app:
     build:
@@ -534,6 +547,51 @@ services:
       - backend
       - observability
 
+  content-worker:
+    build:
+      context: ./services/content-worker
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      # Anthropic API key — required for all generation steps
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Firecrawl API key — optional; falls back to requests+BS4 with SSRF guard if absent
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      # voice-app HTTP base URL for raw video transcription
+      VOICE_APP_URL: http://voice-app:8003
+      # RabbitMQ queue names
+      CONTENT_QUEUE: kms.content
+      CONTENT_DLX: kms.content.dlx
+      CONTENT_RETRY_QUEUE: kms.content.retry
+      # Concurrency — keep at 1 until distributed locking is implemented (TODO-009)
+      CONTENT_WORKER_CONCURRENCY: ${CONTENT_WORKER_CONCURRENCY:-1}
+      # Feature flag — set to false to disable content module without redeployment
+      CONTENT_MODULE_ENABLED: ${CONTENT_MODULE_ENABLED:-true}
+      # Encryption key for Hashnode API key storage (AES-256-GCM, 32 bytes)
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: content-worker
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./services/content-worker/app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+      - observability
+
   url-agent:
     build:
       context: ./services/url-agent
@@ -557,6 +615,111 @@ services:
       - observability
     profiles:
       - workflows
+
+  # ── Firecrawl self-hosted ─────────────────────────────────────────────────────
+  # Web scraping + JS rendering for URL content ingestion.
+  # content-worker routes to this service when FIRECRAWL_API_KEY is set.
+  # Docs: https://github.com/firecrawl/firecrawl/blob/main/SELF_HOST.md
+
+  firecrawl-playwright:
+    image: ghcr.io/mendableai/firecrawl:playwright
+    container_name: kms-firecrawl-playwright
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  firecrawl-api:
+    image: ghcr.io/mendableai/firecrawl:latest
+    container_name: kms-firecrawl-api
+    restart: unless-stopped
+    command: ["node", "dist/src/index.js"]
+    environment:
+      - PORT=3002
+      - REDIS_URL=redis://redis:6379
+      - REDIS_RATE_LIMIT_URL=redis://redis:6379
+      - PLAYWRIGHT_MICROSERVICE_URL=http://kms-firecrawl-playwright:3000/scrape
+      - USE_DB_AUTHENTICATION=false
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-fc-local-key}
+      - HOST=0.0.0.0
+      - LOGGING_LEVEL=${FIRECRAWL_LOG_LEVEL:-info}
+    ports:
+      - "${FIRECRAWL_PORT:-3002}:3002"
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      firecrawl-playwright:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3002/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  firecrawl-worker:
+    image: ghcr.io/mendableai/firecrawl:latest
+    container_name: kms-firecrawl-worker
+    restart: unless-stopped
+    command: ["node", "dist/src/services/queue-worker/index.js"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - REDIS_RATE_LIMIT_URL=redis://redis:6379
+      - PLAYWRIGHT_MICROSERVICE_URL=http://kms-firecrawl-playwright:3000/scrape
+      - USE_DB_AUTHENTICATION=false
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-fc-local-key}
+      - LOGGING_LEVEL=${FIRECRAWL_LOG_LEVEL:-info}
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      firecrawl-playwright:
+        condition: service_started
+
+  content-worker:
+    build:
+      context: ./services/content-worker
+      dockerfile: Dockerfile
+      target: development
+    container_name: kms-content-worker
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kms}:${POSTGRES_PASSWORD:-kms}@postgres:5432/${POSTGRES_DB:-kms}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      FIRECRAWL_API_URL: http://firecrawl-api:3002
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-fc-local-key}
+      VOICE_APP_URL: http://voice-app:8003
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: content-worker
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./services/content-worker/app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      firecrawl-api:
+        condition: service_started
+    networks:
+      - backend
+      - observability
 
   # ─── FRONTEND ────────────────────────────────────────────────────────────
 
