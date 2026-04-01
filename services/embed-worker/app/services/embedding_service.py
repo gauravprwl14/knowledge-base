@@ -8,6 +8,7 @@ Production: set MOCK_EMBEDDING=false and ensure FlagEmbedding is installed.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import os
@@ -111,6 +112,14 @@ class EmbeddingService:
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Encode a list of text strings into embedding vectors.
 
+        The real BGE-M3 path offloads the synchronous, CPU-bound
+        ``BGEM3FlagModel.encode()`` call to a thread pool via
+        ``asyncio.to_thread()``.  PyTorch BLAS releases the Python GIL during
+        matrix multiplication and can saturate every available CPU core; running
+        it on the event-loop thread would stall all AMQP I/O for the duration
+        of the call.  Offloading keeps the event loop responsive and, combined
+        with a reduced ``prefetch_count``, prevents uncontrolled CPU saturation.
+
         Args:
             texts: List of text chunks to embed.  Empty strings are valid
                 (they produce a deterministic zero-ish vector in mock mode).
@@ -127,11 +136,13 @@ class EmbeddingService:
             # Each text gets a deterministic pseudo-random unit vector.
             return [self._mock_vector(t) for t in texts]
 
-        # Real BGE-M3 path — encode() is synchronous/CPU-bound.
-        # The embed_handler already runs inside an AMQP worker context, so
-        # blocking the event loop briefly is acceptable here.  For very large
-        # batches (>500 chunks) the caller should split before calling embed().
-        output = self._model.encode(
+        # Real BGE-M3 path — encode() is synchronous and CPU-bound (PyTorch BLAS).
+        # Offload to a thread pool so the asyncio event loop is not blocked.
+        # This is safe because BGEM3FlagModel.encode() is thread-safe (GIL is
+        # released by PyTorch during BLAS ops, but the call itself is stateless
+        # with respect to the model weights).
+        output = await asyncio.to_thread(
+            self._model.encode,
             texts,
             batch_size=12,             # tune per available RAM; 12 works on 16 GB
             max_length=8192,           # BGE-M3 supports up to 8 192 tokens per chunk

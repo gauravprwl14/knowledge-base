@@ -11,8 +11,18 @@ class Settings(BaseSettings):
     voice_queue: str = Field(default="kms.voice", env="VOICE_QUEUE")
     dead_letter_exchange: str = "kms.dlx"
     prefetch_count: int = Field(
-        default=8,
-        validation_alias=AliasChoices("EMBED_PREFETCH_COUNT", "prefetch_count"),
+        default=2,
+        # Controls how many RabbitMQ messages are in-flight simultaneously.
+        # Each in-flight message triggers one BGE-M3 encode() call, which is
+        # CPU-bound and can saturate multiple cores via PyTorch BLAS.
+        # Keep this value ≤ CPU budget (e.g. half the Docker cpus: limit).
+        # Raise only when the server has proven spare headroom.
+        # Env vars accepted: EMBED_WORKER_PREFETCH_COUNT or EMBED_PREFETCH_COUNT.
+        validation_alias=AliasChoices(
+            "EMBED_WORKER_PREFETCH_COUNT",
+            "EMBED_PREFETCH_COUNT",
+            "prefetch_count",
+        ),
     )
     max_retries: int = 3
     # Chunking
